@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/runkids/skillshare/main/schemas/config.schema.json
+source: /home/venhuser/.config/skillshare
+extras_source: /home/venhuser/.config/skillshare/extras
+mode: symlink
+targets:
+  antigravity:
+    skills:
+      path: /home/venhuser/.gemini/antigravity/skills
+  claude:
+    skills:
+      path: /home/venhuser/.claude/skills
+  copilot:
+    skills:
+      path: /home/venhuser/.copilot/skills
+ignore:
+  - '**/.DS_Store'
+  - '**/.git/**'
+audit:
+  block_threshold: CRITICAL
