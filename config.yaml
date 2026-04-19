@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/runkids/skillshare/main/schemas/config.schema.json
-source: /home/venhuser/.config/skillshare
+source: /home/venhuser/.config/skillshare/skills
+agents_source: /home/venhuser/.config/skillshare/agents
 extras_source: /home/venhuser/.config/skillshare/extras
 mode: symlink
 targets:
@@ -9,9 +10,6 @@ targets:
   claude:
     skills:
       path: /home/venhuser/.claude/skills
-  copilot:
-    skills:
-      path: /home/venhuser/.copilot/skills
 ignore:
   - '**/.DS_Store'
   - '**/.git/**'
