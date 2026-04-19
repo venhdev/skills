@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Dark background -->
+  <rect width="64" height="64" rx="14" fill="#1a1a2e"/>
+
+  <!-- Web radial lines from top-left quadrant -->
+  <line x1="32" y1="32" x2="32" y2="8"  stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="52" y2="18" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="56" y2="32" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="48" y2="50" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="32" y2="56" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="16" y2="52" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="8"  y2="36" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="32" y1="32" x2="16" y2="18" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Web concentric arc rings -->
+  <circle cx="32" cy="32" r="6"  stroke="#4ade80" stroke-width="1"   fill="none" opacity="0.5"/>
+  <circle cx="32" cy="32" r="12" stroke="#4ade80" stroke-width="1"   fill="none" opacity="0.4"/>
+  <circle cx="32" cy="32" r="18" stroke="#4ade80" stroke-width="0.8" fill="none" opacity="0.3"/>
+  <circle cx="32" cy="32" r="24" stroke="#4ade80" stroke-width="0.6" fill="none" opacity="0.2"/>
+
+  <!-- Root node (large, center) -->
+  <circle cx="32" cy="32" r="4"   fill="#4ade80"/>
+  <circle cx="32" cy="32" r="6"   stroke="#4ade80" stroke-width="1.5" fill="none" opacity="0.5"/>
+
+  <!-- Active child nodes (green dots on web tips) -->
+  <circle cx="32"  cy="8"  r="2.5" fill="#4ade80"/>
+  <circle cx="56"  cy="32" r="2.5" fill="#4ade80"/>
+  <circle cx="48"  cy="50" r="2.5" fill="#4ade80"/>
+  <circle cx="16"  cy="18" r="2.5" fill="#4ade80"/>
+
+  <!-- Dead node (red X) -->
+  <line x1="11" y1="48" x2="15" y2="52" stroke="#f87171" stroke-width="2" stroke-linecap="round"/>
+  <line x1="15" y1="48" x2="11" y2="52" stroke="#f87171" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Crawl depth ring indicator (dotted arc) -->
+  <path d="M44 20 A22 22 0 0 1 56 32" stroke="#fbbf24" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-dasharray="2 2" opacity="0.8"/>
+
+  <!-- Arrow crawler — diagonal chevron pointing into the web -->
+  <polyline points="20,30 26,36 32,30" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <polyline points="26,36 32,30" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

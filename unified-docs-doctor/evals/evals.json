@@ -1,0 +1,12 @@
+{
+  "skill_name": "unified-docs-doctor",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "broken-anchor-detection",
+      "prompt": "Run a documentation health audit on /tmp/vibecoding-proj/docs/guides/dev-setup.md.\n\nCheck all internal links and cross-references within the file. For each heading-level anchor, verify that any [text](#anchor) reference in the file actually matches the heading it links to.\n\nReport: any anchor links that do not match their target heading (broken anchors).",
+      "expected_output": "Doctor detects two broken anchors: (1) '[port 3000](#running-on-a-different-port)' — heading is 'Running on a Different Port' (hyphen vs spaces mismatch), (2) '[Manual DB Setup](#manual-database-configuration)' — heading is 'Manual Database Configuration' (exact match, should work). The first is the clear violation. Baseline gives a generic content summary and does not know to check anchor-to-heading correspondence.",
+      "files": ["/tmp/vibecoding-proj/docs/guides/dev-setup.md"]
+    }
+  ]
+}

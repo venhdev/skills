@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- Background -->
+  <rect width="128" height="128" rx="24" fill="#1a1a2e"/>
+
+  <!-- Tag shape -->
+  <path
+    d="M24 40 L56 40 L88 72 L88 104 C88 108.4 84.4 112 80 112 L48 112 C43.6 112 40 108.4 40 104 L40 72 Z"
+    fill="#4ade80"
+    stroke="none"
+  />
+
+  <!-- Tag hole -->
+  <circle cx="52" cy="52" r="8" fill="#1a1a2e"/>
+
+  <!-- Lines on tag representing names -->
+  <rect x="60" y="60" width="20" height="4" rx="2" fill="#1a1a2e" opacity="0.6"/>
+  <rect x="60" y="72" width="14" height="4" rx="2" fill="#1a1a2e" opacity="0.4"/>
+  <rect x="60" y="84" width="17" height="4" rx="2" fill="#1a1a2e" opacity="0.4"/>
+
+  <!-- Pen/quill on the right -->
+  <path
+    d="M90 24 L98 32 L74 56 L66 48 Z"
+    fill="#f97316"
+    stroke="none"
+  />
+  <path
+    d="M66 48 L74 56 L60 70 L52 62 Z"
+    fill="#fbbf24"
+    stroke="none"
+  />
+  <path
+    d="M52 62 L60 70 L56 78 L48 70 Z"
+    fill="#1a1a2e"
+    stroke="none"
+  />
+
+  <!-- Small sparkles indicating quality -->
+  <circle cx="104" cy="28" r="3" fill="#4ade80" opacity="0.8"/>
+  <circle cx="112" cy="40" r="2" fill="#4ade80" opacity="0.5"/>
+</svg>

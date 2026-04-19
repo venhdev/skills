@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Document body -->
+  <rect x="8" y="4" width="40" height="52" rx="4" fill="#1a1a2e" stroke="#3b3b5c" stroke-width="1.5"/>
+
+  <!-- Folded corner -->
+  <path d="M36 4 L48 4 L48 16 L36 4Z" fill="#0f3460" stroke="#3b3b5c" stroke-width="1.5"/>
+  <path d="M36 4 L36 16 L48 16" stroke="#3b3b5c" stroke-width="1.5"/>
+
+  <!-- Diátaxis 4-quadrant grid inside doc -->
+  <!-- Top-left: Tutorial (soft blue) -->
+  <rect x="13" y="22" width="12" height="12" rx="2" fill="#16537e"/>
+  <!-- Top-right: How-to (teal) -->
+  <rect x="28" y="22" width="12" height="12" rx="2" fill="#1a936f"/>
+  <!-- Bottom-left: Reference (purple) -->
+  <rect x="13" y="37" width="12" height="12" rx="2" fill="#7b2d8b"/>
+  <!-- Bottom-right: Explanation (amber) -->
+  <rect x="28" y="37" width="12" height="12" rx="2" fill="#e09f3e"/>
+
+  <!-- Quadrant labels (tiny dots) -->
+  <circle cx="19" cy="28" r="2" fill="#a8dadc" opacity="0.9"/>
+  <circle cx="34" cy="28" r="2" fill="#90e0ef" opacity="0.9"/>
+  <circle cx="19" cy="43" r="2" fill="#c77dff" opacity="0.9"/>
+  <circle cx="34" cy="43" r="2" fill="#ffd166" opacity="0.9"/>
+
+  <!-- Pencil / editing tool (right side) -->
+  <rect x="50" y="26" width="6" height="20" rx="2" fill="#e8e8e8" transform="rotate(-20 53 36)"/>
+  <path d="M48 46 L53 51 L58 46" fill="#f4a261" stroke="#e76f51" stroke-width="0.5" transform="rotate(-20 53 48)"/>
+  <rect x="49" y="42" width="8" height="4" rx="1" fill="#e9c46a" transform="rotate(-20 53 44)"/>
+</svg>
