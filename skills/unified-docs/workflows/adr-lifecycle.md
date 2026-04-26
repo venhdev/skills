@@ -41,6 +41,7 @@ Do not write an ADR for: routine refactors, single-service implementation detail
 ## Supersession rules
 
 - Use `supersedes` / `supersededBy` for ADR lineage.
+- Store ADR lineage as ADR IDs like `ADR-002`, not file paths.
 - Do not add the superseded ADR to the replacement ADR's `depends-on` as historical context.
 - If other docs currently depend on the old ADR, update them to depend on the replacement ADR or a stable SSOT/reference doc.
 - Preserve the accepted ADR body. Only metadata and Status Log can change.

@@ -26,6 +26,7 @@ See `contracts/frontmatter.md` for field definitions and `contracts/docs-structu
 | `til` | Short practical note from a real issue/task |
 
 Multiple `kind` values are allowed when useful, e.g. `kind: [spec, ssot]`.
+Use `ssot` to describe canonical role, not to force a folder by itself. `docs/reference/` and `docs/specs/` are the usual homes; other folders should trigger placement review, not automatic invalidation.
 
 ## Title signals
 

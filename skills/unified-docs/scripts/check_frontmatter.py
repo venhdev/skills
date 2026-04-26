@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-UNIVERSAL = {"title", "type", "kind", "audience", "owner", "created", "lastReviewed", "reviewCadence", "depends-on", "updates"}
+UNIVERSAL = {"title", "type", "kind", "audience", "owner", "created", "lastReviewed", "depends-on", "updates"}
 ADR = {"adr-id", "status", "deciders", "decided", "supersededBy", "supersedes"}
 PLAN = {"status"}
 
@@ -52,7 +52,14 @@ if "plan" in kind_items:
     plan_missing = sorted(PLAN - fields.keys())
     if plan_missing:
         fail(f"missing plan fields: {', '.join(plan_missing)}")
-    if fields.get("reviewCadence") != "90":
-        fail("plan docs must use 'reviewCadence: 90'")
+    review_cadence = fields.get("reviewCadence")
+    if review_cadence and review_cadence != "90":
+        fail("plan docs must use 'reviewCadence: 90' when reviewCadence is present")
+
+if "adr" in kind_items:
+    for field_name in ("supersededBy", "supersedes"):
+        value = fields.get(field_name, "")
+        if value and "/" in value:
+            fail(f"{field_name} must use ADR IDs, not paths")
 
 print(f"OK: {path}")

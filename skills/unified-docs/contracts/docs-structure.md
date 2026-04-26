@@ -25,7 +25,9 @@ docs/
 - Put active execution work in `docs/plans/`.
 - Move completed archived plans to `docs/archive/plans/` only after the durable outcome exists in a spec.
 - Keep ADRs in `docs/adr/`.
-- Keep canonical reference data in `docs/reference/`.
+- Prefer canonical reference data in `docs/reference/`, but treat `ssot` as a canonical role, not a folder mandate.
+- Use `kind: [spec, ssot]` for a durable spec that is also the canonical source.
+- Treat `kind: [ssot]` outside `docs/reference/` or `docs/specs/` as a placement review unless the content contradicts its metadata.
 - Archived docs are historical. They should have `replacedBy` when a current doc supersedes them.
 
 ## Audit behavior
@@ -39,8 +41,9 @@ Flag structure issues when:
 - current docs depend on `docs/archive/**`
 - many docs with the same purpose are scattered across inconsistent folders
 - folder names are unusual enough that placement is unclear
+- `kind: [ssot]` appears in an explanatory or unusual folder without clear canonical intent
 
-If structure is poor enough to need changes, ask the user before restructuring. Do not force this layout onto a project that already has a clear convention.
+If structure is poor enough to need changes, ask the user before restructuring. Do not force this layout onto a project that already has a clear convention. Do not treat unusual `ssot` placement as a frontmatter format error; classify it as a structure or intent review unless it violates the content contract.
 
 ## Create behavior
 

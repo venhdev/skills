@@ -9,12 +9,14 @@ Cascade metadata lets Read mode know what context is required and lets Audit mod
 
 ## Reciprocity
 
-The relationship is normally bidirectional in frontmatter:
+The relationship is normally represented by inverse fields, not duplicate fields:
 
 - If A lists B in `updates`, B should normally list A in `depends-on`.
 - If B lists A in `depends-on`, A should normally list B in `updates`.
 
-Repair missing reciprocal links when the relationship is current and specific enough. If it is intentionally one-way, report the exception and the reason.
+Do not mirror the same field onto both files just to make the graph look bidirectional. `A depends-on B` means A needs B as current context; the reciprocal trace is usually `B updates A`, meaning A should be revisited when B changes.
+
+Repair missing inverse links when the relationship is current and specific enough. If it is intentionally one-way, report the exception and the reason.
 
 ## ADR supersession is not dependency
 

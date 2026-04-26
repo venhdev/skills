@@ -21,14 +21,18 @@ updates: []
 
 ## Kind policy
 
+`kind` is always a YAML list, even for one value: `kind: [spec]`, not `kind: spec`.
+
 Allowed `kind` values:
 
 - `plan`: temporary execution plan, roadmap, rollout, migration, or milestone doc
 - `spec`: durable current behavior/requirements/source-of-truth for a feature or system capability
 - `adr`: architectural decision record
-- `ssot`: canonical reference source
+- `ssot`: canonical source of truth; often lives in `docs/reference/` or `docs/specs/`, but the folder alone does not decide validity
 - `draft`: not stable yet
 - `til`: short practical note from a real issue/task
+
+Multiple values are allowed when each value is true, for example `kind: [spec, ssot]` for a spec that is also the canonical source. Do not normalize away valid secondary kinds.
 
 Do not use `stale` as persisted metadata. Stale is computed from review timestamps and cadence.
 
@@ -57,7 +61,7 @@ ADR lineage is separate:
 - old ADR: `supersededBy`
 - new ADR: `supersedes`
 
-Do not use `depends-on` for ADR historical lineage.
+Use ADR IDs such as `ADR-002` for lineage fields, not file paths. Do not use `depends-on` for ADR historical lineage.
 
 ## ADR fields
 
@@ -87,7 +91,7 @@ replacedBy:       # current spec path after archive
 
 ```yaml
 type: reference
-kind: [spec]
+kind: [spec]              # may be [spec, ssot] when canonical
 status: [draft | accepted]
 ```
 

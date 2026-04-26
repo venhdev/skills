@@ -35,6 +35,15 @@ Load only what the path needs:
 
 Use `workflows/fast-paths.md` instead of old read/audit workflow patterns.
 
+## Routing table
+
+- Create doc: `references/classification.md` + `contracts/frontmatter.md`; add `contracts/docs-structure.md` only if placement is unclear.
+- Normalize or validate metadata: `contracts/frontmatter.md`; run `scripts/check_frontmatter.py` only after edits.
+- ADR create/supersede/read-current: `contracts/frontmatter.md` + `workflows/adr-lifecycle.md`.
+- Plan update/archive: `contracts/frontmatter.md` + `workflows/plan-lifecycle.md`.
+- Dependency or cascade repair: `contracts/frontmatter.md` + `workflows/cascade-rules.md`; validate with `scripts/cascade_targets.py`.
+- Style/body cleanup: `references/writing-rules.md` + `contracts/quality-checklist.md`.
+
 ## Core rules
 
 - Stale is computed from `lastReviewed` + effective cadence; never persist `kind: stale`.
@@ -43,6 +52,7 @@ Use `workflows/fast-paths.md` instead of old read/audit workflow patterns.
 - ADR lineage uses `supersedes` / `supersededBy`, not `depends-on`.
 - `depends-on` targets must be current and exist.
 - Structure guidance helps keep docs maintainable, but never restructure a project without asking first.
+- Treat unusual `ssot` placement as a review signal, not a format failure, unless the content clearly contradicts canonical metadata.
 - Assess-only never mutates files.
 - Repair validates only changed docs unless full audit is requested.
 

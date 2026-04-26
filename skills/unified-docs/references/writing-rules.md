@@ -12,7 +12,6 @@ These rules apply to the body only. Frontmatter rules live in
 | explanation | Narrative exposition of "why". | May reference tutorials, how-tos, or decisions. | Step lists (that is how-to territory). |
 | decision | Context -> Decision -> Consequences -> Status Log. | See `workflows/adr-lifecycle.md`. | Editing accepted ADR body in place. |
 | plan | See `workflows/plan-lifecycle.md`. | Deliverable-oriented milestones, measurable goals. | Task-step lists, vague goals, `reviewCadence > 90`. |
-| runbook | `## Prerequisites` -> numbered procedure -> decision table -> rollback -> post-action checklist. | Operational, reproducible, safe to execute under incident pressure. | Narrative overview before the first heading; no rollback section. |
 
 ## Cross-type rules
 
