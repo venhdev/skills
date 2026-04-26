@@ -2,69 +2,49 @@
 name: unified-docs
 icon: icon.svg
 description: >
-  Fast documentation lifecycle skill for targeted create/update/read/assess tasks
-  using one frontmatter contract. Use for ADR supersession, plan updates, SSOT
-  checks, dependency/cascade repairs, and narrow documentation triage. Defaults
-  to targeted checks unless the user explicitly asks for a full corpus audit.
+  Documentation lifecycle hub for reading, creating, maintaining, and auditing
+  project docs with consistent frontmatter, type/kind classification, ADR and plan
+  lifecycle handling, stale-doc checks, SSOT/spec behavior, and dependency cascade
+  metadata. Use whenever the user asks to create docs, check whether docs are
+  current, supersede ADRs, update plans, normalize frontmatter, audit docs health,
+  or repair depends-on/updates chains.
 ---
 
 # unified-docs
 
-One fast, checklist-driven docs skill. Default to the narrowest correct pass.
+Choose the narrowest mode that satisfies the request. Load only the files named for that mode.
 
-## Execution style
+## Modes
 
-- **Quick read/status**: one doc + replacement/frontmatter only. No scripts.
-- **Assess-only triage**: requested target + directly linked docs. No mutation; no full scan.
-- **Assess+repair**: apply requested fixes, then validate changed docs.
-- **Full audit**: only when user says full/complete/entire corpus.
+- **Read**: answer status/current-truth questions without mutating files. Use `modes/read.md`.
+- **Create**: create a new doc from an authoring skeleton. Use `modes/create.md`.
+- **Maintain**: update existing docs, lifecycle metadata, or cascade links. Use `modes/maintain.md`.
+- **Audit**: report docs health across a target set. Use `modes/audit.md`.
 
-If intent is unclear, use Assess-only triage.
+If intent is unclear, start with Read or targeted Audit. Do not run full-corpus audit unless the user asks for full/complete/entire corpus.
 
-## Lazy-load references
+## Lazy-load routing
 
-Load only what the path needs:
+- Metadata/schema: `contracts/frontmatter.md`.
+- Type/kind choice: `contracts/classification.md`.
+- ADR, plan, spec, stale lifecycle: `contracts/lifecycle.md`.
+- Dependency and reciprocal update graph: `contracts/cascade.md`.
+- Create doc artifact: `modes/create.md` + matching `templates/authoring/*.md`.
+- Read current status: `modes/read.md` + `templates/reports/read-status.md`.
+- Maintain existing docs: `modes/maintain.md` + `templates/reports/mutation-report.md`.
+- Audit docs health: `modes/audit.md` + `templates/reports/health-report.md`.
 
-- Fast paths: `workflows/fast-paths.md`
-- Contract: `contracts/frontmatter.md`
-- Docs structure: `contracts/docs-structure.md` for create placement or audit structure concerns
-- Quality checklist: `contracts/quality-checklist.md`
-- ADR/plan lifecycle only for ADR/plan changes: `workflows/adr-lifecycle.md`, `workflows/plan-lifecycle.md`
-- Cascade rules only for dependency/cascade repair: `workflows/cascade-rules.md`
-- Background references only when needed: `references/classification.md`, `references/writing-rules.md`
+## Always preserve these invariants
 
-Use `workflows/fast-paths.md` instead of old read/audit workflow patterns.
+- `kind` is always a YAML list, even for one value.
+- `reviewCadence` is optional; stale status is computed from `lastReviewed` plus effective cadence.
+- `stale` is never persisted as `kind`.
+- `depends-on` targets current prerequisite docs; ADR lineage belongs in `supersedes` / `supersededBy`.
+- ADR lineage values are ADR IDs like `ADR-002`, not paths.
+- `ssot` is a canonical role, not a folder mandate.
+- Assess-only and Read mode never mutate files.
+- Maintain mode may repair cascade inverse links only when the relationship is current and unambiguous.
 
-## Routing table
+## Default response budget
 
-- Create doc: `references/classification.md` + `contracts/frontmatter.md`; add `contracts/docs-structure.md` only if placement is unclear.
-- Normalize or validate metadata: `contracts/frontmatter.md`; run `scripts/check_frontmatter.py` only after edits.
-- ADR create/supersede/read-current: `contracts/frontmatter.md` + `workflows/adr-lifecycle.md`.
-- Plan update/archive: `contracts/frontmatter.md` + `workflows/plan-lifecycle.md`.
-- Dependency or cascade repair: `contracts/frontmatter.md` + `workflows/cascade-rules.md`; validate with `scripts/cascade_targets.py`.
-- Style/body cleanup: `references/writing-rules.md` + `contracts/quality-checklist.md`.
-
-## Core rules
-
-- Stale is computed from `lastReviewed` + effective cadence; never persist `kind: stale`.
-- `kind` is limited to `plan`, `spec`, `adr`, `ssot`, `draft`, `til`.
-- Completed plans promote durable outcomes into a spec; archived plans leave the current dependency graph.
-- ADR lineage uses `supersedes` / `supersededBy`, not `depends-on`.
-- `depends-on` targets must be current and exist.
-- Structure guidance helps keep docs maintainable, but never restructure a project without asking first.
-- Treat unusual `ssot` placement as a review signal, not a format failure, unless the content clearly contradicts canonical metadata.
-- Assess-only never mutates files.
-- Repair validates only changed docs unless full audit is requested.
-
-## Output budget
-
-Default response shape:
-
-- `Mode`
-- `Status`
-- `Changed files` or `none`
-- `Key findings` up to 5
-- `Followups` up to 3
-- `Validation` brief
-
-Keep answers short but complete. Do not offer next actions unless asked.
+Use the report template for the chosen mode. Keep output compact: changed files, key findings, followups, and validation only.

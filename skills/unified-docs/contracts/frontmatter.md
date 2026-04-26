@@ -1,6 +1,6 @@
-# Frontmatter Spec (SSOT)
+# Frontmatter Contract
 
-Single contract for `unified-docs`.
+This is the schema source for `unified-docs` metadata.
 
 ## Universal fields
 
@@ -19,80 +19,51 @@ updates: []
 ---
 ```
 
-## Kind policy
+Required universal fields:
 
-`kind` is always a YAML list, even for one value: `kind: [spec]`, not `kind: spec`.
+- `title`
+- `type`
+- `kind`
+- `audience`
+- `owner`
+- `created`
+- `lastReviewed`
+- `depends-on`
+- `updates`
 
-Allowed `kind` values:
+Optional universal field:
 
-- `plan`: temporary execution plan, roadmap, rollout, migration, or milestone doc
-- `spec`: durable current behavior/requirements/source-of-truth for a feature or system capability
-- `adr`: architectural decision record
-- `ssot`: canonical source of truth; often lives in `docs/reference/` or `docs/specs/`, but the folder alone does not decide validity
-- `draft`: not stable yet
-- `til`: short practical note from a real issue/task
-
-Multiple values are allowed when each value is true, for example `kind: [spec, ssot]` for a spec that is also the canonical source. Do not normalize away valid secondary kinds.
-
-Do not use `stale` as persisted metadata. Stale is computed from review timestamps and cadence.
+- `reviewCadence`
 
 ## Cadence policy
 
-`reviewCadence` is optional. If missing, use defaults:
+`reviewCadence` is optional. If missing, compute stale status with defaults:
 
 - `plan`: 90 days
-- all other types: 180 days
+- all other docs: 180 days
 
-Stale condition:
+A doc is stale when:
 
-- `today - lastReviewed > effectiveCadence`
-
-## Dependency/cascade semantics
-
-- `depends-on`: current prerequisite docs.
-- `updates`: downstream docs to revisit when this doc changes.
-
-Normally reciprocal. If intentionally one-way, report why.
-
-Archived docs leave the current dependency graph. Current docs should not depend on `docs/archive/**`.
-
-ADR lineage is separate:
-
-- old ADR: `supersededBy`
-- new ADR: `supersedes`
-
-Use ADR IDs such as `ADR-002` for lineage fields, not file paths. Do not use `depends-on` for ADR historical lineage.
-
-## ADR fields
-
-```yaml
-type: decision
-kind: [adr]
-adr-id: ADR-NNN
-status: [draft | accepted | completed | superseded]
-deciders: [name, name]
-decided: [ISO date when accepted]
-supersededBy:
-supersedes:
+```text
+today - lastReviewed > effectiveCadence
 ```
 
-## Plan fields
+Never persist `kind: [stale]` or `kind: stale`.
+
+## List policy
+
+`kind`, `depends-on`, and `updates` should be represented as YAML lists. Empty lists are valid:
 
 ```yaml
-type: explanation
-kind: [plan]
-status: [draft | in-progress | completed | archived]
-completed:        # ISO date when completed
-archived:         # ISO date when moved to archive
-replacedBy:       # current spec path after archive
+kind: [spec, ssot]
+depends-on: []
+updates: []
 ```
 
-## Spec fields
+## Lifecycle-specific fields
 
-```yaml
-type: reference
-kind: [spec]              # may be [spec, ssot] when canonical
-status: [draft | accepted]
-```
+ADR fields and plan fields are defined in `contracts/lifecycle.md` because their validity depends on status transitions.
 
-Specs describe current durable behavior: requirements, accepted behavior, API/CLI contracts, acceptance criteria, constraints, and operationally relevant outcomes. Plans are temporary execution artifacts; specs are current truth.
+## Dependency fields
+
+`depends-on` and `updates` are defined in `contracts/cascade.md`. They describe the current documentation graph, not historical lineage.

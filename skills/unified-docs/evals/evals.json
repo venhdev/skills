@@ -8,9 +8,9 @@
       "expected_output": "Routes to Maintain mode and updates an existing doc by prioritizing frontmatter clarity, lifecycle fields, and dependency metadata instead of rewriting prose.",
       "assertions": [
         "Routes to existing-doc maintenance before reclassification.",
-        "Adds or fixes universal frontmatter fields from references/frontmatter-spec.md.",
+        "Adds or fixes universal frontmatter fields from contracts/frontmatter.md.",
         "Preserves body content unless a lifecycle field requires a body update.",
-        "Uses the compact normalize-frontmatter output shape."
+        "Uses templates/reports/mutation-report.md."
       ],
       "files": []
     },
@@ -18,13 +18,13 @@
       "id": 1,
       "eval_name": "supersede-accepted-adr-with-new-one",
       "prompt": "We accepted an ADR last quarter, but production load testing showed the full service mesh adds unacceptable latency. Create the follow-up ADR that replaces it with gateway policy plus service libraries for retries and mTLS, make the supersession relationship explicit, and avoid editing the accepted ADR in place.",
-      "expected_output": "Creates a new ADR with decision lifecycle handling and supersession metadata, rather than mutating the accepted ADR directly or treating the old ADR as a current dependency.",
+      "expected_output": "Creates a new ADR with lifecycle handling and supersession metadata, rather than mutating the accepted ADR body or treating the old ADR as a current dependency.",
       "assertions": [
         "Does not edit the accepted ADR body except Status Log.",
-        "Sets old ADR status to superseded and populates supersededBy.",
-        "Creates a new ADR with type: decision, kind including adr, and supersedes pointing to the old ADR.",
-        "Does not add the superseded ADR as a current depends-on dependency in the replacement ADR.",
-        "Uses the compact supersede-ADR output shape."
+        "Sets old ADR status to superseded and populates supersededBy with an ADR ID.",
+        "Creates a new ADR using templates/authoring/adr.md shape.",
+        "Uses supersedes with an ADR ID, not a path.",
+        "Does not add the superseded ADR as a current depends-on dependency."
       ],
       "files": []
     },
@@ -37,7 +37,7 @@
         "Keeps the doc classified as type: explanation with kind including plan.",
         "Updates status, lastReviewed, and Status Log for the plan.",
         "Identifies docs in updates or cascade output that need review.",
-        "Uses the compact update-plan output shape."
+        "Uses templates/reports/mutation-report.md."
       ],
       "files": []
     },
@@ -45,11 +45,11 @@
       "id": 3,
       "eval_name": "fix-broken-depends-on-chain",
       "prompt": "A docs audit found that the service-boundaries overview depends on the API ownership doc, but the frontmatter points to an old path and the reverse cascade is missing. Repair the depends-on/updates chain so read and audit workflows can trace the relationship cleanly.",
-      "expected_output": "Repairs existing cascade metadata instead of creating a new doc: fixes the stale depends-on path, adds the reciprocal updates entry where appropriate, runs or references cascade tracing, and reports only the changed metadata and followups.",
+      "expected_output": "Repairs existing cascade metadata instead of creating a new doc: fixes the stale depends-on path, adds the inverse updates entry where appropriate, runs or references cascade tracing, and reports only changed metadata and followups.",
       "assertions": [
         "Routes to Maintain mode and cascade repair.",
         "Fixes stale depends-on path without rewriting unrelated frontmatter.",
-        "Adds or recommends reciprocal updates metadata for the referenced doc.",
+        "Adds or recommends inverse updates metadata for the referenced doc.",
         "Runs or explicitly invokes scripts/cascade_targets.py for validation."
       ],
       "files": []
@@ -63,7 +63,7 @@
         "Reads frontmatter before body content.",
         "Does not summarize a superseded ADR as current guidance.",
         "Follows supersededBy when present.",
-        "Reports historical context separately from current guidance."
+        "Uses templates/reports/read-status.md."
       ],
       "files": []
     },
@@ -71,12 +71,12 @@
       "id": 5,
       "eval_name": "audit-superseded-dependencies",
       "prompt": "Run a docs health audit focused on dependency chains. Some docs still depend on an ADR that has been superseded. Report the broken chain and recommend the exact replacement link.",
-      "expected_output": "Routes to Audit mode, flags depends-on entries pointing to superseded docs, recommends replacement through supersededBy, and does not confuse ADR lineage with current dependency.",
+      "expected_output": "Routes to Audit mode, flags depends-on entries pointing to superseded docs, recommends replacement through supersededBy or stable spec, and does not confuse ADR lineage with current dependency.",
       "assertions": [
         "Flags depends-on entries pointing to superseded docs.",
-        "Uses supersededBy to recommend a replacement.",
+        "Uses supersededBy to recommend a replacement when available.",
         "Distinguishes broken current dependency from historical ADR supersession lineage.",
-        "Uses health-report style output."
+        "Uses templates/reports/health-report.md."
       ],
       "files": []
     },
@@ -84,13 +84,81 @@
       "id": 6,
       "eval_name": "maintain-reciprocal-cascade-links",
       "prompt": "Update the API ownership reference and then make sure every downstream doc that relies on it can be traced by both read and audit workflows.",
-      "expected_output": "Routes to Maintain mode, updates the reference metadata, traces downstream docs, repairs reciprocal depends-on/updates links when safe, and reports one-way exceptions explicitly.",
+      "expected_output": "Routes to Maintain mode, updates the reference metadata, traces downstream docs, repairs inverse depends-on/updates links when safe, and reports one-way exceptions explicitly.",
       "assertions": [
         "Updates lastReviewed on the changed doc.",
         "Identifies downstream docs through updates and incoming depends-on links.",
-        "Repairs missing reciprocal depends-on or updates metadata when safe.",
+        "Repairs missing inverse depends-on or updates metadata when safe.",
         "Runs or explicitly invokes cascade tracing.",
         "Reports changed files and followups compactly."
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "eval_name": "respect-til-as-practical-note",
+      "prompt": "Read the TIL about cascade repair and tell me whether it is canonical guidance or just a practical note. Use its metadata and body together before answering.",
+      "expected_output": "Routes to Read mode, recognizes kind: [til] as a practical note, and avoids promoting it into durable canonical guidance.",
+      "assertions": [
+        "Treats kind: [til] as valid metadata.",
+        "Describes the doc as a practical note rather than a current spec.",
+        "Uses linked spec for canonical current behavior when needed.",
+        "Does not recommend reclassifying the TIL as a spec or reference."
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "eval_name": "preserve-spec-ssot-combination",
+      "prompt": "Audit the service boundary contract frontmatter and tell me whether its classification is current. Be careful not to discard any valid secondary kind values.",
+      "expected_output": "Routes to targeted Audit or Read mode, preserves kind: [spec, ssot] as valid, and treats the doc as the canonical current dependency target.",
+      "assertions": [
+        "Accepts multiple kind values when both are true.",
+        "Does not normalize kind: [spec, ssot] down to [spec].",
+        "Treats the document as canonical current truth.",
+        "Does not report list syntax for kind as invalid."
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "eval_name": "create-rollout-plan-from-template",
+      "prompt": "Create a rollout plan for migrating docs authors to the new unified-docs lifecycle. It should be milestone-oriented, not a tiny task checklist, and it should be easy to audit for stale status later.",
+      "expected_output": "Routes to Create mode, uses the plan authoring skeleton, includes reviewCadence: 90, depends-on and updates lists, and structures the body around goal, scope, milestones, risks, and status log.",
+      "assertions": [
+        "Uses templates/authoring/plan.md structure.",
+        "Sets type: explanation and kind including plan.",
+        "Includes reviewCadence: 90 by default.",
+        "Includes depends-on and updates even if empty.",
+        "Uses deliverable-oriented milestones rather than task crumbs."
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "eval_name": "create-current-spec-from-completed-plan",
+      "prompt": "The docs cleanup plan is complete. Create the durable spec that should become current truth, and make sure the completed plan is not treated as the current dependency target anymore.",
+      "expected_output": "Routes to Create/Maintain lifecycle handling, creates a spec-shaped current truth doc, and treats the completed plan as historical once durable outcomes move into the spec.",
+      "assertions": [
+        "Uses templates/authoring/spec.md structure.",
+        "Sets type: reference and kind including spec.",
+        "Includes reviewCadence: 180 by default.",
+        "Does not make current docs depend on an archived or completed plan as current truth.",
+        "Reports lifecycle followups compactly."
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "eval_name": "create-til-with-canonical-link",
+      "prompt": "Turn this incident note into a TIL: we learned that cascade links need inverse metadata, but the durable rule should live in the lifecycle spec. Make the distinction clear.",
+      "expected_output": "Routes to Create mode, uses the TIL authoring skeleton, marks the doc as practical note, and links durable behavior to a spec instead of making the TIL canonical.",
+      "assertions": [
+        "Uses templates/authoring/til.md structure.",
+        "Sets kind: [til].",
+        "Does not add reviewCadence by default.",
+        "Includes depends-on and updates lists.",
+        "States that the TIL is not canonical specification."
       ],
       "files": []
     }
