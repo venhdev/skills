@@ -1,0 +1,98 @@
+{
+  "skill_name": "unified-docs",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "normalize-frontmatter-for-existing-doc",
+      "prompt": "We already have a docs page about service boundaries, but the frontmatter is messy and the docs reader keeps struggling to tell if it is current or what it depends on. Update the doc so the metadata clearly explains what the document is, who it is for, and which docs it depends on. Keep the body edits minimal unless the frontmatter implies a lifecycle change.",
+      "expected_output": "Routes to Maintain mode and updates an existing doc by prioritizing frontmatter clarity, lifecycle fields, and dependency metadata instead of rewriting prose.",
+      "assertions": [
+        "Routes to existing-doc maintenance before reclassification.",
+        "Adds or fixes universal frontmatter fields from references/frontmatter-spec.md.",
+        "Preserves body content unless a lifecycle field requires a body update.",
+        "Uses the compact normalize-frontmatter output shape."
+      ],
+      "files": []
+    },
+    {
+      "id": 1,
+      "eval_name": "supersede-accepted-adr-with-new-one",
+      "prompt": "We accepted an ADR last quarter, but production load testing showed the full service mesh adds unacceptable latency. Create the follow-up ADR that replaces it with gateway policy plus service libraries for retries and mTLS, make the supersession relationship explicit, and avoid editing the accepted ADR in place.",
+      "expected_output": "Creates a new ADR with decision lifecycle handling and supersession metadata, rather than mutating the accepted ADR directly or treating the old ADR as a current dependency.",
+      "assertions": [
+        "Does not edit the accepted ADR body except Status Log.",
+        "Sets old ADR status to superseded and populates supersededBy.",
+        "Creates a new ADR with type: decision, kind including adr, and supersedes pointing to the old ADR.",
+        "Does not add the superseded ADR as a current depends-on dependency in the replacement ADR.",
+        "Uses the compact supersede-ADR output shape."
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "eval_name": "update-plan-and-cascade-metadata",
+      "prompt": "Our rollout plan for the docs revamp has two milestones done and one overdue. Update the plan document status, refresh its review metadata, and identify which linked docs should be revisited because the plan changed.",
+      "expected_output": "Treats the plan as a living doc: updates status and review metadata, preserves deliverable-oriented milestones, and uses cascade metadata to point at impacted docs.",
+      "assertions": [
+        "Keeps the doc classified as type: explanation with kind including plan.",
+        "Updates status, lastReviewed, and Status Log for the plan.",
+        "Identifies docs in updates or cascade output that need review.",
+        "Uses the compact update-plan output shape."
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "eval_name": "fix-broken-depends-on-chain",
+      "prompt": "A docs audit found that the service-boundaries overview depends on the API ownership doc, but the frontmatter points to an old path and the reverse cascade is missing. Repair the depends-on/updates chain so read and audit workflows can trace the relationship cleanly.",
+      "expected_output": "Repairs existing cascade metadata instead of creating a new doc: fixes the stale depends-on path, adds the reciprocal updates entry where appropriate, runs or references cascade tracing, and reports only the changed metadata and followups.",
+      "assertions": [
+        "Routes to Maintain mode and cascade repair.",
+        "Fixes stale depends-on path without rewriting unrelated frontmatter.",
+        "Adds or recommends reciprocal updates metadata for the referenced doc.",
+        "Runs or explicitly invokes scripts/cascade_targets.py for validation."
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "eval_name": "read-superseded-adr-safely",
+      "prompt": "Read the service mesh ADR and tell me whether it is still current before summarizing it. If it was superseded, follow the replacement and summarize the current decision instead.",
+      "expected_output": "Routes to Read mode, skips the superseded ADR as current guidance, follows supersededBy, and separates historical context from current guidance.",
+      "assertions": [
+        "Reads frontmatter before body content.",
+        "Does not summarize a superseded ADR as current guidance.",
+        "Follows supersededBy when present.",
+        "Reports historical context separately from current guidance."
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "eval_name": "audit-superseded-dependencies",
+      "prompt": "Run a docs health audit focused on dependency chains. Some docs still depend on an ADR that has been superseded. Report the broken chain and recommend the exact replacement link.",
+      "expected_output": "Routes to Audit mode, flags depends-on entries pointing to superseded docs, recommends replacement through supersededBy, and does not confuse ADR lineage with current dependency.",
+      "assertions": [
+        "Flags depends-on entries pointing to superseded docs.",
+        "Uses supersededBy to recommend a replacement.",
+        "Distinguishes broken current dependency from historical ADR supersession lineage.",
+        "Uses health-report style output."
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "eval_name": "maintain-reciprocal-cascade-links",
+      "prompt": "Update the API ownership reference and then make sure every downstream doc that relies on it can be traced by both read and audit workflows.",
+      "expected_output": "Routes to Maintain mode, updates the reference metadata, traces downstream docs, repairs reciprocal depends-on/updates links when safe, and reports one-way exceptions explicitly.",
+      "assertions": [
+        "Updates lastReviewed on the changed doc.",
+        "Identifies downstream docs through updates and incoming depends-on links.",
+        "Repairs missing reciprocal depends-on or updates metadata when safe.",
+        "Runs or explicitly invokes cascade tracing.",
+        "Reports changed files and followups compactly."
+      ],
+      "files": []
+    }
+  ]
+}
