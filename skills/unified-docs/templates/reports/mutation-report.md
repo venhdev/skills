@@ -10,7 +10,7 @@ Changed files:
 - `[path]` — [what changed]
 
 Why / key decisions:
-- [Reason for the change, classification, lifecycle, or cascade decision]
+- [Reason for the change, source rationale, classification, lifecycle, or cascade decision]
 
 Validation:
 - [script/check/manual validation]

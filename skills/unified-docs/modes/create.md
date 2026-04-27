@@ -24,6 +24,29 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 10. For plan docs, keep Gate conditions optional; after creating or updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
 11. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
 
+## Intake-informed plan creation
+
+Use this branch when the user asks to create docs from extracted external source material, such as Markdown/text from a PDF, DOCX, API JSON, partner spec, meeting notes, or imported requirements. Also use it when the user explicitly marks a small or unclear idea with `--in` or `--intake`. Do not trigger it for ordinary short notes unless the user frames them as external/source material conversion or explicitly uses `--in` / `--intake`.
+
+Default output is Plan + proposal:
+
+1. Create a primary `kind: [plan]` artifact when the feature is small enough to stay readable.
+2. If the plan for one large feature would exceed roughly 500 lines, create a root index plan and split execution detail into linked sub-plans.
+3. Recommend follow-up specs, ADRs, how-tos, or API references, but do not create them unless requested.
+
+Before writing, classify intake blocks into requirements, constraints, milestones, dependencies, risks, open questions, and follow-up docs. For `--in` / `--intake` ideas, first clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and whether the output should be one plan, split sub-plans, a spec, an ADR, or only follow-up recommendations. Ask concise blocking questions before creating when a gap or conflict affects goal, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decisions, or whether durable behavior belongs in a spec. Do not turn blockers into assumptions.
+
+For intake plans, add compact sections when relevant:
+
+- `## Source materials`
+- `## Assumptions`
+- `## Open questions`
+- `## Recommended follow-up docs`
+
+Keep these sections brief. Do not paste raw source material into the generated plan.
+
+For large-feature splits, the root index plan keeps shared goal, scope, source materials, high-level milestones, dependencies, risks, and links to sub-plans. Each sub-plan owns one coherent execution slice and links back to the root plan through cascade metadata or an explicit related-doc link.
+
 ## Template mapping
 
 - plan -> `templates/authoring/plan.md`
