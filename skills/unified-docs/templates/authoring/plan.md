@@ -34,6 +34,12 @@ updates: []
 |---|---|---|---|
 | [Name] | [Measurable delivered state] | draft | [YYYY-MM-DD or TBD] |
 
+### Gate conditions
+
+[Optional. Include only when implementation should not begin until specific conditions are true.]
+
+- [Condition that must be satisfied before implementation starts]
+
 ## Dependencies
 
 - [Current doc, team, decision, or system dependency]

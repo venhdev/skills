@@ -9,8 +9,8 @@ Status: [completed | partial | blocked]
 Changed files:
 - `[path]` — [what changed]
 
-Key decisions:
-- [Classification, lifecycle, or cascade decision]
+Why / key decisions:
+- [Reason for the change, classification, lifecycle, or cascade decision]
 
 Validation:
 - [script/check/manual validation]

@@ -8,7 +8,7 @@ Use this mode when the user asks whether a doc is current, what the current deci
 2. Determine lifecycle state: current, draft, stale, archived, completed-plan, or superseded ADR.
 3. Follow replacement pointers before summarizing current truth:
    - ADR: `supersededBy`
-   - archived plan: `replacedBy`
+   - completed or archived plan: `replacedBy`
 4. Separate historical context from current guidance.
 5. Do not mutate files.
 

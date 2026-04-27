@@ -21,7 +21,8 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 7. For `how-to` and ordinary `explanation` docs, leave `kind` empty unless the request clearly requires a lifecycle role such as `plan` or `til`. Do not infer `kind: [spec]` for procedural guidance.
 8. Follow existing project placement conventions first; if unclear, use standard docs structure or ask before placing the file.
 9. Avoid copying canonical content from existing SSOT docs; link instead.
-10. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
+10. For plan docs, keep Gate conditions optional; after creating or updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
+11. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
 
 ## Template mapping
 
@@ -34,4 +35,4 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 ## Reporting
 
-After creating docs, use `templates/reports/mutation-report.md`.
+Use `templates/reports/mutation-report.md` only when the user explicitly asks for a report or summary in addition to the authored document.

@@ -50,7 +50,7 @@ Do not normalize away valid secondary kinds.
 - Use `kind: [draft]` only when the user clearly wants to mark unstable status in metadata.
 
 ## Title and intent signals
-}},{
+
 | Signal | Classification |
 |---|---|
 | getting started, walkthrough | `type: tutorial` |

@@ -6,6 +6,8 @@ from pathlib import Path
 UNIVERSAL = {"title", "type", "kind", "audience", "owner", "created", "lastReviewed", "depends-on", "updates"}
 ADR = {"adr-id", "status", "deciders", "decided", "supersededBy", "supersedes"}
 PLAN = {"status"}
+ALLOWED_KINDS = {"plan", "spec", "adr", "ssot", "draft", "til"}
+LIST_FIELDS = {"kind", "depends-on", "updates"}
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
@@ -37,8 +39,17 @@ missing = sorted(UNIVERSAL - fields.keys())
 if missing:
     fail(f"missing required fields: {', '.join(missing)}")
 
+for field_name in LIST_FIELDS:
+    value = fields.get(field_name, "")
+    if not (value.startswith("[") and value.endswith("]")):
+        fail(f"{field_name} must use YAML list syntax")
+
 kind_value = fields.get("kind", "")
 kind_items = set(re.findall(r"[A-Za-z0-9_-]+", kind_value))
+invalid_kinds = sorted(kind_items - ALLOWED_KINDS)
+if invalid_kinds:
+    fail(f"invalid kind values: {', '.join(invalid_kinds)}")
+
 doc_type = fields.get("type", "")
 
 if doc_type == "decision" or "adr" in kind_items:
