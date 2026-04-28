@@ -5,6 +5,17 @@ import sys
 from pathlib import Path
 
 
+EXCLUDED_PARTS = {
+    ".claude", ".agents", ".agent", ".codex", ".cursor", ".github", ".vscode", ".idea",
+    "tmp", "temp", ".tmp", ".cache", "dist", "build", "coverage", "node_modules", "vendor",
+    ".git",
+}
+
+
+def is_excluded(path: Path) -> bool:
+    return any(part in EXCLUDED_PARTS for part in path.parts)
+
+
 def parse_list(value: str | list[str]) -> list[str]:
     if isinstance(value, list):
         return value
@@ -48,10 +59,16 @@ outgoing = {
     "depends-on": parse_list(frontmatter.get("depends-on", "")),
     "updates": parse_list(frontmatter.get("updates", "")),
 }
+metadata = {
+    "type": frontmatter.get("type", ""),
+    "kind": parse_list(frontmatter.get("kind", "")),
+    "status": frontmatter.get("status", ""),
+    "replacedBy": frontmatter.get("replacedBy", ""),
+}
 
 incoming = []
 for doc in root.rglob("*.md"):
-    if doc == target or any(part in {".git", "node_modules", "dist", "build"} for part in doc.parts):
+    if doc == target or is_excluded(doc.relative_to(root)):
         continue
     fm = parse_frontmatter(doc)
     refs = parse_list(fm.get("depends-on", "")) + parse_list(fm.get("updates", ""))
@@ -60,6 +77,7 @@ for doc in root.rglob("*.md"):
 
 print(json.dumps({
     "file": str(target),
+    "metadata": metadata,
     "outgoing": outgoing,
     "incoming": sorted(incoming),
 }, indent=2))

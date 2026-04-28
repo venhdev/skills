@@ -26,7 +26,7 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 ## Intake-informed plan creation
 
-Use this branch when the user asks to create docs from extracted external source material, such as Markdown/text from a PDF, DOCX, API JSON, partner spec, meeting notes, or imported requirements. Also use it when the user explicitly marks a small or unclear idea with `--in` or `--intake`. Do not trigger it for ordinary short notes unless the user frames them as external/source material conversion or explicitly uses `--in` / `--intake`.
+Use this branch in exactly two cases: (1) the user explicitly marks an idea with `--intake`; or (2) the user provides source material such as extracted Markdown/text from a PDF, DOCX, API JSON, partner spec, meeting notes, imported requirements, or another attached document, and asks this skill to create or convert documentation from it. Do not trigger intake for ordinary notes or requests that lack both an intake flag and source material.
 
 Default output is Plan + proposal:
 
@@ -34,7 +34,7 @@ Default output is Plan + proposal:
 2. If the plan for one large feature would exceed roughly 500 lines, create a root index plan and split execution detail into linked sub-plans.
 3. Recommend follow-up specs, ADRs, how-tos, or API references, but do not create them unless requested.
 
-Before writing, classify intake blocks into requirements, constraints, milestones, dependencies, risks, open questions, and follow-up docs. For `--in` / `--intake` ideas, first clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and whether the output should be one plan, split sub-plans, a spec, an ADR, or only follow-up recommendations. Ask concise blocking questions before creating when a gap or conflict affects goal, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decisions, or whether durable behavior belongs in a spec. Do not turn blockers into assumptions.
+Before writing, classify intake blocks into requirements, constraints, milestones, dependencies, risks, open questions, and follow-up docs. For `--intake` user ideas, clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and whether the output should be one plan, split sub-plans, a spec, an ADR, or only follow-up recommendations before authoring. If the prompt already answers some dimensions, do not ask them again; ask only narrow remaining blocking questions, and record non-blocking unknowns as open questions. For source-material intake, ask concise blocking questions before creating only when a gap or conflict affects goal, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decisions, or whether durable behavior belongs in a spec. Do not turn blockers into assumptions, and do not invent operational, compliance, data-source, or measurement details that the intake did not provide.
 
 For intake plans, add compact sections when relevant:
 
@@ -45,7 +45,7 @@ For intake plans, add compact sections when relevant:
 
 Keep these sections brief. Do not paste raw source material into the generated plan.
 
-For large-feature splits, the root index plan keeps shared goal, scope, source materials, high-level milestones, dependencies, risks, and links to sub-plans. Each sub-plan owns one coherent execution slice and links back to the root plan through cascade metadata or an explicit related-doc link.
+For large-feature splits, the root index plan keeps shared goal, scope, source materials, high-level milestones, dependencies, risks, and links to sub-plans. Each sub-plan owns one coherent execution slice and links back to the root plan through cascade metadata or an explicit related-doc link. When an intake plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.
 
 ## Template mapping
 

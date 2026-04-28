@@ -1,6 +1,6 @@
 # Mutation Report
 
-Use for Create or Maintain mode after changing files.
+Use for Maintain mode after changing files, or for Create mode only when the user explicitly asks for a report or summary in addition to the authored document.
 
 ```markdown
 Mode: [Create | Maintain]

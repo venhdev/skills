@@ -8,7 +8,7 @@ This is the schema source for `unified-docs` metadata.
 ---
 title: [Short descriptive title]
 type: [tutorial | how-to | reference | explanation | decision]
-kind: [plan, spec, adr, ssot, draft, til]
+kind: []  # or [plan], [spec], [adr], [ssot], [draft], [til], or valid combinations
 audience: [new contributors | developers | api consumers | operators | maintainers]
 owner: [team-name | agent-name | unassigned]
 created: [ISO date]
@@ -52,7 +52,7 @@ Never persist `kind: [stale]` or `kind: stale`.
 
 ## List policy
 
-`kind`, `depends-on`, and `updates` should be represented as YAML lists. Empty lists are valid:
+`kind`, `depends-on`, and `updates` should be represented as YAML lists. `kind` is required as a field, but `kind: []` is valid for docs without a lifecycle role. Empty lists are valid:
 
 ```yaml
 kind: [spec, ssot]

@@ -17,7 +17,7 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 3. Normalize frontmatter to the contract without discarding valid secondary `kind` values.
 4. Keep `reviewCadence` optional; do not add it unless useful for lifecycle/stale tracking or already present.
 5. For ADR supersession, create a new ADR, update old metadata and Status Log, and do not rewrite the accepted decision body.
-6. For completed plans, promote durable outcomes into a spec before archiving; do not archive a completed plan until `replacedBy` points to a current spec.
+6. For completed plans, promote durable outcomes into a spec and set `replacedBy` once the accepted current spec exists; do not archive a completed plan until `replacedBy` points to that non-archived accepted spec. If the accepted spec exists and current inbound references are already moved or absent, the plan is archive-ready, not blocked. When archiving, add the archive banner to the archived plan pointing readers to the spec; do not add that banner to the spec.
 7. For plan updates, keep Gate conditions optional; after updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
 8. For cascade repair, patch inverse links only when current and unambiguous.
 9. Validate changed docs with `scripts/check_frontmatter.py` when practical.

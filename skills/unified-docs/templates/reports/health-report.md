@@ -16,6 +16,9 @@ Warnings:
 Info:
 - [Non-blocking observations]
 
+Excluded scope:
+- [Tool/runtime/generated/vendor paths intentionally skipped, or none]
+
 Recommended fixes:
 - `[path]` — [exact change or replacement target]
 

@@ -23,6 +23,8 @@ Do not mirror the same field onto both docs just to make the graph look symmetri
 When maintaining docs:
 
 - Repair missing inverse links when the relationship is current and unambiguous.
+- Do not add plan files to a spec or SSOT doc's `updates` merely because the plan may later affect that durable doc. Plans are temporary execution artifacts and should not become durable inbound graph targets for specs/SSOT docs.
+- A plan may list durable docs in its own `updates` when those docs should be revisited as the plan changes status, but that relationship is lifecycle guidance, not a reciprocal dependency to patch onto the durable docs.
 - If the relation is intentionally one-way, report the exception and the reason.
 - If the target is stale, archived, superseded, or ambiguous, prefer report/ask over silent mutation.
 

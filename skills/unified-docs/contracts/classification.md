@@ -64,7 +64,7 @@ Do not normalize away valid secondary kinds.
 
 ## Intake block classification
 
-Use this when Create mode receives extracted external source material such as Markdown/text from a PDF, DOCX, API JSON, meeting notes, or partner spec, or when the user explicitly marks a small unclear idea with `--in` / `--intake`.
+Use this when Create mode receives either an idea explicitly marked with `--intake`, or source material such as extracted Markdown/text from a PDF, DOCX, API JSON, meeting notes, partner spec, imported requirements, or another attached document.
 
 Classify the source before authoring:
 
@@ -76,12 +76,12 @@ Classify the source before authoring:
 | Dependency | Current doc, API, system, team, access, decision, or prerequisite. |
 | Risk | Uncertainty that may change delivery, scope, quality, security, cost, or operations. |
 | Open question | Missing information that does not yet have a reliable answer. |
-| User-idea intake | Small unclear request explicitly marked with `--in` or `--intake`; clarify before authoring. |
+| User-idea intake | User idea explicitly marked with `--intake`; clarify before authoring. |
 | Follow-up doc | Spec, ADR, how-to, or reference doc that should be split out later. |
 
 Clarification policy:
 
-- For `--in` / `--intake` user-idea intake, clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and output shape before authoring.
+- For `--intake` user-idea intake, clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and output shape before authoring. If the prompt already supplies a dimension, do not ask it again.
 - Ask before creating when a gap or conflict changes the goal, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decision, or whether durable behavior belongs in a spec.
 - Do not convert blockers into assumptions.
 - Non-blocking gaps may remain as open questions in the generated doc.
