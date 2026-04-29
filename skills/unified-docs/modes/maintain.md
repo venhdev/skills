@@ -19,7 +19,7 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 5. For ADR supersession, create a new ADR, update old metadata and Status Log, and do not rewrite the accepted decision body.
 6. For completed plans, promote durable outcomes into a spec and set `replacedBy` once the accepted current spec exists; do not archive a completed plan until `replacedBy` points to that non-archived accepted spec. If the accepted spec exists and current inbound references are already moved or absent, the plan is archive-ready, not blocked. When archiving, add the archive banner to the archived plan pointing readers to the spec; do not add that banner to the spec.
 7. For plan updates, keep Gate conditions optional; after updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
-8. For cascade repair, patch inverse links only when current and unambiguous.
+8. For cascade checks, use Audit mode when the user wants assessment-only output, including prompts that ask what would be repaired but do not authorize mutation. Use Maintain mode only when repair is explicitly requested. In Maintain mode, patch inverse links only when current and unambiguous.
 9. Validate changed docs with `scripts/check_frontmatter.py` when practical.
 10. Use `scripts/cascade_targets.py` when cascade metadata changed.
 

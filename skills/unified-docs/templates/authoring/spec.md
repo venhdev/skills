@@ -16,7 +16,7 @@ updates: []
 
 ## Purpose
 
-[Define the current durable truth this spec owns.]
+[Define the current durable truth this spec owns. This should already be confirmed before authoring; do not use this spec to hold unresolved ambiguity.]
 
 ## Requirements
 

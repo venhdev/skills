@@ -16,7 +16,7 @@ updates: []
 
 ## Goal
 
-[State the outcome this plan is meant to deliver.]
+[State the outcome this plan is meant to deliver. This should already be confirmed before authoring; do not use this plan to hold unresolved ambiguity.]
 
 ## Scope
 

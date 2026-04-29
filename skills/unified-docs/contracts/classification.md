@@ -62,29 +62,31 @@ Do not normalize away valid secondary kinds.
 | ADR, decision record | `type: decision`, `kind: [adr]` |
 | TIL, today I learned, incident note | add `kind: [til]` |
 
-## Intake block classification
+## Discovery-first classification
 
-Use this when Create mode receives either an idea explicitly marked with `--intake`, or source material such as extracted Markdown/text from a PDF, DOCX, API JSON, meeting notes, partner spec, imported requirements, or another attached document.
+Create mode must use discovery before authoring any new doc, including direct requests, rough notes, and source-material conversions such as extracted Markdown/text from a PDF, DOCX, API JSON, meeting notes, partner specs, imported requirements, or other attached documents.
 
-Classify the source before authoring:
+During discovery, classify what you learn into:
 
-| Intake block | Use for |
+| Discovery block | Use for |
 |---|---|
 | Requirement | Desired behavior, capability, outcome, or acceptance expectation. |
 | Constraint | Technical, business, security, compliance, budget, deadline, platform, or operational limit. |
 | Milestone | Sequenced delivery slice, rollout step, integration phase, or target date. |
 | Dependency | Current doc, API, system, team, access, decision, or prerequisite. |
 | Risk | Uncertainty that may change delivery, scope, quality, security, cost, or operations. |
-| Open question | Missing information that does not yet have a reliable answer. |
-| User-idea intake | User idea explicitly marked with `--intake`; clarify before authoring. |
-| Follow-up doc | Spec, ADR, how-to, or reference doc that should be split out later. |
+| Audience signal | Who the document is for and what they need from it. |
+| Scope boundary | What is in scope, what is out of scope, and what would change the artifact choice. |
+| Artifact signal | Evidence that the request should become a plan, spec, ADR, how-to, explanation, or split set of docs. |
+| Follow-up doc | Spec, ADR, how-to, or reference doc that should be split out separately after discovery confirms the doc graph. |
 
 Clarification policy:
 
-- For `--intake` user-idea intake, clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and output shape before authoring. If the prompt already supplies a dimension, do not ask it again.
-- Ask before creating when a gap or conflict changes the goal, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decision, or whether durable behavior belongs in a spec.
+- Ask one focused question at a time for every Create request, even when the request appears clear.
+- Continue discovery until you can restate problem, success, scope, and intended artifact without needing assumptions.
+- Ask before creating whenever ambiguity changes the goal, users, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decision, whether durable behavior belongs in a spec, or whether one doc vs multiple docs is the right artifact shape.
 - Do not convert blockers into assumptions.
-- Non-blocking gaps may remain as open questions in the generated doc.
+- Do not preserve unresolved ambiguity as open questions, deferred questions, or equivalent buckets in the generated doc.
 
 Enterprise/source mapping:
 

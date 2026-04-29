@@ -21,7 +21,7 @@ updates: []
 
 ## Context
 
-[Describe the problem, constraints, and alternatives considered.]
+[Describe the confirmed problem, constraints, and alternatives considered. Do not use this ADR to carry unresolved ambiguity that should have been handled during discovery.]
 
 ## Decision
 

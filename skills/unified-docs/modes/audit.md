@@ -48,7 +48,33 @@ Report:
 
 ## Mutation policy
 
-Audit mode does not mutate files unless the user explicitly asks for repair. If repair is requested, switch to Maintain mode for the changed files and report the mode switch.
+Audit mode does not mutate files unless the user explicitly asks for repair. Assessment-only cascade checks stay in Audit mode even when the report names safe repairs that Maintain mode could apply later. Frame those as findings and recommended fixes, not as a Maintain mutation plan. If repair is requested, switch to Maintain mode for the changed files and report the mode switch.
+
+## Severity guidance
+
+Severity divides into two classes: **schema/field validation** (Critical) and **lifecycle/cascade relationships** (Warning).
+
+**Critical** — Schema and field validation failures (prevent parsing and interpretation):
+- Missing any required frontmatter field: `title`, `type`, `kind`, `audience`, `owner`, `created`, `lastReviewed`, `depends-on`, `updates`
+- Invalid field values: `type` not in allowed set, `kind` containing invalid values, `status` not matching type-specific values
+- Schema format errors: scalar `kind` instead of list, `kind` containing computed values like `stale`
+- Type-kind coupling violations: e.g., `type: reference` with `kind: [plan]`
+- Broken required relationships: completed/archived plan missing `replacedBy`, ADR missing type-required fields
+
+**Warning** — Lifecycle and cascade relationship issues (reduce reliability without breaking schema):
+- Stale docs: `lastReviewed` plus `reviewCadence` older than today
+- Current docs depending on superseded ADRs or archived plans without a clear current replacement
+- Duplicate SSOT claims: multiple specs/docs with `kind: [spec, ssot]` for the same purpose
+- Missing inverse cascade links: `spec` lists `updates: [doc]` but `doc` has empty `depends-on` (and the pairing is intentional, not plan-to-durable)
+- Lifecycle conflicts: completed plan with `replacedBy` pointing to a draft spec, not an accepted one
+- ADR lineage format errors: `supersededBy` using file paths instead of ADR IDs
+- TIL docs presenting themselves as canonical guidance
+
+**Info** — Non-blocking observations:
+- Clean docs with correct metadata and relationships
+- Intentional one-way lifecycle reminders (plan updating a durable spec; spec not reciprocating)
+- Excluded scope and tool/vendor paths
+- Historical context and reference notes
 
 ## Reporting
 

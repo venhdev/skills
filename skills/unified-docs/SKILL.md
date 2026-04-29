@@ -2,12 +2,10 @@
 name: unified-docs
 icon: icon.svg
 description: >
-  Documentation lifecycle hub for reading, creating, maintaining, and auditing
-  project docs with consistent frontmatter, type/kind classification, ADR and plan
-  lifecycle handling, stale-doc checks, SSOT/spec behavior, and dependency cascade
-  metadata. Use whenever the user asks to create docs, check whether docs are
-  current, supersede ADRs, update plans, normalize frontmatter, audit docs health,
-  or repair depends-on/updates chains.
+  Create, update, and audit project docs with strong lifecycle and current-truth rules.
+  Best for plans, specs, ADRs, how-tos, and explanations when the right doc should be
+  clarified before writing. Uses frontmatter to keep ownership, status,
+  dependencies, and review state manageable.
 ---
 
 # unified-docs

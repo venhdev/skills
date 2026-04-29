@@ -12,40 +12,72 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 ## Behavior
 
-1. Classify the target doc before writing.
-2. Choose the matching authoring template.
-3. Produce the authored document artifact itself as the primary output. Do not wrap the created doc inside a mutation report unless the user explicitly asks for a report in addition to the doc.
-4. Preserve full-skeleton structure unless the request clearly needs less.
-5. Include `depends-on: []` and `updates: []` even when empty.
-6. Include `reviewCadence` by default in plan/spec/ADR templates only.
-7. For `how-to` and ordinary `explanation` docs, leave `kind` empty unless the request clearly requires a lifecycle role such as `plan` or `til`. Do not infer `kind: [spec]` for procedural guidance.
-8. Follow existing project placement conventions first; if unclear, use standard docs structure or ask before placing the file.
-9. Avoid copying canonical content from existing SSOT docs; link instead.
-10. For plan docs, keep Gate conditions optional; after creating or updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
-11. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
+1. Enter discovery before authoring for every Create request.
+2. Ask one focused question at a time. Even apparently clear requests are not exempt.
+3. Use each answer to reduce ambiguity around problem, users, success, scope, constraints, dependencies, gate conditions, and artifact choice.
+4. Continue discovery until you can restate the request without needing assumptions.
+5. Restate your understanding and ask the user to confirm before writing.
+6. Only after confirmation, classify the target doc and choose the matching authoring template.
+7. Produce the authored document artifact itself as the primary output. Do not wrap the created doc inside a mutation report unless the user explicitly asks for a report in addition to the doc.
+8. Preserve full-skeleton structure unless the request clearly needs less.
+9. Include `depends-on: []` and `updates: []` even when empty.
+10. Include `reviewCadence` by default in plan/spec/ADR templates only.
+11. For `how-to` and ordinary `explanation` docs, leave `kind` empty unless the request clearly requires a lifecycle role such as `plan` or `til`. Do not infer `kind: [spec]` for procedural guidance.
+12. Follow existing project placement conventions first; if unclear, use standard docs structure or ask before placing the file.
+13. Avoid copying canonical content from existing SSOT docs; link instead.
+14. For plan docs, keep Gate conditions optional; after creating or updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
+15. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
 
-## Intake-informed plan creation
+## Discovery gate
 
-Use this branch in exactly two cases: (1) the user explicitly marks an idea with `--intake`; or (2) the user provides source material such as extracted Markdown/text from a PDF, DOCX, API JSON, partner spec, meeting notes, imported requirements, or another attached document, and asks this skill to create or convert documentation from it. Do not trigger intake for ordinary notes or requests that lack both an intake flag and source material.
+Discovery applies to all Create requests.
 
-Default output is Plan + proposal:
+The skill must assume there may be hidden instability even when the request looks clear. Do not skip questioning just because a title, target file, or requested doc type was provided.
 
-1. Create a primary `kind: [plan]` artifact when the feature is small enough to stay readable.
-2. If the plan for one large feature would exceed roughly 500 lines, create a root index plan and split execution detail into linked sub-plans.
-3. Recommend follow-up specs, ADRs, how-tos, or API references, but do not create them unless requested.
+Authoring is blocked until all of the following are true:
 
-Before writing, classify intake blocks into requirements, constraints, milestones, dependencies, risks, open questions, and follow-up docs. For `--intake` user ideas, clarify outcome, users, scope boundaries, success criteria, constraints, risks, dependencies, and whether the output should be one plan, split sub-plans, a spec, an ADR, or only follow-up recommendations before authoring. If the prompt already answers some dimensions, do not ask them again; ask only narrow remaining blocking questions, and record non-blocking unknowns as open questions. For source-material intake, ask concise blocking questions before creating only when a gap or conflict affects goal, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decisions, or whether durable behavior belongs in a spec. Do not turn blockers into assumptions, and do not invent operational, compliance, data-source, or measurement details that the intake did not provide.
+- at least one discovery question has been asked;
+- the skill understands the problem being solved;
+- intended users or stakeholders are clear enough to write for;
+- success criteria and scope boundary are clear enough to avoid writing the wrong doc;
+- any material constraint, dependency, milestone-order issue, or gate condition that would change the document shape is clear;
+- the chosen artifact type is justified by discovery rather than assumed;
+- the user has confirmed the restatement.
 
-For intake plans, add compact sections when relevant:
+Use the next question that most reduces ambiguity. Prefer questions that can change:
 
-- `## Source materials`
-- `## Assumptions`
-- `## Open questions`
-- `## Recommended follow-up docs`
+- the intended outcome;
+- who the document is for;
+- what is in scope or out of scope;
+- whether the artifact should be a plan, spec, ADR, how-to, explanation, or a split set of docs;
+- whether durable truth belongs in a spec;
+- whether a technical decision requires an ADR first.
 
-Keep these sections brief. Do not paste raw source material into the generated plan.
+Do not carry unresolved ambiguity into the authored doc as assumptions, open questions, deferred questions, or placeholder certainty. If a fact is not known well enough to write safely, ask another question instead.
 
-For large-feature splits, the root index plan keeps shared goal, scope, source materials, high-level milestones, dependencies, risks, and links to sub-plans. Each sub-plan owns one coherent execution slice and links back to the root plan through cascade metadata or an explicit related-doc link. When an intake plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.
+Before writing, use a compact restatement such as:
+
+```markdown
+I understand this request as:
+- Problem: ...
+- Success: ...
+- Scope: ...
+- Intended artifact: ...
+
+Is this correct?
+```
+
+If the user changes or rejects the restatement, continue discovery.
+
+## Create-specific guidance
+
+- For plan requests, use discovery to confirm the intended outcome, measurable scope boundary, milestone shape, and whether the request is actually a spec or ADR problem first.
+- For spec requests, use discovery to confirm the durable truth the spec should own and what belongs in related ADR or plan docs instead.
+- For ADR requests, use discovery to confirm the decision to be made, alternatives worth recording, and whether the decision is actually stable enough for an ADR.
+- For how-to or explanation requests, use discovery to confirm task/outcome, audience, and whether the request is actually asking for durable reference truth instead.
+- For source-material conversions, do not normalize raw material into a doc until discovery has established the intended outcome and correct artifact shape.
+- For large features, decide after discovery whether one doc is sufficient or whether a root index plus sub-docs is the better artifact shape.
+- When a temporary plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.
 
 ## Template mapping
 
