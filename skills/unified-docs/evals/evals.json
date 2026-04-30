@@ -126,7 +126,7 @@
       "prompt": "Create a rollout plan for migrating docs authors to the new unified-docs lifecycle. It should be milestone-oriented, not a tiny task checklist, and it should be easy to audit for stale status later.",
       "expected_output": "Routes to Create mode, uses the plan authoring skeleton, includes reviewCadence: 90, depends-on and updates lists, and structures the body around goal, scope, milestones, risks, and status log.",
       "assertions": [
-        "Uses templates/authoring/plan.md structure.",
+        "Uses workflows/create-plan/implementation-plan-template.md structure (goal, scope, milestones, dependencies, risks, status log).",
         "Sets type: explanation and kind including plan.",
         "Includes reviewCadence: 90 by default.",
         "Includes depends-on and updates even if empty.",

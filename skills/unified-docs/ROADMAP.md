@@ -7,10 +7,10 @@ The skill is organized in **layers**, from general (outer) to specific (inner):
 ```
 SKILL.md                          ← Entry point: mode routing + lazy-load table
 ├── modes/[mode].md               ← Common logic per mode
-│   └── workflows/[mode]-[action]/ ← Specific logic for mode×doc-type
-│       ├── flow.md               ← AI-executable instructions
-│       ├── [primary-template].md ← Output document skeleton
-│       └── [supporting-files]    ← Templates used by flow
+├── workflows/[mode]-[doc-type]/  ← Specific logic for mode×doc-type
+│   ├── flow.md                   ← AI-executable instructions
+│   ├── [doc-type].md            ← Output document skeleton (primary template)
+│   └── [supporting-files].md    ← Additional templates used by flow
 ├── contracts/                    ← Cross-cutting rules (lazy-loaded)
 ├── templates/
 │   ├── authoring/                ← Doc skeletons (doc types without dedicated workflows)
@@ -167,8 +167,10 @@ Examples:
 
 ### File Names in Workflows
 - `flow.md` — always use this name for AI instructions
-- Template names should describe the doc (e.g., `plan.md`, `adr.md`)
-- Supporting templates should be descriptive (e.g., `option-comparison-template.md`)
+- **Primary template**: Should describe the doc type. Pattern: `[doc-type]-template.md` or just `[doc-type].md`
+  - Example: `plan.md` (abstract pattern) or `implementation-plan-template.md` (descriptive variant)
+  - Use whichever name makes the template's purpose clear
+- **Supporting templates**: Should be descriptive (e.g., `option-comparison-template.md`, `phase-checklist-template.md`)
 
 ### New Modes
 - Use imperative, present-tense verbs when possible ({create, read, maintain, audit})
