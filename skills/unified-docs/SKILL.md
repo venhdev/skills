@@ -28,6 +28,7 @@ If intent is unclear, start with Read or targeted Audit. Do not run full-corpus 
 - ADR, plan, spec, stale lifecycle: `contracts/lifecycle.md`.
 - Dependency and reciprocal update graph: `contracts/cascade.md`.
 - Create doc artifact: `modes/create.md` + matching `templates/authoring/*.md`.
+- Two-tier plan workflow: all files in `workflows/create-plan/` if creating a plan doc.
 - Read current status: `modes/read.md` + `templates/reports/read-status.md`.
 - Maintain existing docs: `modes/maintain.md` + `templates/reports/mutation-report.md`.
 - Audit docs health: `modes/audit.md` + `templates/reports/health-report.md`.
