@@ -8,6 +8,7 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 - `contracts/classification.md`
 - `contracts/lifecycle.md` if the doc is a plan, spec, or ADR
 - `contracts/cascade.md` if dependencies or downstream docs matter
+- `docs/workflows/PLANNING-WORKFLOW.md` if the doc is a plan (two-tier planning workflow)
 - matching file in `templates/authoring/`
 
 ## Behavior
@@ -78,6 +79,42 @@ If the user changes or rejects the restatement, continue discovery.
 - For source-material conversions, do not normalize raw material into a doc until discovery has established the intended outcome and correct artifact shape.
 - For large features, decide after discovery whether one doc is sufficient or whether a root index plus sub-docs is the better artifact shape.
 - When a temporary plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.
+
+## Post-creation: Detailed Plan Option (Plan docs only)
+
+After creating a plan doc, offer the user an optional follow-up: a detailed implementation plan with per-phase action checklists and gate conditions.
+
+**Trigger**: Only for plan docs, immediately after the authored milestone plan is emitted.
+
+**Ask the user**:
+```
+Would you like me to create a detailed implementation plan too?
+
+Detailed plan includes:
+- Folder: docs/plans/[project-short-name]/
+- implementation-plan.md (overview, gate conditions, phase timeline)
+- phase-1-[short-name].md, phase-2-[short-name].md, etc.
+- Each phase has: Architecture Decision, Action Checklist, Acceptance Criteria, Dependencies, Risks
+
+This prevents scope creep and ensures verifiable done criteria
+before moving between phases.
+```
+
+**If user says yes**:
+1. Check if `docs/plans/[project-short-name]/` exists. If so, ask user to choose a different folder name.
+2. Create folder: `docs/plans/[folder-name]/`
+3. Copy `templates/planning/implementation-plan-template.md` → `implementation-plan.md` in the folder
+4. Populate implementation-plan.md with: project name, goal, scope, milestones (from plan), gate conditions (if present)
+5. Generate phase files (one per milestone): `phase-1-[short-name].md`, `phase-2-[short-name].md`, etc.
+   - Copy from `templates/planning/phase-checklist-template.md`
+   - Populate phase name and number
+   - Leave `[TODO: Fill in after discovery]` for Architecture Decision, Action Checklist, Acceptance Criteria
+6. Create `README.md` listing the folder contents and linking to `docs/workflows/PLANNING-WORKFLOW.md`
+
+**If user says no**:
+- Done. User can create a detailed plan later by making a new Create request.
+
+See `docs/workflows/PLANNING-WORKFLOW.md` for complete workflow documentation and gate condition patterns.
 
 ## Template mapping
 
