@@ -18,6 +18,21 @@ SKILL.md                          ← Entry point: mode routing + lazy-load tabl
 └── scripts/                      ← Utility scripts (general, not mode-specific)
 ```
 
+### Mode → Workflow Routing Pattern
+
+The core routing is simple and consistent:
+
+```
+modes/[mode].md
+  ↓ (routes to based on doc type)
+workflows/[mode]-[doc-type]/
+  ├── flow.md               ← AI-executable instructions
+  ├── [doc-type].md        ← Document skeleton/template
+  └── [supporting].md      ← Additional templates
+```
+
+Example: Creating a plan doc → `workflows/create-plan/` → loads `flow.md` + `implementation-plan-template.md`
+
 ### Lazy-Load Principle
 
 Only load what the mode and doc type need:
