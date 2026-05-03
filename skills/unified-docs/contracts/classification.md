@@ -77,14 +77,6 @@ During discovery, classify what you learn into:
 | Scope boundary | What is in scope, what is out of scope, and what would change the artifact choice. |
 | Artifact signal | Evidence that the request should become a plan, spec, ADR, how-to, explanation, or split set of docs. |
 
-Clarification policy:
-
-- Ask one focused question at a time for every Create request, even when the request appears clear.
-- Continue discovery until you can restate problem, success, scope, and intended artifact without needing assumptions.
-- Ask before creating whenever ambiguity changes the goal, users, scope, milestone order, gate conditions, ownership, go/no-go direction, ADR-level decision, whether durable behavior belongs in a spec, or whether one doc vs multiple docs is the right artifact shape.
-- Do not convert blockers into assumptions.
-- Do not preserve unresolved ambiguity as open questions, deferred questions, or equivalent buckets in the generated doc.
-
 Enterprise/source mapping:
 
 | Source signal | Default handling |

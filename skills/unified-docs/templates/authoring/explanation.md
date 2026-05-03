@@ -8,9 +8,6 @@ depends-on: []
 updates: []
 ---
 
-Leave `kind` empty for ordinary explanatory docs. Add `plan` or `til` only when the lifecycle role is explicit.
-
-
 # [Explanation Title]
 
 ## Overview

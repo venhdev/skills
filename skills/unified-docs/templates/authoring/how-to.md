@@ -8,9 +8,6 @@ depends-on: []
 updates: []
 ---
 
-Leave `kind` empty for ordinary procedural docs. Add a lifecycle kind only if the user explicitly needs one.
-
-
 # [How-To Title]
 
 ## Prerequisites

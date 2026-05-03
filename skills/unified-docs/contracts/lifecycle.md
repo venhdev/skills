@@ -10,7 +10,7 @@ ADR metadata:
 type: decision
 kind: [adr]
 adr-id: ADR-NNN
-status: [draft | accepted | completed | superseded]
+status: [draft | accepted | superseded]
 deciders: [name, name]
 decided: [ISO date when accepted]
 supersededBy:

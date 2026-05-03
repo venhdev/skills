@@ -32,10 +32,10 @@ When a Create request arrives, first scan the project's existing docs:
 8. Preserve full-skeleton structure unless the request clearly needs less.
 9. Include `depends-on: []` and `updates: []` even when empty.
 10. For `how-to` and ordinary `explanation` docs, leave `kind` empty unless the request clearly requires a lifecycle role such as `plan` or `til`. Do not infer `kind: [spec]` for procedural guidance.
-12. Follow existing project placement conventions first; if unclear, use standard docs structure or ask before placing the file.
-13. Avoid copying canonical content from existing SSOT docs; link instead.
-14. For plan docs, keep Gate conditions optional; after creating or updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
-15. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
+11. Follow existing project placement conventions first; if unclear, use standard docs structure or ask before placing the file.
+12. Avoid copying canonical content from existing SSOT docs; link instead.
+13. For plan docs, keep Gate conditions optional; after creating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
+14. If the user asks for both a doc and a short summary, emit the doc first, then a compact report.
 
 ## Discovery gate
 

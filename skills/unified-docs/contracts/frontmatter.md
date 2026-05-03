@@ -7,8 +7,8 @@ This is the schema source for `unified-docs` metadata.
 ```yaml
 ---
 title: [Short descriptive title]
-type: [tutorial | how-to | reference | explanation | decision]
-kind: []  # or [plan], [spec], [adr], [ssot], [draft], [til], or valid combinations
+type: [how-to | reference | explanation | decision]
+kind: []  # or [plan], [spec], [adr], [ssot], [til], or valid combinations
 created: [ISO date]
 updated: [ISO date]
 depends-on: []

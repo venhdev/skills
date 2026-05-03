@@ -6,8 +6,8 @@ from pathlib import Path
 UNIVERSAL = {"title", "type", "kind", "created", "updated", "depends-on", "updates"}
 ADR = {"adr-id", "status", "deciders", "decided", "supersededBy", "supersedes"}
 PLAN = {"status"}
-ALLOWED_TYPES = {"tutorial", "how-to", "reference", "explanation", "decision"}
-ALLOWED_KINDS = {"plan", "spec", "adr", "ssot", "draft", "til"}
+ALLOWED_TYPES = {"how-to", "reference", "explanation", "decision"}
+ALLOWED_KINDS = {"plan", "spec", "adr", "ssot", "til"}
 LIST_FIELDS = {"kind", "depends-on", "updates"}
 EXCLUDED_PARTS = {
     ".claude", ".agents", ".agent", ".codex", ".cursor", ".github", ".vscode", ".idea",
@@ -102,8 +102,8 @@ if doc_type == "decision" or "adr" in kind_items:
         fail(f"missing ADR fields: {', '.join(adr_missing)}")
     if doc_type != "decision":
         fail("ADR docs must use 'type: decision'")
-    if status and status not in {"draft", "accepted", "completed", "superseded"}:
-        fail("ADR docs must use status 'draft', 'accepted', 'completed', or 'superseded'")
+    if status and status not in {"draft", "accepted", "superseded"}:
+        fail("ADR docs must use status 'draft', 'accepted', or 'superseded'")
 
 if "plan" in kind_items:
     plan_missing = sorted(PLAN - fields.keys())

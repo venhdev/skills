@@ -38,11 +38,6 @@ If intent is unclear, start with Read or targeted Audit. Do not run full-corpus 
 
 - `kind` is always a YAML list, even for one value.
 - `stale` is never persisted as `kind`.
-- `depends-on` targets current prerequisite docs; ADR lineage belongs in `supersedes` / `supersededBy`.
-- ADR lineage values are ADR IDs like `ADR-002`, not paths.
-- `ssot` is a canonical role, not a folder mandate.
-- Assess-only and Read mode never mutate files.
-- Maintain mode may repair cascade inverse links only when the relationship is current and unambiguous.
 
 ## Default response budget
 
