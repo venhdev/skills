@@ -13,8 +13,8 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 ## Behavior
 
-1. Enter discovery before authoring for every Create request.
-2. Ask one focused question at a time. Even apparently clear requests are not exempt.
+1. **MANDATORY: Enter discovery before authoring for every Create request. Never skip or defer discovery.**
+2. Ask one focused question at a time. Even apparently clear requests are not exempt. A clear title or explicit type hint does NOT satisfy the discovery requirement.
 3. Use each answer to reduce ambiguity around problem, users, success, scope, constraints, dependencies, gate conditions, and artifact choice.
 4. Continue discovery until you can restate the request without needing assumptions.
 5. Restate your understanding and ask the user to confirm before writing.
@@ -22,8 +22,7 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 7. Produce the authored document artifact itself as the primary output. Do not wrap the created doc inside a mutation report unless the user explicitly asks for a report in addition to the doc.
 8. Preserve full-skeleton structure unless the request clearly needs less.
 9. Include `depends-on: []` and `updates: []` even when empty.
-10. Include `reviewCadence` by default in plan/spec/ADR templates only.
-11. For `how-to` and ordinary `explanation` docs, leave `kind` empty unless the request clearly requires a lifecycle role such as `plan` or `til`. Do not infer `kind: [spec]` for procedural guidance.
+10. For `how-to` and ordinary `explanation` docs, leave `kind` empty unless the request clearly requires a lifecycle role such as `plan` or `til`. Do not infer `kind: [spec]` for procedural guidance.
 12. Follow existing project placement conventions first; if unclear, use standard docs structure or ask before placing the file.
 13. Avoid copying canonical content from existing SSOT docs; link instead.
 14. For plan docs, keep Gate conditions optional; after creating or updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
@@ -31,11 +30,18 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 ## Discovery gate
 
-Discovery applies to all Create requests.
+**This gate is non-negotiable and applies to ALL Create requests without exception.**
 
-The skill must assume there may be hidden instability even when the request looks clear. Do not skip questioning just because a title, target file, or requested doc type was provided.
+Discovery applies even when:
+- The user provides a specific title
+- The user names a doc type explicitly (e.g., "create a plan", "write a spec")
+- The request seems obvious or straightforward
+- The user has sketched out rough content
+- The user is working on a follow-up to prior work
 
-Authoring is blocked until all of the following are true:
+The skill must assume there may be hidden instability even when the request looks clear. Do not rationalize or skip questioning based on apparent clarity.
+
+**Authoring is blocked until all of the following are true:**
 
 - at least one discovery question has been asked;
 - the skill understands the problem being solved;
@@ -75,7 +81,7 @@ If the user changes or rejects the restatement, continue discovery.
 - For plan requests, use discovery to confirm the intended outcome, measurable scope boundary, milestone shape, and whether the request is actually a spec or ADR problem first.
 - For spec requests, use discovery to confirm the durable truth the spec should own and what belongs in related ADR or plan docs instead.
 - For ADR requests, use discovery to confirm the decision to be made, alternatives worth recording, and whether the decision is actually stable enough for an ADR.
-- For how-to or explanation requests, use discovery to confirm task/outcome, audience, and whether the request is actually asking for durable reference truth instead.
+- For how-to or explanation requests, use discovery to confirm task/outcome and whether the request is actually asking for durable reference truth instead.
 - For source-material conversions, do not normalize raw material into a doc until discovery has established the intended outcome and correct artifact shape.
 - For large features, decide after discovery whether one doc is sufficient or whether a root index plus sub-docs is the better artifact shape.
 - When a temporary plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.

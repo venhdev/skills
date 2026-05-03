@@ -6,8 +6,7 @@ Classify a doc before creating or substantially reworking it. Output `type`, `ki
 
 | Type | Use when the doc answers | Notes |
 |---|---|---|
-| `tutorial` | How do I learn this from the beginning? | Hands-on learning path. |
-| `how-to` | How do I accomplish this task? | Steps toward a concrete outcome. |
+| `how-to` | How do I accomplish this task? | Steps toward a concrete outcome. For learning paths, use how-to with detailed prerequisites and setup steps. |
 | `reference` | What is the exact contract or field? | Dense, neutral, current facts. |
 | `explanation` | Why is it this way? | Context, rationale, tradeoffs. |
 | `decision` | What was decided and why? | ADR only. |
@@ -20,7 +19,6 @@ Classify a doc before creating or substantially reworking it. Output `type`, `ki
 | `spec` | Durable current behavior, requirements, or system contract. |
 | `adr` | Architectural decision record. |
 | `ssot` | Canonical source of truth; other docs link instead of copying. |
-| `draft` | Work is not stable yet. |
 | `til` | Short practical note from a real issue or task. |
 
 `kind` is always a list, even for one value.
@@ -29,8 +27,8 @@ Classify a doc before creating or substantially reworking it. Output `type`, `ki
 
 Use multiple values when each is true:
 
-- `kind: [spec, ssot]` for a durable spec that is also canonical truth.
-- `kind: [draft, spec]` for a not-yet-accepted spec draft.
+- `kind: [spec, ssot]` for a durable spec that is also canonical truth (use `status: draft` on specs/plans instead of `kind: [draft, spec]`).
+  - Example: `kind: [spec]` if the spec is living documentation for one team. `kind: [spec, ssot]` if other teams explicitly link to this spec as their authority on that topic.
 
 Do not normalize away valid secondary kinds.
 
@@ -47,13 +45,13 @@ Do not normalize away valid secondary kinds.
 - `how-to` docs usually use `kind: []` unless the user explicitly needs another lifecycle role.
 - `explanation` docs usually use `kind: []` unless they are specifically a `plan` or `til`.
 - Do not infer `kind: [spec]` just because a how-to or explanation mentions current behavior, validation, configuration, or canonical docs.
-- Use `kind: [draft]` only when the user clearly wants to mark unstable status in metadata.
+- For unstable docs without lifecycle roles (how-to, explanation, reference), use `status: draft` in frontmatter or a body callout instead of kind metadata.
 
 ## Title and intent signals
 
 | Signal | Classification |
 |---|---|
-| getting started, walkthrough | `type: tutorial` |
+| getting started, walkthrough, learning path | `type: how-to` (with detailed prerequisites/setup) |
 | how to, guide, run steps | `type: how-to` |
 | API, configuration, schema, field list | `type: reference` |
 | spec, requirements, behavior, contract | `type: reference`, `kind: [spec]` |
@@ -78,7 +76,6 @@ During discovery, classify what you learn into:
 | Audience signal | Who the document is for and what they need from it. |
 | Scope boundary | What is in scope, what is out of scope, and what would change the artifact choice. |
 | Artifact signal | Evidence that the request should become a plan, spec, ADR, how-to, explanation, or split set of docs. |
-| Follow-up doc | Spec, ADR, how-to, or reference doc that should be split out separately after discovery confirms the doc graph. |
 
 Clarification policy:
 

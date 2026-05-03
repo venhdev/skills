@@ -6,7 +6,7 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 
 - `contracts/frontmatter.md`
 - `contracts/classification.md` when reclassification is involved
-- `contracts/lifecycle.md` for ADR, plan, spec, stale, archive, or replacement behavior
+- `contracts/lifecycle.md` for ADR, plan, spec, archive, or replacement behavior
 - `contracts/cascade.md` for `depends-on` / `updates` changes
 - `templates/reports/mutation-report.md`
 
@@ -15,13 +15,12 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 1. Treat existing-doc maintenance as the default before creating a replacement.
 2. Preserve body content unless lifecycle state requires a visible note, Status Log update, or archive banner.
 3. Normalize frontmatter to the contract without discarding valid secondary `kind` values.
-4. Keep `reviewCadence` optional; do not add it unless useful for lifecycle/stale tracking or already present.
-5. For ADR supersession, create a new ADR, update old metadata and Status Log, and do not rewrite the accepted decision body.
-6. For completed plans, promote durable outcomes into a spec and set `replacedBy` once the accepted current spec exists; do not archive a completed plan until `replacedBy` points to that non-archived accepted spec. If the accepted spec exists and current inbound references are already moved or absent, the plan is archive-ready, not blocked. When archiving, add the archive banner to the archived plan pointing readers to the spec; do not add that banner to the spec.
-7. For plan updates, keep Gate conditions optional; after updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
-8. For cascade checks, use Audit mode when the user wants assessment-only output, including prompts that ask what would be repaired but do not authorize mutation. Use Maintain mode only when repair is explicitly requested. In Maintain mode, patch inverse links only when current and unambiguous.
-9. Validate changed docs with `scripts/check_frontmatter.py` when practical.
-10. Use `scripts/cascade_targets.py` when cascade metadata changed.
+4. For ADR supersession, create a new ADR, update old metadata and Status Log, and do not rewrite the accepted decision body.
+5. For completed plans, promote durable outcomes into a spec and set `replacedBy` once the accepted current spec exists; do not archive a completed plan until `replacedBy` points to that non-archived accepted spec. If the accepted spec exists and current inbound references are already moved or absent, the plan is archive-ready, not blocked. When archiving, add the archive banner to the archived plan pointing readers to the spec; do not add that banner to the spec.
+6. For plan updates, keep Gate conditions optional; after updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
+7. For cascade checks, use Audit mode when the user wants assessment-only output, including prompts that ask what would be repaired but do not authorize mutation. Use Maintain mode only when repair is explicitly requested. In Maintain mode, patch inverse links only when current and unambiguous.
+8. Validate changed docs with `scripts/check_frontmatter.py` when practical. If unavailable, apply the schema rules from `contracts/frontmatter.md` directly: check that all required fields are present, all list-fields use YAML list syntax, type/kind values are valid, and ADR/plan/spec coupling rules are met.
+9. When cascade metadata changed, use `scripts/cascade_targets.py` to map outgoing and incoming links. If unavailable, follow the manual cascade check procedure in `contracts/cascade.md`.
 
 ## Safe auto-repair examples
 

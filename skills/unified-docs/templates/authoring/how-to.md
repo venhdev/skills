@@ -2,10 +2,8 @@
 title: [How-To Title]
 type: how-to
 kind: []
-audience: [developers | operators | maintainers]
-owner: [team-name | unassigned]
 created: YYYY-MM-DD
-lastReviewed: YYYY-MM-DD
+updated: YYYY-MM-DD
 depends-on: []
 updates: []
 ---

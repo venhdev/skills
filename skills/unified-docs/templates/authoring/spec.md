@@ -2,11 +2,8 @@
 title: [Spec Title]
 type: reference
 kind: [spec]
-audience: [developers | api consumers | operators | maintainers]
-owner: [team-name | unassigned]
 created: YYYY-MM-DD
-lastReviewed: YYYY-MM-DD
-reviewCadence: 180
+updated: YYYY-MM-DD
 status: draft
 depends-on: []
 updates: []

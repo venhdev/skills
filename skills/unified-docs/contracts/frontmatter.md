@@ -9,11 +9,8 @@ This is the schema source for `unified-docs` metadata.
 title: [Short descriptive title]
 type: [tutorial | how-to | reference | explanation | decision]
 kind: []  # or [plan], [spec], [adr], [ssot], [draft], [til], or valid combinations
-audience: [new contributors | developers | api consumers | operators | maintainers]
-owner: [team-name | agent-name | unassigned]
 created: [ISO date]
-lastReviewed: [ISO date]
-reviewCadence: [optional integer days]
+updated: [ISO date]
 depends-on: []
 updates: []
 ---
@@ -24,29 +21,15 @@ Required universal fields:
 - `title`
 - `type`
 - `kind`
-- `audience`
-- `owner`
 - `created`
-- `lastReviewed`
+- `updated`
 - `depends-on`
 - `updates`
 
-Optional universal field:
+## Field definitions
 
-- `reviewCadence`
-
-## Cadence policy
-
-`reviewCadence` is optional. If missing, compute stale status with defaults:
-
-- `plan`: 90 days
-- all other docs: 180 days
-
-A doc is stale when:
-
-```text
-today - lastReviewed > effectiveCadence
-```
+- `created` — ISO date when the doc was first written
+- `updated` — ISO date when the doc was last meaningfully changed (tracking only, not computed)
 
 Never persist `kind: [stale]` or `kind: stale`.
 

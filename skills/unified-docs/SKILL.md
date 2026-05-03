@@ -25,7 +25,7 @@ If intent is unclear, start with Read or targeted Audit. Do not run full-corpus 
 
 - Metadata/schema: `contracts/frontmatter.md`.
 - Type/kind choice: `contracts/classification.md`.
-- ADR, plan, spec, stale lifecycle: `contracts/lifecycle.md`.
+- ADR, plan, spec lifecycle: `contracts/lifecycle.md`.
 - Dependency and reciprocal update graph: `contracts/cascade.md`.
 - Create doc artifact: `modes/create.md` + matching `templates/authoring/*.md`.
 - Two-tier plan workflow: all files in `workflows/create-plan/` if creating a plan doc.
@@ -36,7 +36,6 @@ If intent is unclear, start with Read or targeted Audit. Do not run full-corpus 
 ## Always preserve these invariants
 
 - `kind` is always a YAML list, even for one value.
-- `reviewCadence` is optional; stale status is computed from `lastReviewed` plus effective cadence.
 - `stale` is never persisted as `kind`.
 - `depends-on` targets current prerequisite docs; ADR lineage belongs in `supersedes` / `supersededBy`.
 - ADR lineage values are ADR IDs like `ADR-002`, not paths.

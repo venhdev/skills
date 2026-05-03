@@ -5,7 +5,7 @@ Use this mode when the user asks whether a doc is current, what the current deci
 ## Behavior
 
 1. Read frontmatter before body.
-2. Determine lifecycle state: current, draft, stale, archived, completed-plan, or superseded ADR.
+2. Determine lifecycle state: current, draft, archived, completed-plan, or superseded ADR.
 3. Follow replacement pointers before summarizing current truth:
    - ADR: `supersededBy`
    - completed or archived plan: `replacedBy`

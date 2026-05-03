@@ -52,7 +52,7 @@ if len(sys.argv) < 2:
     raise SystemExit("usage: cascade_targets.py <file> [root]")
 
 target = Path(sys.argv[1]).resolve()
-root = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else target.parent.resolve()
+root = Path(sys.argv[2]).resolve() if len(sys.argv) > 2 else Path.cwd().resolve()
 
 frontmatter = parse_frontmatter(target)
 outgoing = {

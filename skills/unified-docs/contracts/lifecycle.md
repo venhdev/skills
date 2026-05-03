@@ -1,12 +1,6 @@
 # Lifecycle Contract
 
-This file defines ADR, plan, and spec lifecycle rules, plus stale-doc interpretation.
-
-## Stale-doc rule
-
-A doc's stale state is computed from `lastReviewed` and effective cadence from `contracts/frontmatter.md`.
-
-Do not persist a stale flag as metadata. Report it at read or audit time.
+This file defines ADR, plan, and spec lifecycle rules.
 
 ## ADR contract
 
@@ -30,6 +24,7 @@ Rules:
 - `adr-id` is sequential and zero-padded.
 - `supersededBy` and `supersedes` use ADR IDs like `ADR-002`, not file paths.
 - Once accepted, the decision body is write-once; only metadata and Status Log may change.
+- ADR lifecycle is terminal: `draft → accepted → superseded`. ADRs are not "completed" (that's a plan lifecycle concept).
 
 Status transitions:
 
@@ -37,7 +32,6 @@ Status transitions:
 |---|---|---|
 | absent | `draft` | Create ADR with next `adr-id`. |
 | `draft` | `accepted` | Set `decided:` and append Status Log. |
-| `accepted` | `completed` | Append Status Log and refresh downstream docs. |
 | `accepted` | `superseded` | Create a new ADR, set old `supersededBy`, set new `supersedes`, keep old body intact except Status Log and metadata. |
 
 ## Plan contract
@@ -62,6 +56,8 @@ Rules:
 - Archived plans leave the current dependency graph.
 - Plans should not be added as inbound `updates` targets on durable spec or SSOT docs. If a plan needs to remind maintainers to refresh a durable doc at completion/archive time, keep that reference on the plan's own `updates` field or in its lifecycle notes.
 
+Why `type: explanation`? Plans explain *how and why* an initiative will be executed: sequence, milestones, constraints, risks, dependencies. They provide context and rationale for upcoming work, not a permanent reference contract like a spec. Once the plan is done, its content promotes into a durable spec or retires to archive.
+
 Status transitions:
 
 | From | To | Action |
@@ -73,7 +69,7 @@ Status transitions:
 
 Archive rules:
 
-- Archive path: `docs/archive/plans/<plan-name>.md`
+- Suggested archive path: `docs/archive/plans/<plan-name>.md`
 - Set `replacedBy` to the current spec path.
 - Add a short top-of-body banner to the archived plan pointing readers to the spec.
 - Update current inbound references to point to the spec or remove them.

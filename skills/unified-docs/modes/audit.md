@@ -1,6 +1,6 @@
 # Audit Mode
 
-Use this mode when the user asks for docs health, broken links, stale docs, dependency chains, duplicate/orphan docs, or cascade issues.
+Use this mode when the user asks for docs health, broken links, dependency chains, duplicate/orphan docs, or cascade issues.
 
 ## Scope
 
@@ -38,7 +38,6 @@ Report:
 - missing required frontmatter fields
 - invalid `type` or `kind`; `kind: []` is valid for docs without a lifecycle role
 - scalar `kind` instead of list syntax
-- stale docs by effective cadence
 - current docs depending on `docs/archive/**`
 - current docs depending on superseded ADRs
 - missing inverse cascade links, except documented intentional one-way relationships such as plan-to-durable lifecycle reminders
@@ -55,14 +54,13 @@ Audit mode does not mutate files unless the user explicitly asks for repair. Ass
 Severity divides into two classes: **schema/field validation** (Critical) and **lifecycle/cascade relationships** (Warning).
 
 **Critical** — Schema and field validation failures (prevent parsing and interpretation):
-- Missing any required frontmatter field: `title`, `type`, `kind`, `audience`, `owner`, `created`, `lastReviewed`, `depends-on`, `updates`
+- Missing any required frontmatter field: `title`, `type`, `kind`, `created`, `updated`, `depends-on`, `updates`
 - Invalid field values: `type` not in allowed set, `kind` containing invalid values, `status` not matching type-specific values
 - Schema format errors: scalar `kind` instead of list, `kind` containing computed values like `stale`
 - Type-kind coupling violations: e.g., `type: reference` with `kind: [plan]`
 - Broken required relationships: completed/archived plan missing `replacedBy`, ADR missing type-required fields
 
 **Warning** — Lifecycle and cascade relationship issues (reduce reliability without breaking schema):
-- Stale docs: `lastReviewed` plus `reviewCadence` older than today
 - Current docs depending on superseded ADRs or archived plans without a clear current replacement
 - Duplicate SSOT claims: multiple specs/docs with `kind: [spec, ssot]` for the same purpose
 - Missing inverse cascade links: `spec` lists `updates: [doc]` but `doc` has empty `depends-on` (and the pairing is intentional, not plan-to-durable)

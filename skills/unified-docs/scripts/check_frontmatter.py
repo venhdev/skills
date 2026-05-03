@@ -3,7 +3,7 @@ import re
 import sys
 from pathlib import Path
 
-UNIVERSAL = {"title", "type", "kind", "audience", "owner", "created", "lastReviewed", "depends-on", "updates"}
+UNIVERSAL = {"title", "type", "kind", "created", "updated", "depends-on", "updates"}
 ADR = {"adr-id", "status", "deciders", "decided", "supersededBy", "supersedes"}
 PLAN = {"status"}
 ALLOWED_TYPES = {"tutorial", "how-to", "reference", "explanation", "decision"}
@@ -123,9 +123,6 @@ if "plan" in kind_items:
         replacement_kind = list_items(replacement_fields.get("kind", ""))
         if replacement_fields.get("type") != "reference" or "spec" not in replacement_kind or replacement_fields.get("status") != "accepted":
             fail("replacedBy target must be an accepted spec when root is provided")
-    review_cadence = fields.get("reviewCadence")
-    if review_cadence and review_cadence != "90":
-        fail("plan docs must use 'reviewCadence: 90' when reviewCadence is present")
 
 if "spec" in kind_items:
     if doc_type != "reference":

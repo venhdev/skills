@@ -2,10 +2,8 @@
 title: TIL — [Short Lesson]
 type: explanation
 kind: [til]
-audience: [developers | maintainers]
-owner: [team-name | unassigned]
 created: YYYY-MM-DD
-lastReviewed: YYYY-MM-DD
+updated: YYYY-MM-DD
 depends-on: []
 updates: []
 ---

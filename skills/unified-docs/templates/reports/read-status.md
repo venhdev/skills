@@ -4,7 +4,7 @@ Use for Read mode. Keep it compact and separate current guidance from history.
 
 ```markdown
 Mode: Read
-Status: [current | stale | draft | completed-plan | archived | superseded | unclear]
+Status: [current | draft | completed-plan | archived | superseded | unclear]
 Current target: [path or ADR ID if replacement was followed; requested doc if current]
 
 Key findings:

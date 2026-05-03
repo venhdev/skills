@@ -26,7 +26,7 @@ When maintaining docs:
 - Do not add plan files to a spec or SSOT doc's `updates` merely because the plan may later affect that durable doc. Plans are temporary execution artifacts and should not become durable inbound graph targets for specs/SSOT docs.
 - A plan may list durable docs in its own `updates` when those docs should be revisited as the plan changes status, but that relationship is lifecycle guidance, not a reciprocal dependency to patch onto the durable docs.
 - If the relation is intentionally one-way, report the exception and the reason.
-- If the target is stale, archived, superseded, or ambiguous, prefer report/ask over silent mutation.
+- If the target is archived, superseded, or ambiguous, prefer report/ask over silent mutation.
 
 ## Current-truth restrictions
 
@@ -43,3 +43,27 @@ Before editing cascade metadata, trace:
 3. incoming references from other docs
 
 Use `scripts/cascade_targets.py` when practical.
+
+## When scripts are unavailable
+
+If `cascade_targets.py` cannot run (Python unavailable, shell execution blocked, etc.), trace the cascade graph manually:
+
+**Step 1 — Read outgoing links from the target file's frontmatter:**
+- `depends-on:` — docs this file relies on
+- `updates:` — docs to revisit when this file changes
+
+**Step 2 — Find incoming references (who depends on or updates this file):**
+Search all `.md` files in the docs tree for the target file's name in their `depends-on` or `updates` fields.
+
+Use any available tool:
+- `grep -r "target-filename.md" docs/ --include="*.md" -l`
+- Read frontmatter of files you suspect reference this one
+- Ask the user if a search tool is unavailable
+
+**Step 3 — Produce the equivalent of the JSON output (mentally or in your report):**
+- Outgoing: `depends-on` and `updates` lists from the target's frontmatter
+- Incoming: files found in Step 2
+
+**Exclusions**: Skip files under `.claude/`, `.github/`, `node_modules/`, `tmp/`, and similar tool/vendor paths.
+
+The manual result should be equivalent to what `cascade_targets.py` would produce. Apply the same repair/report logic from the Repair policy section above.

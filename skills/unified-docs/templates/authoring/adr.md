@@ -2,11 +2,8 @@
 title: ADR-NNN: [Decision Title]
 type: decision
 kind: [adr]
-audience: [developers | maintainers | operators]
-owner: [team-name | unassigned]
 created: YYYY-MM-DD
-lastReviewed: YYYY-MM-DD
-reviewCadence: 180
+updated: YYYY-MM-DD
 adr-id: ADR-NNN
 status: draft
 deciders: []

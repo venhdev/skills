@@ -35,7 +35,7 @@
       "expected_output": "Treats the plan as a living doc: updates status and review metadata, preserves deliverable-oriented milestones, and uses cascade metadata to point at impacted docs.",
       "assertions": [
         "Keeps the doc classified as type: explanation with kind including plan.",
-        "Updates status, lastReviewed, and Status Log for the plan.",
+        "Updates status and Status Log for the plan.",
         "Identifies docs in updates or cascade output that need review.",
         "Uses templates/reports/mutation-report.md."
       ],
@@ -86,7 +86,6 @@
       "prompt": "Update the API ownership reference and then make sure every downstream doc that relies on it can be traced by both read and audit workflows.",
       "expected_output": "Routes to Maintain mode, updates the reference metadata, traces downstream docs, repairs inverse depends-on/updates links when safe, and reports one-way exceptions explicitly.",
       "assertions": [
-        "Updates lastReviewed on the changed doc.",
         "Identifies downstream docs through updates and incoming depends-on links.",
         "Repairs missing inverse depends-on or updates metadata when safe.",
         "Runs or explicitly invokes cascade tracing.",
@@ -128,7 +127,6 @@
       "assertions": [
         "Uses workflows/create-plan/implementation-plan-template.md structure (goal, scope, milestones, dependencies, risks, status log).",
         "Sets type: explanation and kind including plan.",
-        "Includes reviewCadence: 90 by default.",
         "Includes depends-on and updates even if empty.",
         "Uses deliverable-oriented milestones rather than task crumbs."
       ],
@@ -142,7 +140,6 @@
       "assertions": [
         "Uses templates/authoring/spec.md structure.",
         "Sets type: reference and kind including spec.",
-        "Includes reviewCadence: 180 by default.",
         "Does not make current docs depend on an archived or completed plan as current truth.",
         "Reports lifecycle followups compactly."
       ],
@@ -156,7 +153,6 @@
       "assertions": [
         "Uses templates/authoring/til.md structure.",
         "Sets kind: [til].",
-        "Does not add reviewCadence by default.",
         "Includes depends-on and updates lists.",
         "States that the TIL is not canonical specification."
       ],

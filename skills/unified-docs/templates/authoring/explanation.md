@@ -2,10 +2,8 @@
 title: [Explanation Title]
 type: explanation
 kind: []
-audience: [developers | maintainers | new contributors]
-owner: [team-name | unassigned]
 created: YYYY-MM-DD
-lastReviewed: YYYY-MM-DD
+updated: YYYY-MM-DD
 depends-on: []
 updates: []
 ---
