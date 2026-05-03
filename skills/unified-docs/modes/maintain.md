@@ -32,3 +32,26 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 - The target is archived or superseded and multiple replacements are plausible.
 - The relationship appears intentionally one-way.
 - Fixing the issue requires moving files or restructuring folders.
+
+## Proactive drift detection
+
+**Trigger**: When the user describes a code change, new implementation, or recently shipped feature — even if they did not explicitly ask about docs.
+
+**When to apply**: User mentions "I just implemented X", "We shipped feature Y", "Code in module Z changed", "I updated the API", or similar implementation/change context (not an explicit doc request).
+
+**Steps**:
+
+1. Identify the feature/component mentioned
+2. Search the project for specs, ADRs, or how-tos that cover this area
+3. Check cascade graph: do those docs' `depends-on` or `updates` chains reference the changed area?
+4. Compare `updated` dates: are they older than the described change?
+
+**If affected docs found**:
+- Surface them: "These docs may be affected by your change: [X, Y]. Should I review and update them?"
+- Do NOT auto-update without confirmation
+- Wait for user decision before making any mutations
+
+**If no affected docs found**:
+- Note it: "No docs appear to cover [feature]. Consider creating a spec or TIL if this is durable behavior."
+
+**Intent**: Code-first developers are reminded about docs without needing to remember "update docs after pushing code".

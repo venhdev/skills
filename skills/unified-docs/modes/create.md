@@ -13,6 +13,15 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 ## Behavior
 
+**Step 0: Context scan** (before any discovery question)
+
+When a Create request arrives, first scan the project's existing docs:
+1. Search for docs related to the topic/keywords mentioned in the request
+2. If relevant docs found: surface them — "Found related: [X, Y]. Is this an update to one of these, or a new doc?"
+   - If update → switch to Maintain mode immediately
+   - If new doc → treat found docs as known context; skip discovery questions about existence ("What docs already exist on this topic?")
+3. If nothing found: note explicitly ("No existing docs on this topic found"), then proceed with standard discovery
+
 1. **MANDATORY: Enter discovery before authoring for every Create request. Never skip or defer discovery.**
 2. Ask one focused question at a time. Even apparently clear requests are not exempt. A clear title or explicit type hint does NOT satisfy the discovery requirement.
 3. Use each answer to reduce ambiguity around problem, users, success, scope, constraints, dependencies, gate conditions, and artifact choice.

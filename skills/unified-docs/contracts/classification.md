@@ -98,3 +98,19 @@ Enterprise/source mapping:
 | Deployment or ops guide | Plan dependency/risk items; recommend how-to. |
 | User manual | Usually how-to; plan only when implementation/change work is implied. |
 | Meeting notes or transcript | Plan when action-oriented; explanation or TIL when mainly context. |
+
+## Source material extraction protocol
+
+When input contains structured source material (BRD, meeting notes, code), extract known facts directly — do not ask discovery questions about information already present in the source.
+
+**Rule**: Never ask a discovery question about information already in the source material.
+
+| Input type | Extract directly | Still ask about |
+|---|---|---|
+| BRD / SRS | Goals, scope, milestones, constraints | Milestone order, acceptance criteria, gate conditions |
+| Meeting notes | Action items, decisions, owners, timeline | What is confirmed vs proposed; prioritization |
+| Code files | Current behavior, API shape, existing patterns | Artifact choice (spec vs how-to); durable vs task-scoped |
+| Short prompt / idea | *Nothing* — no structured content | Everything via discovery |
+
+**When to use**: Recognize input type → extract what's present → ask only about what's missing → faster path to doc creation.
+

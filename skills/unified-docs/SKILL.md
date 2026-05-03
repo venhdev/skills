@@ -32,6 +32,7 @@ If intent is unclear, start with Read or targeted Audit. Do not run full-corpus 
 - Read current status: `modes/read.md` + `templates/reports/read-status.md`.
 - Maintain existing docs: `modes/maintain.md` + `templates/reports/mutation-report.md`.
 - Audit docs health: `modes/audit.md` + `templates/reports/health-report.md`.
+- **Drift check**: When context indicates a code change or newly shipped feature (not an explicit doc request), use drift-check flow in `modes/maintain.md` to surface docs that may need updating.
 
 ## Always preserve these invariants
 
