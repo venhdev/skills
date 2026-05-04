@@ -21,12 +21,26 @@ Choose the narrowest mode that satisfies the request. Load only the files named 
 
 If intent is unclear, start with Read or targeted Audit. Do not run full-corpus audit unless the user asks for full/complete/entire corpus.
 
+## Args (Quick Triggers)
+
+Pass an arg directly after the skill name to skip mode selection. Args pre-select both mode and action scope. Load only the files needed for that arg.
+
+| Arg | Effect |
+|---|---|
+| `--create-plan` | Create mode, plan doc type. Skip to plan discovery immediately. |
+| `--audit-codebase` | Audit mode, full corpus + organization checks. |
+| `--audit-org` | Audit mode, organization-only. Loads `contracts/organization.md`. Skips frontmatter/lifecycle checks. |
+| `--maintain-plan` | Maintain mode, plans only. Scans for all plans with status draft or in-progress. No archive. |
+
+If no arg is given, use normal mode routing.
+
 ## Lazy-load routing
 
 - Metadata/schema: `contracts/frontmatter.md`.
 - Type/kind choice: `contracts/classification.md`.
 - ADR, plan, spec lifecycle: `contracts/lifecycle.md`.
 - Dependency and reciprocal update graph: `contracts/cascade.md`.
+- Folder structure patterns and reorganization: `contracts/organization.md` — load only when triggered (see triggers in the contract).
 - Create doc artifact: `modes/create.md` + matching `templates/authoring/*.md`.
 - Two-tier plan workflow: all files in `workflows/create-plan/` if creating a plan doc.
 - Read current status: `modes/read.md` + `templates/reports/read-status.md`.

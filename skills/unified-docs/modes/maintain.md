@@ -8,6 +8,7 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 - `contracts/classification.md` when reclassification is involved
 - `contracts/lifecycle.md` for ADR, plan, spec, archive, or replacement behavior
 - `contracts/cascade.md` for `depends-on` / `updates` changes
+- `contracts/organization.md` when the request involves folder restructuring or reorganization
 - `templates/reports/mutation-report.md`
 
 ## Behavior
@@ -55,3 +56,29 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 - Note it: "No docs appear to cover [feature]. Consider creating a spec or TIL if this is durable behavior."
 
 **Intent**: Code-first developers are reminded about docs without needing to remember "update docs after pushing code".
+
+## Reorganization flow
+
+**Trigger**: User explicitly says "reorganize", "restructure docs", "fix structure", or similar.
+
+**Steps**:
+
+1. Load `contracts/organization.md`
+2. Inventory current structure (list all doc files and folders)
+3. Detect red flags from the contract
+4. Recommend a pattern from the decision matrix based on team size and doc count
+5. Present the recommendation and ask for confirmation before any mutation
+6. If confirmed, follow Migration Checklist in `contracts/organization.md`
+7. Report all moved files and updated cross-references in mutation report
+
+**Important**: Never move or rename files without explicit user confirmation of the target structure.
+
+## Arg-triggered
+
+If `--maintain-plan` arg is active:
+
+- Scope = all plan docs (status: draft or in-progress). Exclude completed and archived.
+- If a specific plan file/name is given alongside the arg, scope to that plan only.
+- For each plan in scope: read status, milestones, and progress indicators.
+- Report current state of each plan. Offer to update status or milestones.
+- Do not archive or mark completed without explicit user confirmation.

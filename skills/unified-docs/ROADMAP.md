@@ -39,11 +39,24 @@ Only load what the mode and doc type need:
 
 - SKILL.md always loads (small, fast routing)
 - mode file loads based on user request classification
-- contracts load conditionally (e.g., lifecycle.md only for plan/spec/ADR)
+- contracts load conditionally (e.g., lifecycle.md only for plan/spec/ADR; organization.md only when reorganization is triggered)
 - workflows load only when that specific mode×doc-type is active
 - templates load on demand (authoring templates) or when workflow references them
 
 This keeps context small and focused.
+
+### Args (Quick Triggers)
+
+SKILL.md supports optional args that pre-select mode and scope, skipping mode selection:
+
+| Arg | Effect |
+|---|---|
+| `--create-plan` | Skip to plan doc creation (Create mode, plan type) |
+| `--audit-codebase` | Full corpus audit + organization checks |
+| `--audit-org` | Organization-only checks, skip frontmatter/lifecycle |
+| `--maintain-plan` | Scan and update draft/in-progress plans (no archive) |
+
+Each arg has corresponding logic in its mode file to load only the contracts and templates needed for that scope.
 
 ---
 
@@ -57,6 +70,16 @@ This keeps context small and focused.
 | **Create** | `modes/create.md` | Create new docs from authoring skeletons |
 | **Maintain** | `modes/maintain.md` | Update existing docs, lifecycle metadata, or cascade links |
 | **Audit** | `modes/audit.md` | Report docs health across a target set |
+
+### Contracts
+
+| Contract | File | Purpose | Lazy-Load Trigger |
+|----------|------|---------|------------------|
+| Frontmatter schema | `contracts/frontmatter.md` | Universal metadata schema | Always (all modes) |
+| Type/kind choice | `contracts/classification.md` | Doc classification rules | Create, Audit, Maintain |
+| Lifecycle rules | `contracts/lifecycle.md` | ADR, plan, spec lifecycle | Create, Maintain (when needed) |
+| Cascade graph | `contracts/cascade.md` | Dependency and reciprocal links | Audit, Maintain (when needed) |
+| **Organization patterns** | **`contracts/organization.md`** | **Folder structure guidance** | **Trigger: user reorganization request, audit detects structure issues, create from-scratch** |
 
 ### Workflows
 
@@ -181,11 +204,12 @@ Examples:
 ## Architecture Principles
 
 1. **Layered by specificity**: General logic at outer layers, specific logic in `workflows/`
-2. **Lazy-load discipline**: Only load what's needed for the mode and doc type
+2. **Lazy-load discipline**: Only load what's needed for the mode and doc type. Contracts trigger conditionally based on user context.
 3. **One workflow per folder**: Each mode×doc-type has its own folder, no shared workflows
 4. **Self-contained workflows**: flow.md + templates live together, templates reference each other by relative path
 5. **No duplicated templates**: If two workflows need the same template, consider promoting it to `templates/authoring/` (shared)
 6. **Clear routing**: SKILL.md and each mode file make routing explicit, not implicit
+7. **Arg-based shortcuts**: Args pre-select mode + scope; each mode's file defines arg-triggered behavior. Args load only contracts/templates needed for that specific scope.
 
 ---
 
