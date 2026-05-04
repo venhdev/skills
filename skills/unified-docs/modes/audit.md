@@ -13,9 +13,13 @@ Default to targeted audit:
 
 Run full corpus audit only when the user says full, complete, entire corpus, or equivalent.
 
-When `--audit-codebase` arg is active, automatically set scope to full corpus audit and include organization checks.
+### Arg-triggered routing
 
-When `--audit-org` arg is active, set scope to organization checks only — skip frontmatter/lifecycle/cascade checks.
+| Arg | Workflow |
+|---|---|
+| `--audit-org` | `workflows/audit-org/` (organization check only) |
+| `--audit-naming` | `workflows/audit-naming/` (naming check with scope prompt if needed) |
+| `--audit-codebase` | `workflows/audit-codebase/` (full corpus: org + naming + frontmatter/lifecycle/cascade) |
 
 ## Corpus boundaries
 
@@ -29,11 +33,12 @@ If a full-corpus audit sees many Markdown files outside project docs, report the
 
 ## Inputs to load
 
+For non-arg audits:
+
 - `contracts/frontmatter.md`
 - `contracts/classification.md`
-- `contracts/lifecycle.md`
+- `contracts/doctypes/[type].md` (when type is determined)
 - `contracts/cascade.md`
-- `contracts/organization.md` when full-corpus audit detects structural issues or when `--audit-org` arg is active
 - `templates/reports/health-report.md`
 
 ## Checks
@@ -78,15 +83,6 @@ Severity divides into two classes: **schema/field validation** (Critical) and **
 - Intentional one-way lifecycle reminders (plan updating a durable spec; spec not reciprocating)
 - Excluded scope and tool/vendor paths
 - Historical context and reference notes
-
-## Organization check
-
-Load `contracts/organization.md` only when:
-
-- Full-corpus audit is running AND docs appear structurally inconsistent (missing clear folder hierarchy, no README at major sections), OR
-- `--audit-org` arg is active
-
-When organization checks are active, report red flags from the contract (see its "Red Flags" section). Classify organization issues as **Warning** severity. Do not reorganize — surface findings only.
 
 ## Reporting
 

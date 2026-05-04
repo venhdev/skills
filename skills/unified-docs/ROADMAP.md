@@ -2,61 +2,95 @@
 
 ## Skill Architecture
 
-The skill is organized in **layers**, from general (outer) to specific (inner):
+The skill is organized in **3 layers**, from general (outer) to specific (inner):
 
 ```
-SKILL.md                          ← Entry point: mode routing + lazy-load table
-├── modes/[mode].md               ← Common logic per mode
-├── workflows/[mode]-[doc-type]/  ← Specific logic for mode×doc-type
-│   ├── flow.md                   ← AI-executable instructions
-│   ├── [doc-type].md            ← Output document skeleton (primary template)
-│   └── [supporting-files].md    ← Additional templates used by flow
-├── contracts/                    ← Cross-cutting rules (lazy-loaded)
+SKILL.md                              ← Entry point: first user-gated + routing
+├── modes/[mode].md                   ← General rules per mode + routing table
+├── contracts/doctypes/[type].md      ← Per-doc-type rules (mode-independent, always-on)
+├── workflows/[name]/                 ← Specific logic for arg-triggered operations only
+│   ├── flow.md                       ← ## Load (self-declared deps) + instructions
+│   └── [supporting-files].md        ← Templates and content referenced by flow.md
+├── contracts/                        ← Cross-cutting rules (lazy-loaded)
+│   ├── frontmatter.md               ← Universal metadata schema
+│   ├── classification.md            ← Type/kind taxonomy
+│   ├── cascade.md                   ← Dependency graph rules
+│   ├── multi-flow.md                ← Multi-flow detection (lazy, only when needed)
+│   └── doctypes/                    ← Per-doc-type rules (6 files, one per type)
 ├── templates/
-│   ├── authoring/                ← Doc skeletons (doc types without dedicated workflows)
-│   └── reports/                  ← Report templates (shared across modes)
-└── scripts/                      ← Utility scripts (general, not mode-specific)
+│   ├── authoring/                    ← Doc skeletons (types without dedicated workflows)
+│   └── reports/                      ← Report templates (shared across modes)
+└── scripts/                          ← Validation utilities (gitignore-aware)
 ```
 
-### Mode → Workflow Routing Pattern
-
-The core routing is simple and consistent:
+### 3-Layer Loading
 
 ```
-modes/[mode].md
-  ↓ (routes to based on doc type)
-workflows/[mode]-[doc-type]/
-  ├── flow.md               ← AI-executable instructions
-  ├── [doc-type].md        ← Document skeleton/template
-  └── [supporting].md      ← Additional templates
+Request
+  ↓
+SKILL.md — first user-gated (always) + routing
+  ↓
+[Layer 2 — both always loaded when type is known]
+modes/[mode].md              +   contracts/doctypes/[type].md
+general rules + routing          type-specific rules, mode-independent
+  ↓ (only when arg present)
+[Layer 3]
+workflows/[name]/flow.md
+## Load (self-declared) + specific instructions
 ```
 
-Example: Creating a plan doc → `workflows/create-plan/` → loads `flow.md` + `implementation-plan-template.md`
+
+### Visual 3-layer
+
+---
+Kiến trúc mới — 3 layers
+
+┌─────────────────────────────────────────────────────────┐
+│ SKILL.md                                                │
+│  └─ First user-gated: xác định flow(s) cần chạy        │
+│      ├─ Single flow → proceed                           │
+│      └─ Multi-flow → contracts/multi-flow.md (lazy)    │
+│          ├─ A liên quan B? → sequential                 │
+│          └─ Không? → parallel (subagents nếu hỗ trợ)   │
+└─────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────┐
+│ Layer 2 — luôn load cả hai, không thứ tự ưu tiên       │
+│  ├─ modes/[mode].md    — general rules của mode đó      │
+│  └─ contracts/doctypes/[type].md — rules của doc type   │
+│      (mode-independent, luôn tuân theo)                 │
+└─────────────────────────────────────────────────────────┘
+                          ↓ (chỉ khi có arg)
+┌─────────────────────────────────────────────────────────┐
+│ Layer 3 — workflows/[name]/flow.md                      │
+│  └─ Specific logic + ## Load (tự khai báo deps)         │
+└─────────────────────────────────────────────────────────┘
+---
 
 ### Lazy-Load Principle
 
-Only load what the mode and doc type need:
-
-- SKILL.md always loads (small, fast routing)
-- mode file loads based on user request classification
-- contracts load conditionally (e.g., lifecycle.md only for plan/spec/ADR; organization.md only when reorganization is triggered)
-- workflows load only when that specific mode×doc-type is active
-- templates load on demand (authoring templates) or when workflow references them
+- **SKILL.md**: always loads (small, fast routing + first user-gated)
+- **Mode file**: loads once mode is determined; contains general rules only
+- **Doctype file** (`contracts/doctypes/[type].md`): loads once doc type is known; always loaded for that type regardless of mode
+- **Workflow** (`workflows/[name]/flow.md`): loads only when a matching arg is active; self-declares its own deps via `## Load` section
+- **`contracts/multi-flow.md`**: lazy — only when multi-flow is detected
+- **Contracts** (frontmatter, classification, cascade): loaded by workflow's `## Load` or by mode for non-workflow operations
 
 This keeps context small and focused.
 
 ### Args (Quick Triggers)
 
-SKILL.md supports optional args that pre-select mode and scope, skipping mode selection:
+Args pre-select mode + operation, routing directly to the corresponding workflow:
 
-| Arg | Effect |
-|---|---|
-| `--create-plan` | Skip to plan doc creation (Create mode, plan type) |
-| `--audit-codebase` | Full corpus audit + organization checks |
-| `--audit-org` | Organization-only checks, skip frontmatter/lifecycle |
-| `--maintain-plan` | Scan and update draft/in-progress plans (no archive) |
+| Arg | Workflow | Effect |
+|---|---|---|
+| `--create-plan` | `workflows/create-plan/` | Create plan doc, skip to content discovery |
+| `--audit-codebase` | `workflows/audit-codebase/` | Full corpus audit: chains audit-org + audit-naming + full checks |
+| `--audit-org` | `workflows/audit-org/` | Organization check only |
+| `--audit-naming` | `workflows/audit-naming/` | Naming check — asks scope if not specified |
+| `--maintain-plan` | `workflows/maintain-plan/` | Scan and update draft/in-progress plans (no archive) |
 
-Each arg has corresponding logic in its mode file to load only the contracts and templates needed for that scope.
+**Rule**: A workflow exists only if there is a corresponding arg shortcut. If there is no arg, the operation is handled by mode + doctype rules directly.
 
 ---
 
@@ -64,28 +98,37 @@ Each arg has corresponding logic in its mode file to load only the contracts and
 
 ### Modes
 
-| Mode | File | Purpose |
-|------|------|---------|
-| **Read** | `modes/read.md` | Answer status/current-truth questions without mutating files |
-| **Create** | `modes/create.md` | Create new docs from authoring skeletons |
-| **Maintain** | `modes/maintain.md` | Update existing docs, lifecycle metadata, or cascade links |
-| **Audit** | `modes/audit.md` | Report docs health across a target set |
+| Mode | File | General rules | Routing to |
+|------|------|--------------|------------|
+| **Read** | `modes/read.md` | Lifecycle state reading, replacement pointer following | — |
+| **Create** | `modes/create.md` | Context scan, discovery gate, template mapping | `workflows/create-plan/` |
+| **Maintain** | `modes/maintain.md` | Preserve body, normalize, cascade policy, drift detection | `workflows/maintain-plan/`, `workflows/audit-org/` |
+| **Audit** | `modes/audit.md` | Scope, corpus boundaries, checks, severity, mutation policy | `workflows/audit-org/`, `workflows/audit-naming/`, `workflows/audit-codebase/` |
 
 ### Contracts
 
-| Contract | File | Purpose | Lazy-Load Trigger |
-|----------|------|---------|------------------|
-| Frontmatter schema | `contracts/frontmatter.md` | Universal metadata schema | Always (all modes) |
-| Type/kind choice | `contracts/classification.md` | Doc classification rules | Create, Audit, Maintain |
-| Lifecycle rules | `contracts/lifecycle.md` | ADR, plan, spec lifecycle | Create, Maintain (when needed) |
-| Cascade graph | `contracts/cascade.md` | Dependency and reciprocal links | Audit, Maintain (when needed) |
-| **Organization patterns** | **`contracts/organization.md`** | **Folder structure guidance** | **Trigger: user reorganization request, audit detects structure issues, create from-scratch** |
+| Contract | File | Purpose | Load trigger |
+|----------|------|---------|--------------|
+| Frontmatter schema | `contracts/frontmatter.md` | Universal metadata schema (7 required fields) | Always |
+| Type/kind taxonomy | `contracts/classification.md` | Type/kind rules, discovery-first requirement | Create, Audit, Maintain |
+| Cascade graph | `contracts/cascade.md` | `depends-on`/`updates` semantics and repair policy | Audit, Maintain |
+| Multi-flow | `contracts/multi-flow.md` | Multi-flow detection, sequential/parallel logic, plan-first | Lazy — only when multi-flow detected |
+| **Plan rules** | **`contracts/doctypes/plan.md`** | **Plan lifecycle, status transitions, replacedBy, cascade rules** | **When doc type = plan** |
+| **ADR rules** | **`contracts/doctypes/adr.md`** | **ADR lifecycle, adr-id, supersession, write-once body** | **When doc type = adr** |
+| **Spec rules** | **`contracts/doctypes/spec.md`** | **Spec status, ssot rules, current-truth requirements** | **When doc type = spec** |
+| **How-to rules** | **`contracts/doctypes/how-to.md`** | **Purpose, kind defaults, no lifecycle** | **When doc type = how-to** |
+| **Explanation rules** | **`contracts/doctypes/explanation.md`** | **Purpose, kind defaults** | **When doc type = explanation** |
+| **TIL rules** | **`contracts/doctypes/til.md`** | **Not canonical, not depends-on target** | **When doc type = til** |
 
 ### Workflows
 
-| Folder | Mode | Doc Type | Purpose |
-|--------|------|----------|---------|
-| `workflows/create-plan/` | Create | plan | Two-tier planning workflow: milestone plan + optional detailed implementation |
+| Folder | Arg | Purpose |
+|--------|-----|---------|
+| `workflows/create-plan/` | `--create-plan` | Two-tier planning: milestone plan + optional detailed implementation |
+| `workflows/audit-org/` | `--audit-org` | Organization check (read-only) + reorganization (mutation, Maintain-triggered) |
+| `workflows/audit-naming/` | `--audit-naming` | Naming check — asks scope if not specified |
+| `workflows/audit-codebase/` | `--audit-codebase` | Full corpus: chains audit-org + audit-naming + full frontmatter/lifecycle/cascade |
+| `workflows/maintain-plan/` | `--maintain-plan` | Plan status scan and update |
 
 ---
 
@@ -203,48 +246,60 @@ Examples:
 
 ## Architecture Principles
 
-1. **Layered by specificity**: General logic at outer layers, specific logic in `workflows/`
-2. **Lazy-load discipline**: Only load what's needed for the mode and doc type. Contracts trigger conditionally based on user context.
-3. **One workflow per folder**: Each mode×doc-type has its own folder, no shared workflows
-4. **Self-contained workflows**: flow.md + templates live together, templates reference each other by relative path
-5. **No duplicated templates**: If two workflows need the same template, consider promoting it to `templates/authoring/` (shared)
-6. **Clear routing**: SKILL.md and each mode file make routing explicit, not implicit
-7. **Arg-based shortcuts**: Args pre-select mode + scope; each mode's file defines arg-triggered behavior. Args load only contracts/templates needed for that specific scope.
+1. **3-layer loading**: SKILL.md (routing) → mode general rules + doctype rules → (arg only) workflow specific logic.
+2. **Mode = general rules only**: Mode files contain behavior rules that apply to ALL operations of that mode. No doc-type-specific steps, no arg-triggered logic blocks.
+3. **Doctype = mode-independent rules**: `contracts/doctypes/[type].md` holds what makes that doc type unique. Loaded whenever that type is active, regardless of mode.
+4. **Workflow = arg-triggered only**: A workflow folder exists if and only if there is a corresponding arg shortcut. Non-arg operations are handled by mode + doctype rules.
+5. **`flow.md` self-declares deps**: Every `flow.md` has a `## Load` section listing exactly which contracts and sibling files it needs. No external list of workflow files.
+6. **First user-gated always**: Before any action, SKILL.md probes intent, validates the request matches skill capability, and detects single vs. multi-flow. All user-gated checkpoints must be approved before proceeding.
+7. **Multi-flow → plan-first**: When multiple independent flows are detected, load `contracts/multi-flow.md`. Present a plan for all flows, confirm, then execute sequentially (related) or in parallel via subagents (unrelated).
+8. **Many small focused files**: Prefer more files that are each focused over fewer large files. Each file should have one clear responsibility.
+9. **No logic duplication**: If something is in a doctype file, it is not repeated in a mode file. If it is in a workflow, the mode only routes to it.
+10. **Clear routing chain**: SKILL.md → mode (routing table) → workflow. Each hop is explicit in the file that makes it.
 
 ---
 
 ## Adding Future Features
 
-### Adding a doc type (e.g., "runbook")
-1. If all modes treat it generically → add skeleton to `templates/authoring/runbook.md`
-2. If a mode needs special handling → create workflow folder for that mode×doc-type
+### Adding a new doc type (e.g., "runbook")
+1. Create `contracts/doctypes/runbook.md` — define type, kind, any additional fields, lifecycle rules, cascade rules.
+2. Add skeleton to `templates/authoring/runbook.md` (for doc creation without a dedicated workflow).
+3. If there is an arg shortcut needed → create `workflows/[action]-runbook/` with `flow.md` + `## Load` section.
+4. Update ROADMAP.md contracts table and workflows table.
 
-### Adding special behavior for existing doc type
-1. Create workflow folder for that mode×doc-type
-2. Move template from `templates/authoring/` → `workflows/[mode]-[doc-type]/`
-3. Update mode's inputs-to-load and template mapping
-4. Delete from `templates/authoring/`
+### Adding a new arg + workflow
+1. Decide the arg name: `--[mode]-[action]` pattern.
+2. Create `workflows/[name]/flow.md` with `## Load` section and instructions.
+3. Add the arg to `SKILL.md` Args table.
+4. Add a routing line to the relevant mode file's routing table.
+5. Update ROADMAP.md.
+
+### Adding a new mode
+1. Create `modes/[mode].md` with: description, general behavior rules, routing table.
+2. Mode file must NOT contain doc-type-specific logic — that lives in `contracts/doctypes/`.
+3. Update `SKILL.md` Modes section.
+4. Update ROADMAP.md.
 
 ### Splitting a large workflow
-1. Create sub-workflows inside the same folder (e.g., `workflows/create-plan/setup.md`, `workflows/create-plan/execution.md`)
-2. Reference them from flow.md
-3. Update ROADMAP.md to explain the sub-structure
+1. Add supporting files inside the same folder (e.g., `workflows/create-plan/tier2-checklist.md`).
+2. Reference them from `flow.md`.
+3. Update ROADMAP.md.
 
 ---
 
 ## Verification Checklist
 
-After restructuring or adding a workflow:
+After adding a workflow or doc type:
 
-- [ ] All files in `workflows/[mode]-[doc-type]/` are present and named correctly
-- [ ] `flow.md` exists and is AI-readable (clear steps, no ambiguity)
-- [ ] Primary template is named after the doc type
-- [ ] `modes/[mode].md` has correct lazy-load entry and template mapping
-- [ ] `SKILL.md` lazy-load routing mentions the workflow
-- [ ] `ROADMAP.md` current workflows table is updated
-- [ ] Old duplicate files are deleted (e.g., `templates/authoring/plan.md`)
-- [ ] No circular dependencies (workflow A can't load workflow B)
-- [ ] Template paths are relative (relative to the workflow folder or skill root)
+- [ ] `contracts/doctypes/[type].md` exists with: type, kind, additional fields, lifecycle rules, cascade rules
+- [ ] `workflows/[name]/flow.md` has `## Load` section declaring all deps
+- [ ] Workflow exists only if there is a matching arg in SKILL.md Args table
+- [ ] Mode file routing table updated (1 line: `--arg → workflows/[name]/`)
+- [ ] Mode file contains NO doc-type-specific logic (it routes, not implements)
+- [ ] SKILL.md Args table updated
+- [ ] ROADMAP.md contracts and workflows tables updated
+- [ ] No logic appears in more than one place (no duplication between mode, doctype, workflow)
+- [ ] No circular workflow references
 
 ---
 
@@ -264,6 +319,6 @@ After restructuring or adding a workflow:
 
 ---
 
-**Last updated**: 2026-04-30  
-**Skill version**: 2  
-**Architecture version**: 2 (layered workflows)
+**Last updated**: 2026-05-04  
+**Skill version**: 3  
+**Architecture version**: 3 (3-layer: mode + doctype + workflow; first user-gated; multi-flow)

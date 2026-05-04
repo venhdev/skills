@@ -6,9 +6,8 @@ Use this mode when the user wants a new doc created from scratch or a rough note
 
 - `contracts/frontmatter.md`
 - `contracts/classification.md`
-- `contracts/lifecycle.md` if the doc is a plan, spec, or ADR
+- `contracts/doctypes/[type].md` if the doc is a plan, spec, or ADR
 - `contracts/cascade.md` if dependencies or downstream docs matter
-- `contracts/organization.md` when placement is unclear and no docs folder convention exists (from-scratch projects)
 - all files in `workflows/create-plan/` if the doc is a plan (two-tier planning workflow)
 - matching file in `templates/authoring/` (or `workflows/create-plan/` for plan)
 
@@ -22,7 +21,7 @@ When a Create request arrives, first scan the project's existing docs:
    - If update → switch to Maintain mode immediately
    - If new doc → treat found docs as known context; skip discovery questions about existence ("What docs already exist on this topic?")
 3. If nothing found: note explicitly ("No existing docs on this topic found"), then proceed with standard discovery
-4. If no existing docs folder or convention exists (from-scratch project): consult `contracts/organization.md` to suggest a starting structure. Ask the user which pattern fits before placing the new doc. This is a hint, not a discovery gate — do not block authoring
+4. If no existing docs folder or convention exists (from-scratch project): suggest a starting folder structure pattern. Ask the user which pattern fits before placing the new doc. This is a hint, not a discovery gate — do not block authoring
 
 1. **MANDATORY: Enter discovery before authoring for every Create request. Never skip or defer discovery.**
 2. Ask one focused question at a time. Even apparently clear requests are not exempt. A clear title or explicit type hint does NOT satisfy the discovery requirement.
@@ -97,18 +96,6 @@ If the user changes or rejects the restatement, continue discovery.
 - For large features, decide after discovery whether one doc is sufficient or whether a root index plus sub-docs is the better artifact shape.
 - When a temporary plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.
 - For placement decisions when conventions are unclear: consult `contracts/organization.md` to recommend a pattern. Favor Pattern 1 (By Type) for small teams, Pattern 3 (Hybrid) for growing teams. Always confirm with user before recommending folder restructuring.
-
-## Arg-triggered
-
-If `--create-plan` arg is active:
-- Skip mode selection and type discovery
-- Know immediately: mode = Create, doc type = plan
-- Load `contracts/lifecycle.md` and `workflows/create-plan/`
-- Proceed directly to plan content discovery (Step 1 onward)
-
-## Post-creation: Detailed Plan Option (Plan docs only)
-
-When a plan doc is created, implement the two-tier planning workflow defined in `workflows/create-plan/flow.md`.
 
 ## Template mapping
 

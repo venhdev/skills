@@ -6,9 +6,8 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 
 - `contracts/frontmatter.md`
 - `contracts/classification.md` when reclassification is involved
-- `contracts/lifecycle.md` for ADR, plan, spec, archive, or replacement behavior
+- `contracts/doctypes/[type].md` when type-specific lifecycle rules apply
 - `contracts/cascade.md` for `depends-on` / `updates` changes
-- `contracts/organization.md` when the request involves folder restructuring or reorganization
 - `templates/reports/mutation-report.md`
 
 ## Behavior
@@ -16,12 +15,9 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 1. Treat existing-doc maintenance as the default before creating a replacement.
 2. Preserve body content unless lifecycle state requires a visible note, Status Log update, or archive banner.
 3. Normalize frontmatter to the contract without discarding valid secondary `kind` values.
-4. For ADR supersession, create a new ADR, update old metadata and Status Log, and do not rewrite the accepted decision body.
-5. For completed plans, promote durable outcomes into a spec and set `replacedBy` once the accepted current spec exists; do not archive a completed plan until `replacedBy` points to that non-archived accepted spec. If the accepted spec exists and current inbound references are already moved or absent, the plan is archive-ready, not blocked. When archiving, add the archive banner to the archived plan pointing readers to the spec; do not add that banner to the spec.
-6. For plan updates, keep Gate conditions optional; after updating a plan, add a brief hint that the user may add gate conditions under Milestones if implementation should wait for prerequisites.
-7. For cascade checks, use Audit mode when the user wants assessment-only output, including prompts that ask what would be repaired but do not authorize mutation. Use Maintain mode only when repair is explicitly requested. In Maintain mode, patch inverse links only when current and unambiguous.
-8. Validate changed docs with `scripts/check_frontmatter.py` when practical. If unavailable, apply the schema rules from `contracts/frontmatter.md` directly: check that all required fields are present, all list-fields use YAML list syntax, type/kind values are valid, and ADR/plan/spec coupling rules are met.
-9. When cascade metadata changed, use `scripts/cascade_targets.py` to map outgoing and incoming links. If unavailable, follow the manual cascade check procedure in `contracts/cascade.md`.
+4. For cascade checks, use Audit mode when the user wants assessment-only output, including prompts that ask what would be repaired but do not authorize mutation. Use Maintain mode only when repair is explicitly requested. In Maintain mode, patch inverse links only when current and unambiguous.
+5. Validate changed docs with `scripts/check_frontmatter.py` when practical. If unavailable, apply the schema rules from `contracts/frontmatter.md` directly: check that all required fields are present, all list-fields use YAML list syntax, type/kind values are valid, and ADR/plan/spec coupling rules are met.
+6. When cascade metadata changed, use `scripts/cascade_targets.py` to map outgoing and incoming links. If unavailable, follow the manual cascade check procedure in `contracts/cascade.md`.
 
 ## Safe auto-repair examples
 
@@ -57,28 +53,23 @@ Use this mode when the user asks to update an existing doc, normalize metadata, 
 
 **Intent**: Code-first developers are reminded about docs without needing to remember "update docs after pushing code".
 
-## Reorganization flow
+## Reorganization
 
 **Trigger**: User explicitly says "reorganize", "restructure docs", "fix structure", or similar.
 
-**Steps**:
-
-1. Load `contracts/organization.md`
+When reorganization is requested:
+1. Load `workflows/audit-org/organization-patterns.md`
 2. Inventory current structure (list all doc files and folders)
-3. Detect red flags from the contract
+3. Detect red flags from the patterns document
 4. Recommend a pattern from the decision matrix based on team size and doc count
 5. Present the recommendation and ask for confirmation before any mutation
-6. If confirmed, follow Migration Checklist in `contracts/organization.md`
+6. If confirmed, follow Migration Checklist in `organization-patterns.md`
 7. Report all moved files and updated cross-references in mutation report
 
 **Important**: Never move or rename files without explicit user confirmation of the target structure.
 
-## Arg-triggered
+## Arg-triggered routing
 
-If `--maintain-plan` arg is active:
-
-- Scope = all plan docs (status: draft or in-progress). Exclude completed and archived.
-- If a specific plan file/name is given alongside the arg, scope to that plan only.
-- For each plan in scope: read status, milestones, and progress indicators.
-- Report current state of each plan. Offer to update status or milestones.
-- Do not archive or mark completed without explicit user confirmation.
+| Arg | Workflow |
+|---|---|
+| `--maintain-plan` | `workflows/maintain-plan/` |

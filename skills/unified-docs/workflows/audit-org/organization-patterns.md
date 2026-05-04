@@ -1,16 +1,6 @@
-# Organization Contract
+# Organization Patterns
 
-This contract describes folder structure patterns for documentation and when to consult them.
-
-## When to load this contract
-
-Load **only** when one of these triggers is active:
-
-- User explicitly requests reorganization ("reorganize docs", "fix doc structure", "restructure folders")
-- Audit or Maintain mode detects structural issues: no clear folder hierarchy, docs mixed at root, no README at major sections
-- Create mode: no existing docs folder or convention to follow (from-scratch project)
-
-This contract is **lazy-loaded** and not consulted during routine docs creation, maintenance, or audits with clear structure.
+This document describes folder structure patterns for documentation and when to consult them.
 
 ---
 
@@ -215,13 +205,3 @@ When a user confirms a restructuring decision:
 5. **Check broken links** — Search for and fix any relative paths that now point to wrong locations
 6. **Create README files** — Add index/README at each major section
 7. **Update cross-references** — Search codebase for hardcoded doc references; update if needed
-
----
-
-## When Not to Reorganize
-
-- Small projects (< 30 docs) with clear structure already in place
-- Routine doc updates that do not require folder changes
-- Audit findings about individual doc quality (frontmatter, content) — those are separate from organization structure
-
-Use Audit and Maintain modes for those cases; they do not load this contract.

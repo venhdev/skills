@@ -10,6 +10,23 @@ description: >
 
 # unified-docs
 
+## First User-Gated (always)
+
+Before any action:
+
+1. **Determine intent** — What does the user need? If unclear → ask
+2. **Validate request** — Does this request match skill capability? (e.g., "maintain API docs" without existing docs → redirect to Create mode)
+3. **Detect flow count** — Single flow or multi-flow?
+   - Single: proceed to appropriate mode
+   - Multi: load `contracts/multi-flow.md`, present plan, confirm all flows before execution
+4. **Confirm intent** before proceeding (even before reading files)
+
+All checkpoints must be user-approved before continuing.
+
+---
+
+## Choose Mode
+
 Choose the narrowest mode that satisfies the request. Load only the files named for that mode.
 
 ## Modes
@@ -25,28 +42,32 @@ If intent is unclear, start with Read or targeted Audit. Do not run full-corpus 
 
 Pass an arg directly after the skill name to skip mode selection. Args pre-select both mode and action scope. Load only the files needed for that arg.
 
-| Arg | Effect |
-|---|---|
-| `--create-plan` | Create mode, plan doc type. Skip to plan discovery immediately. |
-| `--audit-codebase` | Audit mode, full corpus + organization checks. |
-| `--audit-org` | Audit mode, organization-only. Loads `contracts/organization.md`. Skips frontmatter/lifecycle checks. |
-| `--maintain-plan` | Maintain mode, plans only. Scans for all plans with status draft or in-progress. No archive. |
+| Arg | Mode | Action | Workflow |
+|---|---|---|---|
+| `--create-plan` | Create | plan | `workflows/create-plan/` |
+| `--audit-codebase` | Audit | codebase | `workflows/audit-codebase/` |
+| `--audit-org` | Audit | org | `workflows/audit-org/` |
+| `--audit-naming` | Audit | naming | `workflows/audit-naming/` |
+| `--maintain-plan` | Maintain | plan | `workflows/maintain-plan/` |
 
 If no arg is given, use normal mode routing.
 
 ## Lazy-load routing
 
-- Metadata/schema: `contracts/frontmatter.md`.
-- Type/kind choice: `contracts/classification.md`.
-- ADR, plan, spec lifecycle: `contracts/lifecycle.md`.
-- Dependency and reciprocal update graph: `contracts/cascade.md`.
-- Folder structure patterns and reorganization: `contracts/organization.md` — load only when triggered (see triggers in the contract).
-- Create doc artifact: `modes/create.md` + matching `templates/authoring/*.md`.
-- Two-tier plan workflow: all files in `workflows/create-plan/` if creating a plan doc.
-- Read current status: `modes/read.md` + `templates/reports/read-status.md`.
-- Maintain existing docs: `modes/maintain.md` + `templates/reports/mutation-report.md`.
-- Audit docs health: `modes/audit.md` + `templates/reports/health-report.md`.
-- **Drift check**: When context indicates a code change or newly shipped feature (not an explicit doc request), use drift-check flow in `modes/maintain.md` to surface docs that may need updating.
+- **Frontmatter schema**: `contracts/frontmatter.md`
+- **Type/kind taxonomy**: `contracts/classification.md`
+- **Doc type rules**: `contracts/doctypes/[type].md` — load when type is determined (one per type: plan, adr, spec, how-to, explanation, til)
+- **Cascade graph**: `contracts/cascade.md`
+- **Multi-flow detection**: `contracts/multi-flow.md` — lazy, only when first user-gated detects multiple independent flows
+- **Organization check**: `workflows/audit-org/` + `organization-patterns.md` — via `--audit-org`, `--audit-codebase`, or Maintain reorganization
+- **Naming check**: `workflows/audit-naming/` + `naming-rules.md` — via `--audit-naming` or `--audit-codebase`
+- **Full corpus audit**: `workflows/audit-codebase/` — via `--audit-codebase` (chains org + naming + full audit)
+- **Plan maintenance**: `workflows/maintain-plan/` — via `--maintain-plan`
+- **Create mode**: `modes/create.md` + matching `templates/authoring/*.md` + `workflows/create-plan/` if plan doc
+- **Read mode**: `modes/read.md` + `templates/reports/read-status.md`
+- **Maintain mode**: `modes/maintain.md` + `templates/reports/mutation-report.md`
+- **Audit mode**: `modes/audit.md` + `templates/reports/health-report.md`
+- **Drift check**: When context indicates code change or new feature (not explicit doc request), use drift-check in `modes/maintain.md` to surface affected docs
 
 ## Always preserve these invariants
 
