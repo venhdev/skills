@@ -47,20 +47,20 @@ Kiến trúc mới — 3 layers
 
 ┌─────────────────────────────────────────────────────────┐
 │ SKILL.md                                                │
-│  └─ First user-gated: xác định flow(s) cần chạy        │
+│  └─ First user-gated: determine which flow(s) to run   │
 │      ├─ Single flow → proceed                           │
 │      └─ Multi-flow → contracts/multi-flow.md (lazy)    │
-│          ├─ A liên quan B? → sequential                 │
-│          └─ Không? → parallel (subagents nếu hỗ trợ)   │
+│          ├─ Are A and B related? → sequential          │
+│          └─ No? → parallel (subagents if supported)    │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
-│ Layer 2 — luôn load cả hai, không thứ tự ưu tiên       │
-│  ├─ modes/[mode].md    — general rules của mode đó      │
-│  └─ contracts/doctypes/[type].md — rules của doc type   │
-│      (mode-independent, luôn tuân theo)                 │
+│ Layer 2 — always load both, no priority order           │
+│  ├─ modes/[mode].md    — general rules for this mode    │
+│  └─ contracts/doctypes/[type].md — rules for doc type   │
+│      (mode-independent, always follow)                  │
 └─────────────────────────────────────────────────────────┘
-                          ↓ (chỉ khi có arg)
+                          ↓ (only when arg is provided)
 ┌─────────────────────────────────────────────────────────┐
 │ Layer 3 — workflows/[name]/flow.md                      │
 │  └─ Specific logic + ## Load (tự khai báo deps)         │
