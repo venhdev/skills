@@ -14,8 +14,16 @@ kind: [spec, ssot]
 ## Lifecycle
 
 ```
-draft → accepted (stable; no terminal state)
+draft → accepted (stable)
+accepted → superseded (terminal)
 ```
+
+**Status semantics**:
+- **draft** — spec is being written or reviewed
+- **accepted** — spec is the current authoritative truth
+- **superseded** — a new spec has replaced this one; do not use this spec for new work
+
+**Supersession**: When a spec is superseded, create a new spec with the updated truth and set `supersededBy` on the old spec. Do not rewrite the old spec's body; add a deprecation banner pointing to the new spec.
 
 ## Rules
 

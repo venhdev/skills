@@ -4,6 +4,9 @@
 
 - `contracts/frontmatter.md`
 - `contracts/classification.md`
+- `contracts/doctypes/how-to.md`
+- `contracts/doctypes/explanation.md`
+- `contracts/doctypes/til.md`
 - `contracts/doctypes/plan.md`
 - `contracts/doctypes/adr.md`
 - `contracts/doctypes/spec.md`

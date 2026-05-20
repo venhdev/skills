@@ -95,7 +95,7 @@ If the user changes or rejects the restatement, continue discovery.
 - For source-material conversions, do not normalize raw material into a doc until discovery has established the intended outcome and correct artifact shape.
 - For large features, decide after discovery whether one doc is sufficient or whether a root index plus sub-docs is the better artifact shape.
 - When a temporary plan references durable specs or SSOT docs that may need updates after completion, put those durable docs in the plan's own `updates`; do not add the temporary plan to the durable docs' `updates` or `depends-on` as a reciprocal link.
-- For placement decisions when conventions are unclear: consult `contracts/organization.md` to recommend a pattern. Favor Pattern 1 (By Type) for small teams, Pattern 3 (Hybrid) for growing teams. Always confirm with user before recommending folder restructuring.
+- For placement decisions when conventions are unclear: consult `workflows/audit-org/organization-patterns.md` to recommend a pattern. Favor Pattern 1 (By Type) for small teams, Pattern 3 (Hybrid) for growing teams. Always confirm with user before recommending folder restructuring.
 
 ## Template mapping
 

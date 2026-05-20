@@ -54,20 +54,31 @@ If no arg is given, use normal mode routing.
 
 ## Lazy-load routing
 
-- **Frontmatter schema**: `contracts/frontmatter.md`
-- **Type/kind taxonomy**: `contracts/classification.md`
-- **Doc type rules**: `contracts/doctypes/[type].md` — load when type is determined (one per type: plan, adr, spec, how-to, explanation, til)
-- **Cascade graph**: `contracts/cascade.md`
-- **Multi-flow detection**: `contracts/multi-flow.md` — lazy, only when first user-gated detects multiple independent flows
-- **Organization check**: `workflows/audit-org/` + `organization-patterns.md` — via `--audit-org`, `--audit-codebase`, or Maintain reorganization
-- **Naming check**: `workflows/audit-naming/` + `naming-rules.md` — via `--audit-naming` or `--audit-codebase`
-- **Full corpus audit**: `workflows/audit-codebase/` — via `--audit-codebase` (chains org + naming + full audit)
-- **Plan maintenance**: `workflows/maintain-plan/` — via `--maintain-plan`
-- **Create mode**: `modes/create.md` + matching `templates/authoring/*.md` + `workflows/create-plan/` if plan doc
-- **Read mode**: `modes/read.md` + `templates/reports/read-status.md`
-- **Maintain mode**: `modes/maintain.md` + `templates/reports/mutation-report.md`
-- **Audit mode**: `modes/audit.md` + `templates/reports/health-report.md`
-- **Drift check**: When context indicates code change or new feature (not explicit doc request), use drift-check in `modes/maintain.md` to surface affected docs
+Load files only when needed. Each entry declares its trigger condition.
+
+### Core routing
+- **Mode selection**: `modes/[mode].md` — triggered by mode name (read/create/maintain/audit)
+- **Arg shortcuts**: `SKILL.md` Args table pre-selects mode + workflow; load only the named workflow
+
+### On-demand (lazy)
+- **Frontmatter schema**: `contracts/frontmatter.md` — when reading/creating docs
+- **Type/kind taxonomy**: `contracts/classification.md` — when creating or auditing
+- **Doc type rules**: `contracts/doctypes/[type].md` — load one matching the target type (plan/adr/spec/how-to/explanation/til/reference)
+- **Cascade graph**: `contracts/cascade.md` — when checking dependency links
+- **Multi-flow detection**: `contracts/multi-flow.md` — only when first user-gated detects multiple independent flows
+
+### Arg-triggered workflows
+- `--audit-codebase` → `workflows/audit-codebase/flow.md` (chains org + naming + full audit)
+- `--audit-org` → `workflows/audit-org/flow.md`
+- `--audit-naming` → `workflows/audit-naming/flow.md`
+- `--create-plan` → `workflows/create-plan/flow.md`
+- `--maintain-plan` → `workflows/maintain-plan/flow.md`
+
+### Report templates
+- Read: `templates/reports/read-status.md`
+- Create: authored doc (no report unless requested)
+- Maintain: `templates/reports/mutation-report.md`
+- Audit: `templates/reports/health-report.md`
 
 ## Always preserve these invariants
 

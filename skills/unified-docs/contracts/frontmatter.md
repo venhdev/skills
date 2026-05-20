@@ -45,7 +45,7 @@ updates: []
 
 ## Lifecycle-specific fields
 
-ADR fields and plan fields are defined in `contracts/lifecycle.md` because their validity depends on status transitions.
+ADR fields are defined in `contracts/doctypes/adr.md`. Plan fields are defined in `contracts/doctypes/plan.md`. Their validity depends on status transitions.
 
 ## Dependency fields
 

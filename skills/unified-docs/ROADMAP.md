@@ -118,6 +118,7 @@ Args pre-select mode + operation, routing directly to the corresponding workflow
 | **Spec rules** | **`contracts/doctypes/spec.md`** | **Spec status, ssot rules, current-truth requirements** | **When doc type = spec** |
 | **How-to rules** | **`contracts/doctypes/how-to.md`** | **Purpose, kind defaults, no lifecycle** | **When doc type = how-to** |
 | **Explanation rules** | **`contracts/doctypes/explanation.md`** | **Purpose, kind defaults** | **When doc type = explanation** |
+| **Reference rules** | **`contracts/doctypes/reference.md`** | **`type: reference` docs without lifecycle role** | **When doc type = reference (no kind specified)** |
 | **TIL rules** | **`contracts/doctypes/til.md`** | **Not canonical, not depends-on target** | **When doc type = til** |
 
 ### Workflows

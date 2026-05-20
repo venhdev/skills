@@ -7,12 +7,14 @@ UNIVERSAL = {"title", "type", "kind", "created", "updated", "depends-on", "updat
 ADR = {"adr-id", "status", "deciders", "decided", "supersededBy", "supersedes"}
 PLAN = {"status"}
 ALLOWED_TYPES = {"how-to", "reference", "explanation", "decision"}
-ALLOWED_KINDS = {"plan", "spec", "adr", "ssot", "til"}
+ALLOWED_KINDS = {"plan", "spec", "adr", "ssot", "til", "template"}
 LIST_FIELDS = {"kind", "depends-on", "updates"}
 EXCLUDED_PARTS = {
     ".claude", ".agents", ".agent", ".codex", ".cursor", ".github", ".vscode", ".idea",
     "tmp", "temp", ".tmp", ".cache", "dist", "build", "coverage", "node_modules", "vendor",
     ".git",
+    # Project-level doc buckets that are intentionally not audited
+    "archive", "archived", "superseded", "raw",
 }
 
 
@@ -81,6 +83,9 @@ for field_name in LIST_FIELDS:
     value = fields.get(field_name, "")
     if isinstance(value, list):
         continue
+    # Allow empty scalar "[]" as a valid empty list representation
+    if value == "[]":
+        continue
     if not (value.startswith("[") and value.endswith("]")):
         fail(f"{field_name} must use YAML list syntax")
 
@@ -111,24 +116,20 @@ if "plan" in kind_items:
         fail(f"missing plan fields: {', '.join(plan_missing)}")
     if doc_type != "explanation":
         fail("plan docs must use 'type: explanation'")
-    if status and status not in {"draft", "in-progress", "completed", "archived"}:
-        fail("plan docs must use status 'draft', 'in-progress', 'completed', or 'archived'")
-    if status in {"completed", "archived"} and not fields.get("replacedBy"):
-        fail("completed and archived plan docs must set replacedBy once the accepted current spec exists")
-    if status in {"completed", "archived"} and root and fields.get("replacedBy"):
+    if status and status not in {"draft", "in-progress", "completed", "superseded", "archived"}:
+        fail("plan docs must use status 'draft', 'in-progress', 'completed', 'superseded', or 'archived'")
+    if status in {"completed", "superseded", "archived"} and not fields.get("replacedBy"):
+        fail("completed, superseded, and archived plan docs must set replacedBy")
+    if status in {"completed", "superseded", "archived"} and root and fields.get("replacedBy"):
         replacement = resolve_reference(str(fields["replacedBy"]), path, root)
         if not replacement:
             fail("replacedBy target could not be resolved from root")
-        replacement_fields = parse_frontmatter(replacement.read_text(encoding="utf-8"))
-        replacement_kind = list_items(replacement_fields.get("kind", ""))
-        if replacement_fields.get("type") != "reference" or "spec" not in replacement_kind or replacement_fields.get("status") != "accepted":
-            fail("replacedBy target must be an accepted spec when root is provided")
 
 if "spec" in kind_items:
     if doc_type != "reference":
         fail("spec docs must use 'type: reference'")
-    if status and status not in {"draft", "accepted"}:
-        fail("spec docs must use status 'draft' or 'accepted'")
+    if status and status not in {"draft", "accepted", "superseded"}:
+        fail("spec docs must use status 'draft', 'accepted', or 'superseded'")
 
 if "adr" in kind_items:
     for field_name in ("supersededBy", "supersedes"):

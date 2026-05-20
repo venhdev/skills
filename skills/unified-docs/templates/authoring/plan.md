@@ -7,6 +7,10 @@ updated: YYYY-MM-DD
 status: draft
 depends-on: []
 updates: []
+replacedBy: []
+completed:
+superseded:
+archived:
 ---
 
 # [Plan Title]

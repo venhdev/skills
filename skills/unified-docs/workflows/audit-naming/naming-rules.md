@@ -106,6 +106,9 @@ Files matching these patterns are excluded from naming checks:
 **Outside git repositories:**
 - Hardcoded: `.claude`, `.github`, `node_modules`, `vendor`, `dist`, `build`, `.git`
 
+**Project-level doc buckets (intentionally not audited):**
+- `archive`, `archived`, `superseded`, `raw`
+
 ---
 
 ## Project Convention

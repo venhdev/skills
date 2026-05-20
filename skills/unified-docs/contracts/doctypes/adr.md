@@ -14,6 +14,10 @@ kind: [adr]
 - `supersededBy`: [ADR ID] — required when `status: superseded` (format: `ADR-NNN`, not file path)
 - `supersedes`: [ADR ID] — if this ADR supersedes an old one (format: `ADR-NNN`)
 
+## Additional optional fields
+
+- `replacedBy`: [file path] — when this ADR is no longer current; points to the replacement doc
+
 ## Lifecycle
 
 ```
@@ -23,6 +27,7 @@ draft → accepted → superseded (terminal)
 **Rules**:
 - **Accepted**: Body is write-once. Do not rewrite the decision.
 - **Supersession**: Create new ADR → update old ADR's frontmatter + Status Log. Do not rewrite body of old ADR.
+- **Status Log**: When status changes (draft → accepted, accepted → superseded), append an entry to the Status Log section in the ADR body. Format: `- YYYY-MM-DD - [new status]`.
 - **IDs**: Use ADR ID (`ADR-002`), not file path, in `supersededBy` and `supersedes`.
 
 ## Cascade rules
