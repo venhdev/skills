@@ -44,8 +44,8 @@ Parse source, target, zoom, mode. Detect missing inputs.
 ONE question per missing input, max 4/call.
 
 - **target:** ASK user. Default: `<req_dir>/diagrams/` where `<req_dir>` is the directory of the function/module from the request. Other valid: inline in existing doc.
-- **zoom:** Overview / Detail / Drill-down (see Zoom × typical types section).
-- **mode:** `Inline` (default) / `Inline+SVG` / `Static`.
+- **zoom:** Overview / Detail / Drill-down (alias: Z1 / Z2 / Z3 — see Zoom × typical types section).
+- **mode:** `Inline` (default) / `Inline+SVG` / `Static` (alias: R1 / R2 / R3).
 
 Skip if trivial-req (≤1 fn, ≤1 module, no state) or all inputs present in the request.
 
