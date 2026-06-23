@@ -1,165 +1,101 @@
 ---
 name: link-crawler
 icon: icon.svg
-description: >
-  Crawl active URLs from user-provided topics and root links, verify they are live (HTTP 200 with real content),
-  and output a grouped markdown list of active links. Use this skill whenever the user asks to crawl links,
-  harvest URLs, find active pages from a website, collect links from a page, check which links are alive/dead,
-  scrape a sitemap or link tree, or audit links on a site. Also trigger when the user provides a list of URLs
-  and asks to verify, validate, or check them. Trigger even if the user says "grab all links", "get me the URLs",
-  "find pages on this site", "check these links", or similar casual phrasing about link collection or validation.
+description: Use when the user asks to crawl, harvest, audit, or verify URLs from a website or a list — wants active vs dead links, page inventory, link validation, or a sitemap/link-tree scrape. Also trigger on casual phrasing like "grab all links", "check which URLs work", or "find pages on this site".
 ---
 
 # Link Crawler
 
-Crawl root URLs to a configurable depth, verify each discovered link is active (HTTP 200 + real page content),
-and present results as a grouped markdown list.
+Crawl root URLs to a configurable depth, verify each discovered link is active (HTTP 200 + real content), and present results as a grouped markdown list.
+
+## When to Use
+
+- User asks to find all active pages on a site or section.
+- User provides a list of URLs and wants to know which are alive.
+- User wants a page inventory / sitemap / link tree scraped and reported.
+
+## When NOT to Use
+
+- Fetching a single page's contents → just use a `curl`/`WebFetch`.
+- Downloading a specific file (PDF, image, archive).
+- Browsing requires login / authenticated session.
+- The user wants to test if a site is up (one URL, no crawl) — just curl it.
+
+## Quick Reference
+
+| Step | What to do | Output |
+|------|------------|--------|
+| 1 | Get topics + URLs + depth (or extract from user's message) | Inputs |
+| 2 | Run `crawl_links.py` (single-URL or config-file mode) | JSON to stdout/file |
+| 3 | Format the JSON as a grouped markdown list per topic | Markdown in chat |
+| 4 | Offer save / deeper crawl / show dead links | Follow-up question |
+
+The script caps at 500 links per root URL. Max recommended depth: 3.
 
 ## Workflow
 
-### Step 1: Gather Inputs
+### 1. Gather Inputs
 
-Ask the user for:
+Ask for **topics + URLs** and **depth** (default 1). Example input from user:
 
-1. **Topics and root links** — One or more topics, each with one or more starting URLs.
-   Example input from user:
-   ```
-   Topic: Python Docs
-   - https://docs.python.org/3/library/
-   - https://docs.python.org/3/tutorial/
+```
+Topic: Python Docs
+- https://docs.python.org/3/library/
+- https://docs.python.org/3/tutorial/
 
-   Topic: FastAPI
-   - https://fastapi.tiangolo.com/
-   ```
-
-2. **Crawl depth** — How many levels deep to follow links from each root page.
-   - Depth 1 = only links found directly on the root page
-   - Depth 2 = links on the root page + links on those pages
-   - Default to 1 if user doesn't specify. Higher depths take longer and find more links.
-   - Max recommended: 3 (beyond that, results explode and crawl time is very long)
-
-If the user already provided topics and links in their message, skip asking and proceed.
-
-### Step 2: Ask About Filtering
-
-Before crawling, ask the user:
-
-> "I can crawl **all links** from these pages, or focus on **specific groups/keywords**.
-> Which do you prefer?"
-
-Options:
-- **All** — return every active link found
-- **Specific groups** — user provides keywords or categories to filter (e.g., "only tutorial pages", "API reference only")
-
-This determines the `filter_groups` value in the config. If "all", set to `null`.
-
-### Step 3: Build Config and Run Crawler
-
-The script supports two modes:
-
-**Single-URL mode** (no config file needed — fastest for one-off crawls):
-```bash
-python3 /home/venhuser/proj/personal/vskills/link-crawler/crawl_links.py \
-    --url https://example.com \
-    --depth 2 \
-    --topic "Example Docs" \
-    --investigate \
-    --output results.json \
-    --clean
+Topic: FastAPI
+- https://fastapi.tiangolo.com/
 ```
 
-**Config-file mode** (multi-topic):
-Create a JSON config at `/home/venhuser/proj/personal/vskills/link-crawler/crawl_config.json`:
+If the user already provided topics and links in their message, skip asking.
 
+### 2. Run the Crawler
+
+Two modes — pick by number of topics.
+
+**Single URL** (one-off, no config file):
+```bash
+python3 <skill-dir>/crawl_links.py --url https://example.com --depth 2 --investigate --output results.json
+```
+
+**Config file** (multi-topic — write `crawl_config.json` first):
 ```json
-{
-    "topics": [
-        {
-            "topic": "Topic Name",
-            "root_links": ["https://example.com/page1", "https://example.com/page2"],
-            "depth": 1
-        }
-    ],
-    "filter_groups": null
-}
+{"topics": [{"topic": "Name", "root_links": ["https://example.com/start"], "depth": 1}]}
 ```
-
-Then run:
-
 ```bash
-python3 /home/venhuser/proj/personal/vskills/link-crawler/crawl_links.py \
-    --input /home/venhuser/proj/personal/vskills/link-crawler/crawl_config.json \
-    --timeout 10
+python3 <skill-dir>/crawl_links.py --input <skill-dir>/crawl_config.json --timeout 10
 ```
 
-**Output options:**
-- **`--output FILE` / `-o FILE`** — write JSON to FILE instead of stdout
-- **`--clean`** — delete `--output FILE` before writing (fresh run, no stale data)
-- **`--append`** — append results to FILE as a timestamped envelope (run history, JSONL)
-- **`--investigate`** — stream per-URL events to stderr in real time
-- **`--tree`** — add a live crawl tree to the investigation log (implies `--investigate`)
-- **`-v` / `--verbose`** — DEBUG-level logging (extracted link counts, queue sizes)
+Flags: `--output/-o FILE` (write JSON to file), `--investigate` (per-URL stderr log), `--timeout N` (default 10s), `--depth N` (default 1), `--topic NAME` (--url mode only).
 
-**Tip:** combine `--output` + `--clean` to guarantee a clean output file each run:
+### 3. Present Results
 
-```bash
-python3 /home/venhuser/proj/personal/vskills/link-crawler/crawl_links.py \
-    --url https://example.com \
-    --output results.json \
-    --clean \
-    --investigate
-```
-
-The script caps at 500 links per root URL to prevent runaway crawls.
-
-### Step 4: Present Results
-
-Read the JSON output and format as a **grouped markdown list** in chat.
-
-**Format template:**
+Read the JSON output and format as a grouped markdown list:
 
 ```
-## 🔗 Crawl Results
-
 ### Topic Name
 **X active links found** (Y dead/unreachable)
 
 - https://example.com/page1
 - https://example.com/page2
-- https://example.com/page3
-...
-
-### Another Topic
-**X active links found** (Y dead/unreachable)
-
-- https://example.com/other1
-- https://example.com/other2
 ...
 ```
 
-**Formatting rules:**
-- Group links under their topic heading
-- Show count of active and dead links per topic
-- List only active links (don't list dead ones unless the user asks)
-- If a topic has more than 50 active links, show the first 50 and note how many more exist
-- If the user asked for specific groups/keywords, mention what filter was applied
+List only active links by default. If more than 50, show the first 50 and note how many more exist.
 
-### Step 5: Offer Follow-up
+### 4. Offer Follow-up
 
-After presenting results, offer:
-- "Want me to save these to a file (markdown, CSV, or JSON)?"
-- "Want me to crawl deeper on any of these topics?"
-- "Want to see the dead/unreachable links?"
+After presenting results, ask if the user wants to save the file, crawl deeper, or see the dead links.
 
-## Edge Cases
+## Common Mistakes
 
-- **Timeouts**: Some sites are slow. If many links timeout, note it and suggest increasing the timeout.
-- **Blocked by site**: Some sites block crawlers. If you see many 403s, let the user know.
-- **No links found**: If a root page yields zero links, check if the URL is correct and accessible.
-- **Duplicate links**: The script deduplicates automatically — same URL won't appear twice.
-- **Non-HTML resources**: PDFs, images, etc. that return 200 are counted as active but won't be crawled deeper.
+- ❌ Don't auto-install any dependency — the script is stdlib-only.
+- ❌ Don't list dead links unless the user asks.
+- ❌ Don't skip the active/dead counts in the summary line.
+- ❌ Don't run the script from outside its directory — use the `<skill-dir>` placeholder in the examples above (replace with the actual path).
 
-## Network Note
+## Edge Cases (actionable)
 
-This skill requires network access to the domains being crawled. If domain access is restricted,
-inform the user that their network settings may need to be updated by contacting an organization owner.
+- Many timeouts → suggest raising `--timeout`.
+- Many 403s → tell the user the site may be blocking crawlers.
+- Zero links from a root → verify the URL is accessible and HTML.

@@ -9,6 +9,8 @@ description: Use when writing or editing Markdown documentation that needs Merma
 
 Use Mermaid only when a visual relationship is easier than prose.
 
+> Reference: [mmdc-cli](references/mmdc-cli.md) for CLI flags, [examples](references/examples.md) for walkthroughs.
+
 ## Question → Type
 
 | Question | Type |
@@ -21,7 +23,7 @@ Use Mermaid only when a visual relationship is easier than prose.
 | Class / interface relations? | `classDiagram` |
 | What happened / planned over time? | `timeline` |
 
-6 distinct types (flowchart appears for 2 questions). Never combine static structure (class/ER) with runtime behavior (sequence) in one diagram. Split when questions mix.
+Never combine static structure (class/ER) with runtime behavior (sequence) in one diagram. Split when questions mix.
 
 ## Zoom × typical types
 
@@ -39,7 +41,7 @@ Use Mermaid only when a visual relationship is easier than prose.
 
 Parse source, target, zoom, mode. Detect missing inputs.
 
-### 2. SPEC gate (AskUserQuestion — only if inputs missing)
+### 2. SPEC gate (only if inputs missing)
 
 ONE question per missing input, max 4/call.
 
@@ -49,15 +51,39 @@ ONE question per missing input, max 4/call.
 
 Skip if trivial-req (≤1 fn, ≤1 module, no state) or all inputs present in the request.
 
-### 3. Generate everything (internal, parallel-safe)
+### 3. Plan inventory (no file writes)
 
-1. Pick type from the Question→Type section.
-2. Inventory: `name | type | question`.
-3. Files in target dir, named:
+> **Do not call `Write` in this step.** Files are written in Step 5, only after Step 4 approval.
+
+1. Pick a Mermaid type per question from the Question→Type section.
+2. Decide file *names* and *types* — not content yet. Naming follows the Zoom × typical types section:
    - `overview.md` — purpose (1 para) + 1 boundary diagram + 1 happy-path sequence + external-deps table + state summary (1 para)
    - `<major>.detail.md` — 1 stateDiagram-v2 OR a deeper boundary + 1 sequence (error path or sub-flow)
    - `<major>-<minor>.drill.md` — primary flowchart + erDiagram / classDiagram referenced
-4. Self-review: branches complete. Avoid:
+3. Build the inventory table — `name | type | question` — one row per planned file.
+4. Draft Mermaid source for each file — needed for Step 4 previews.
+
+### 4. Confirm inventory (STOP GATE)
+
+**Do not proceed to Step 5 until the user responds.** Writing files is irreversible enough to warrant a stop gate before `Write` calls.
+
+Ask the user to approve the inventory. Include in the request:
+
+- The inventory table (`name | type | question`).
+- One short draft Mermaid snippet per file.
+
+Wait for a reply, then route:
+
+- **Approve** — proceed to Step 5.
+- **Adjust** — apply the changes, loop back to Step 3.
+- **Reject** — discard the plan.
+
+### 5. Generate files (after approval only)
+
+> Triggered only when Step 4 returns **Approve**. If Adjust or Reject, return to Step 3.
+
+1. Write each file with `Write`, in parallel where possible.
+2. Apply the self-review checklist *before* declaring the files done:
    - `;` in message/Note text → use `&#59;`
    - Bare arrows without `:`
    - `alt:`/`else:`/`opt:`/`loop:`/`par:` colon → use space
@@ -65,16 +91,9 @@ Skip if trivial-req (≤1 fn, ≤1 module, no state) or all inputs present in th
    - `@` / `,` / `>` in `participant` IDs
    - `%%` is comment prefix (own line only)
    - **Provider dependency graph as Overview primary** — use the layer-boundary diagram instead
+3. List the target directory to confirm all expected files are present before moving on.
 
-### 4. Confirm inventory (AskUserQuestion)
-
-Show table + drafts. Approve / Adjust / Reject.
-
-| # | name | type | question |
-|---|------|------|----------|
-| 1 | ...  | ...  | ...      |
-
-### 5. Pre-render safety (STOP gate)
+### 6. Pre-render safety (STOP gate)
 
 Before `mmdc`: STOP and ask if any of:
 - Target dir unspecified
@@ -84,15 +103,13 @@ Before `mmdc`: STOP and ask if any of:
 
 Guard fails → Inline mode (no render).
 
-For mmdc CLI flags, see [mmdc-cli](references/mmdc-cli.md). For 3 walkthroughs, see [examples](references/examples.md).
-
-### 5b. Things to know before rendering
+### 7a. Things to know before rendering
 
 - **SVG basename = `-o` stem, not `-i`.** `mmdc -i foo.md -o bar.md` → `bar-1.svg`. (Detail: `mmdc-cli.md` §"Render from .md".)
-- **`-o <name>.svg` skips the transformed Markdown output.** mmdc writes SVGs only — no replaced `.md`. This is what lets §5c render without `/tmp/`.
+- **`-o <name>.svg` skips the transformed Markdown output.** mmdc writes SVGs only — no replaced `.md`. This is what lets §7b render without `/tmp/`.
 - **`-a <dir>` uglies the Markdown link** when `-a` and `-o` resolve to different directories. Linux: `..` segments. Windows: mixed slashes / backslash paths in the rewritten link. Skip `-a` unless you must.
 
-### 5c. Recipe: Inline + SVG render
+### 7b. Recipe: Inline + SVG render
 
 Goal: keep `<name>.md` with inline `` ```mermaid `` blocks AND pre-render `<name>-N.svg` alongside.
 
@@ -104,9 +121,9 @@ for f in *.md; do
 done
 ```
 
-Renders SVGs directly next to each `<name>.md` — no `/tmp/`, no cleanup. Why: §5b bullet 2.
+Renders SVGs directly next to each `<name>.md` — no `/tmp/`, no cleanup. Why: §7a bullet 2.
 
-### 5d. mmdc quirks (worth knowing)
+### 7c. mmdc quirks (worth knowing)
 
 - **`-o foo.md` silently forces `outputFormat` to `svg`.** If you want PNG/PDF output, pass `-e png` or `-e pdf` explicitly — don't rely on `outputFormat` after `-o foo.md`.
 - **`-a` rewrites the embedded link with native path separators.** On Windows that means backslashes, which can break rendering in cross-OS repos (Windows-authored markdown viewed on Linux CI). Another reason to skip `-a`.

@@ -1,3 +1,4 @@
 crawl_config.json
 results.json
 *.pyc
+__pycache__/

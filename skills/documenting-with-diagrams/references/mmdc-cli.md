@@ -36,15 +36,14 @@ When input ends in `.md`, mmdc extracts every ```mermaid block and:
 
 1. Generates `<o-stem>-1.svg`, `<o-stem>-2.svg`, ... where `<o-stem>` is the basename of `-o` (not `-i`).
 2. If `-o` ends in `.md`/`.markdown`, writes transformed Markdown replacing each block with `![diagram](./<o-stem>-N.svg)`.
-3. `accTitle:` / `accDescr:` lines in blocks become image title / alt → `![accDescr](./<o-stem>-N.svg "accTitle")`.
-4. Non-mermaid Markdown passes through.
+3. Non-mermaid Markdown passes through.
 
 ```bash
 mmdc -i diagrams.md -o ./out.md
 # → ./out.md + diagrams-1.svg, diagrams-2.svg, ...
 ```
 
-By default SVGs land beside the `-o` file (same directory). Use `-a <dir>` to redirect to a different directory — see SKILL.md §5b for the gotcha.
+By default SVGs land beside the `-o` file (same directory). Use `-a <dir>` to redirect to a different directory — see SKILL.md §7a for the gotcha.
 
 ## Render from stdin
 
@@ -54,22 +53,11 @@ echo 'graph TD; A-->B' | mmdc -i - -o - --quiet
 
 `-i -` reads raw mermaid source (no `.md` extraction path for stdin).
 
-## Accessibility in mermaid blocks
-
-```mermaid
-%% accTitle: Receipt flow overview
-%% accDescr: End-to-end path from page open to synced
-flowchart TD
-  A --> B
-```
-
-→ SVG `<title>` / `<desc>` (and alt text when wrapped in `![...](...)`).
-
 ## Common errors
 
 - `Parse error on line N` — invalid Mermaid
 - `Output file must end with ".md"/".markdown", ".svg", ".png" or ".pdf"` — wrong `-o` extension
-- `Chromium launch failed` — Chromium not installed. See SKILL.md §5 STOP gate before installing.
+- `Chromium launch failed` — Chromium not installed. See SKILL.md §6 STOP gate before installing.
 - `timeout` — large diagram; pass `--puppeteerConfigFile <json>`
 
 ## Version check
@@ -78,6 +66,6 @@ flowchart TD
 mmdc --version   # e.g. 11.15.0
 ```
 
-If `mmdc` not on PATH, see SKILL.md §5 STOP gate for the fallback policy.
+If `mmdc` not on PATH, see SKILL.md §6 STOP gate for the fallback policy.
 
-**Verification scope:** flag table verified against `mmdc -h`. Multi-block + accessibility verified against the official README.
+**Verification scope:** flag table verified against `mmdc -h`. Multi-block behavior verified empirically against mmdc 11.15.0.

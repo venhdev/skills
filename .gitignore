@@ -3,3 +3,13 @@ tmp-skillshare-workspaces
 .system
 tmp
 Makefile
+
+.env
+**/.env
+.env.*
+!.env.example
+node_modules/
+package-lock.json
+pnpm-lock.yaml
+venv/
+__pycache__/

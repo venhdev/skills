@@ -1,0 +1,38 @@
+{
+  "name": "@venhdev/url-to-markdown",
+  "version": "1.0.0",
+  "description": "Convert URLs to clean, readable Markdown. Browser extension extraction logic repackaged as a reusable Node.js module and CLI tool.",
+  "type": "commonjs",
+  "main": "scripts/index.js",
+  "bin": {
+    "url-to-markdown": "scripts/cli.js"
+  },
+  "scripts": {
+    "check": "node scripts/checker.js",
+    "test": "node scripts/cli.js --help",
+    "cli": "node scripts/cli.js"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "defuddle": "^0.19.0",
+    "defuddle-js": "^0.1.0",
+    "jsdom": "^24.1.3",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "keywords": [
+    "markdown",
+    "url",
+    "converter",
+    "readability",
+    "html-to-markdown",
+    "content-extraction",
+    "cli",
+    "tool"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "VenhDev",
+  "license": "MIT"
+}
