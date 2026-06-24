@@ -1,7 +1,6 @@
 ---
 name: flutter-taste
-description: Audit Flutter apps for design polish. Use when reviewing code quality, preparing launches, or improving UI feel via animations, forms, and platform adaptation
-compatibility: Flutter 3.0+, Dart 3.0+
+description: Use when a Flutter app feels janky, unpolished, or has user-reported bugs - layout shifts, null display, image pop-in, wrong platform feel, animation stiffness, or before App Store submission
 ---
 
 # Flutter Taste
@@ -19,6 +18,65 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 ---
 
+## When to Use
+
+Use this skill when the user reports any of these symptoms or asks for these checks:
+
+- "App feels janky / rough / unpolished / unresponsive"
+- "Layout shifts when images load" or "content jumps around"
+- "Users see 'null' on the screen"
+- "Wrong platform feel" (Material on iOS, Cupertino on Android)
+- "Buttons feel dead" / "no spring / no bounce"
+- "Numbers are hard to read" / "1000000 instead of 1,000,000"
+- "Before App Store / Play Store submission, what should I check?"
+- "Pre-launch polish checklist"
+- "Code review for design polish"
+- Lists of specific symptoms → see the decision flowchart below
+
+### Decision Flowchart: Which Category Applies?
+
+```dot
+digraph which_category {
+    "What does the user have?" [shape=diamond];
+    "Web app" [shape=box];
+    "Forms with input" [shape=box];
+    "Bottom nav / modals / routes" [shape=box];
+    "Lists / images / cards" [shape=box];
+    "Animations / interactions" [shape=box];
+    "iOS + Android" [shape=box];
+    "Notifications / fonts / icons / versions" [shape=box];
+    "User-generated data display" [shape=box];
+    "Nothing specific" [shape=box];
+
+    "What does the user have?" -> "Web app" [label="yes"];
+    "What does the user have?" -> "Forms with input" [label="yes"];
+    "What does the user have?" -> "Bottom nav / modals / routes" [label="yes"];
+    "What does the user have?" -> "Lists / images / cards" [label="yes"];
+    "What does the user have?" -> "Animations / interactions" [label="yes"];
+    "What does the user have?" -> "iOS + Android" [label="yes"];
+    "What does the user have?" -> "Notifications / fonts / icons / versions" [label="yes"];
+    "What does the user have?" -> "User-generated data display" [label="yes"];
+    "What does the user have?" -> "Nothing specific" [label="nothing matches"];
+}
+```
+
+Match the symptom to a category number below. **When in doubt, audit Categories 1, 3, and 9** — these cover feel, layout, and null safety, the highest-impact concerns for any app.
+
+## When NOT to Use
+
+This skill is specifically for **design polish and feel**. Do not use it for:
+
+- **Architecture review** (state management, folder structure, dependency injection) → use a general architecture skill
+- **Performance optimization** (frame timing, jank profiling, build size) → use Flutter DevTools or a perf skill
+- **Accessibility (a11y) audits** (screen readers, contrast, semantics) → use an accessibility skill
+- **Functional correctness** (does the feature work?) → use debugging/TDD
+- **Business logic review** (validations, edge cases in domain) → not a design concern
+- **CI/CD, build, deploy** → use infra/DevOps skills
+
+If the user wants *visual polish, feel, or "what's missing that users feel but can't explain"*, this is the right skill. If they want *what's broken, what works, or how to ship*, route elsewhere.
+
+---
+
 ## The 11 Categories & Audit Concerns
 
 ### 1️⃣ Animations & Spring Physics
@@ -32,6 +90,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 **Audit:** Search code for `GestureDetector` + manual scale—does it use spring physics? Check `PageRoute` implementations—custom physics or defaults?
 
+→ Full patterns: `references/animations.md`
+
 ---
 
 ### 2️⃣ Visual Feedback & Haptics
@@ -44,6 +104,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 | **Selection color mismatches design** | Default Material selection (blue highlight) | ☐ Set `ThemeData.textSelectionTheme` (selectionColor + cursorColor + selectionHandleColor) |
 
 **Audit:** Look for `GestureDetector`, custom buttons, `InkWell`—do they suppress or customize feedback? Search `SelectableText` usage—custom colors applied?
+
+→ Full patterns: `references/feedback.md`
 
 ---
 
@@ -60,6 +122,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 **Audit:** Find all `Image` widgets—have explicit dimensions? Search `SafeArea` + scrollable—should remove it. Check `ListView` horizontal—padding applied naively?
 
+→ Full patterns: `references/data.md` (images, skeleton, fade-in) and `references/forms.md` (SafeArea pattern)
+
 ---
 
 ### 4️⃣ Text & Number Formatting
@@ -74,6 +138,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 **Audit:** Find all `Text()` with dynamic numbers—formatted? Search for `??` or `?.` on display fields—fallbacks safe? Look for null-coalescing to empty strings.
 
+→ Full patterns: `references/data.md` (NumberFormat, DateFormat, tabular figures)
+
 ---
 
 ### 5️⃣ Input & Keyboard Handling
@@ -87,6 +153,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 **Audit:** Do single-field forms set `autofocus: true`? Search for form `Column`—does scrolling dismiss keyboard? Check `TextField` styling—matches brand?
 
+→ Full patterns: `references/forms.md`
+
 ---
 
 ### 6️⃣ Navigation & State Transition
@@ -96,10 +164,12 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 |---------|-------------|----------|
 | **Bottom nav doesn't scroll to top on retap** | Tapping active tab does nothing or pushes new route | Use long-lived per-tab `ScrollController` (+ `FocusNode`): `if (index == _currentIndex) animateTo(0)`, else focus search |
 | **Modal sheet is iOS 13 style on iOS 15+** | Using `showModalBottomSheet()` without platform adaptation | Use `showAdaptiveBottomSheet()` or `CupertinoModalPopupRoute` on iOS |
-| **Android back button doesn't close custom modals** | Custom modal (`AlertDialog` variant) ignores Android back | Wrap in `WillPopScope(onWillPop: () async => true, child: ...)` or use `PopScope` (Flutter 3.12+) |
+| **Android back button doesn't close custom modals** | Custom modal (`AlertDialog` variant) ignores Android back | Wrap in `PopScope(canPop: true, child: ...)` (Flutter 3.12+). On Android 13+, ensure `android:enableOnBackInvokedCallback="true"` in `AndroidManifest.xml` |
 | **No navigation feedback** | Instant page swaps with no transition | Apply custom `PageRoute` with spring physics or Material/Cupertino built-in transitions |
 
 **Audit:** Does bottom nav have controller + scroll handler? Check sheet implementations—platform-aware? Custom dialogs handling back button? Routes using defaults or custom?
+
+→ Full patterns: `references/navigation.md` (sheets, back button, routes, web titles)
 
 ---
 
@@ -114,6 +184,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 **Audit:** Find `showDatePicker()`, `InkWell`, Material buttons—platform checks applied? Test on both platforms—feel native?
 
+→ Full patterns: `references/platform.md` (file saving) and `references/navigation.md` (date picker, sheets)
+
 ---
 
 ### 8️⃣ Web-Specific Polish
@@ -126,6 +198,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 | **Missing social preview (Open Graph)** | Link preview shows default Flutter logo | Add `<meta>` tags in `index.html` or dynamically inject via route |
 
 **Audit:** Check web `index.html`—custom loader? Are route changes updating page title? Has OG meta tags?
+
+→ Full patterns: `references/navigation.md` (web section)
 
 ---
 
@@ -141,6 +215,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 
 **Audit:** Search codebase for `??` on display values—always safe? Do lists/images reserve space? Are error screens user-friendly?
 
+→ Full patterns: `references/data.md` (null handling, loading/error/empty states)
+
 ---
 
 ### 1️⃣0️⃣ Interaction Hints & Discoverability
@@ -152,6 +228,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 | **Scrollable content doesn't indicate scroll** | List feels static, users don't swipe | Apply `ShaderMask` with fade gradient at edges or use scroll position indicator |
 
 **Audit:** Are hidden actions revealed on load? Do scrollable regions have visual cues (fade, indicator, chevron)?
+
+→ Full patterns: `references/animations.md` (Slidable preview)
 
 ---
 
@@ -166,6 +244,8 @@ This skill identifies **29 design concerns** across 11 categories. It works by e
 | **Notifications broken after TZ change** | `zonedSchedule` fires at wrong local time after travel or DST | On `AppLifecycleListener.onResume`: read name via `FlutterTimezone.getLocalTimezone().identifier` + offset via `tz.TZDateTime.now(tz.local).timeZoneOffset.inMilliseconds`, compare to last saved in `SharedPreferences`; if either differs, `cancelAll()` + `rescheduleAllNotifications()` |
 
 **Audit:** Are icon assets precached? GoogleFonts applied at startup? Check version after build—changelog shown? TZ handling in notification code?
+
+→ Full patterns: `references/data.md` (precache) and `references/platform.md` (notifications, TZ)
 
 ---
 
@@ -309,39 +389,41 @@ grep -r "AnimationController\|Tween\|Curve" lib/
 
 ## Complete Item Mapping (All 29 from FlutterPro.design)
 
+Patterns labeled "SKILL.md §X" live inline in the category table above; patterns labeled with a `references/X.md` filename have a full implementation guide in that reference.
+
 | # | Item | Category | Reference |
 |---|------|----------|-----------|
-| 1 | Match the date picker to the platform | 7️⃣ Platform | navigation.md |
-| 2 | Save files without permission handling | 7️⃣ Platform | platform.md |
-| 3 | Dismiss the keyboard when users scroll a form | 5️⃣ Forms | forms.md |
-| 4 | Update browser tab title on each page | 8️⃣ Web | navigation.md |
+| 1 | Match the date picker to the platform | 7️⃣ Platform | `references/navigation.md` |
+| 2 | Save files without permission handling | 7️⃣ Platform | `references/platform.md` |
+| 3 | Dismiss the keyboard when users scroll a form | 5️⃣ Forms | `references/forms.md` |
+| 4 | Update browser tab title on each page | 8️⃣ Web | `references/navigation.md` |
 | 5 | Don't clip horizontal lists with page padding | 3️⃣ Layout | SKILL.md §3 |
-| 6 | Autofocus pages that have one field | 5️⃣ Forms | forms.md |
-| 7 | Scroll to top when tab is tapped again | 6️⃣ Navigation | navigation.md |
-| 8 | Use tabular figures for numbers that change | 4️⃣ Text | data.md |
-| 9 | Missing haptic types, and which to use when | 2️⃣ Feedback | feedback.md |
+| 6 | Autofocus pages that have one field | 5️⃣ Forms | `references/forms.md` |
+| 7 | Scroll to top when tab is tapped again | 6️⃣ Navigation | `references/navigation.md` |
+| 8 | Use tabular figures for numbers that change | 4️⃣ Text | `references/data.md` |
+| 9 | Missing haptic types, and which to use when | 2️⃣ Feedback | `references/feedback.md` |
 | 10 | Fix the GoogleFonts glitch | 1️⃣1️⃣ Performance | SKILL.md §11 |
-| 11 | When Android back button doesn't close your modals | 6️⃣ Navigation | navigation.md |
-| 12 | Load images smoothly | 3️⃣ Layout | data.md |
-| 13 | Make animations feel alive with springs | 1️⃣ Animations | animations.md |
+| 11 | When Android back button doesn't close your modals | 6️⃣ Navigation | `references/navigation.md` |
+| 12 | Load images smoothly | 3️⃣ Layout | `references/data.md` |
+| 13 | Make animations feel alive with springs | 1️⃣ Animations | `references/animations.md` |
 | 14 | Show changelog after update | 1️⃣1️⃣ Performance | SKILL.md §11 |
-| 15 | Reserve space for images so layout doesn't jump | 3️⃣ Layout | data.md |
-| 16 | Disable Material tap effects | 2️⃣ Feedback | feedback.md |
-| 17 | Show progress while Flutter web loads | 8️⃣ Web | navigation.md |
-| 18 | Never let users see "null" | 9️⃣ Data | data.md |
+| 15 | Reserve space for images so layout doesn't jump | 3️⃣ Layout | `references/data.md` |
+| 16 | Disable Material tap effects | 2️⃣ Feedback | `references/feedback.md` |
+| 17 | Show progress while Flutter web loads | 8️⃣ Web | `references/navigation.md` |
+| 18 | Never let users see "null" | 9️⃣ Data | `references/data.md` |
 | 19 | Show users your swipe actions exist | 1️⃣0️⃣ Interactions | SKILL.md §10 |
-| 20 | Make text selection match your design | 2️⃣ Feedback | feedback.md |
+| 20 | Make text selection match your design | 2️⃣ Feedback | `references/feedback.md` |
 | 21 | Make lists feel scrollable | 3️⃣ Layout | SKILL.md §3 |
-| 22 | Add link preview (Open Graph) to your Flutter Web app | 8️⃣ Web | navigation.md |
-| 23 | Upgrade your iOS 13 sheets to iOS 26 | 7️⃣ Platform | navigation.md |
-| 24 | Format numbers for humans | 4️⃣ Text | data.md |
+| 22 | Add link preview (Open Graph) to your Flutter Web app | 8️⃣ Web | `references/navigation.md` |
+| 23 | Upgrade your iOS 13 sheets to iOS 26 | 7️⃣ Platform | `references/navigation.md` |
+| 24 | Format numbers for humans | 4️⃣ Text | `references/data.md` |
 | 25 | Reschedule notifications when timezone or clock changes | 1️⃣1️⃣ Performance | SKILL.md §11 |
 | 26 | Precache icons so they don't pop in | 1️⃣1️⃣ Performance | SKILL.md §11 |
-| 27 | Make button presses feel right | 1️⃣ Animations | animations.md |
+| 27 | Make button presses feel right | 1️⃣ Animations | `references/animations.md` |
 | 28 | Don't use SafeArea with scrollable widgets | 3️⃣ Layout | SKILL.md §3 |
-| 29 | Dismiss the keyboard before opening a modal | 5️⃣ Forms | forms.md |
+| 29 | Dismiss the keyboard before opening a modal | 5️⃣ Forms | `references/forms.md` |
 
-**Coverage: 29/29 items (100%)**
+**Coverage: 29/29 items (100%)** — 21 in dedicated `references/*.md` files, 8 inline in SKILL.md category tables (those marked "SKILL.md §X" above; the patterns are short enough to live in the audit checklist).
 
 ---
 
@@ -349,17 +431,21 @@ grep -r "AnimationController\|Tween\|Curve" lib/
 
 For detailed patterns, code snippets, and implementation examples:
 - `references/animations.md` — Spring physics, curves, transitions
-- `references/feedback.md` — Haptics, Material splash, text selection (NEW)
+- `references/feedback.md` — Haptics, Material splash, text selection
 - `references/data.md` — Null safety, formatting, loading states
 - `references/forms.md` — Input styling, autofocus, keyboard
 - `references/navigation.md` — Sheets, bottom nav, routes, web
-- `references/platform.md` — File saving, platform adaptation (NEW)
+- `references/platform.md` — File saving, platform adaptation
 
 Each reference includes:
 - Pattern templates (copy-paste ready)
 - Package recommendations
 - Platform-specific notes
 - Common pitfalls
+
+### Worked Examples
+
+See `TEST_CASES.md` for end-to-end usage examples: e-commerce audits, social app polish, code-review walkthroughs, web-specific concerns, and platform adaptation. The audit script in `scripts/audit.sh` automates the grep-based checks shown in the Audit Workflow below.
 
 ---
 

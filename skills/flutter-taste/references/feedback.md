@@ -120,7 +120,7 @@ GestureDetector(
 )
 
 // ❌ Material button with unwanted feedback
-MaterialButton(
+ElevatedButton(
   onPressed: _handleTap,
   // Splashes by default
   child: Text('Button'),
@@ -130,10 +130,12 @@ MaterialButton(
 ### ✅ Pattern: Disable splash when unwanted
 ```dart
 // Option 1: Disable splash on Material button
-MaterialButton(
+ElevatedButton(
   onPressed: _handleTap,
-  splashColor: Colors.transparent,
-  highlightColor: Colors.transparent,
+  style: ElevatedButton.styleFrom(
+    splashFactory: NoSplash.splashFactory,
+    overlayColor: Colors.transparent,
+  ),
   child: Text('Button'),
 )
 

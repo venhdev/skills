@@ -48,11 +48,10 @@ Each concern maps to implementation patterns in `references/`:
 
 - **animations.md** — Spring physics, curves, transitions
 - **feedback.md** — Haptics, visual feedback, selection colors
-- **layout.md** — SafeArea, spacing, image sizing (coming)
+- **data.md** — Null handling, image sizing, number/date formatting, loading states
 - **forms.md** — Input styling, autofocus, keyboard dismissal
-- **data.md** — Null handling, number/date formatting, loading states
-- **navigation.md** — Bottom nav, sheets, back button, platform adaptation
-- **web.md** — Browser titles, loaders, OG tags (coming)
+- **navigation.md** — Bottom nav, sheets, back button, web titles, platform adaptation
+- **platform.md** — File sharing, platform-native patterns
 
 All patterns include:
 - ❌ Anti-pattern (what NOT to do)
@@ -107,12 +106,11 @@ flutter-taste/
 │   └── audit.sh                # Bash script to grep codebase and generate report
 ├── references/                 # Implementation guides (one per category)
 │   ├── animations.md           # Spring physics, curves, transitions
-│   ├── feedback.md             # Haptics, visual feedback (coming)
-│   ├── layout.md               # SafeArea, spacing, image sizing (coming)
+│   ├── feedback.md             # Haptics, visual feedback, selection colors
+│   ├── data.md                 # Null safety, image sizing, formatting, states
 │   ├── forms.md                # Input styling, autofocus, keyboard
-│   ├── data.md                 # Null safety, formatting, state handling
-│   ├── navigation.md           # Bottom nav, sheets, platform adaptation
-│   └── web.md                  # Browser titles, loaders, OG tags (coming)
+│   ├── navigation.md           # Bottom nav, sheets, back button, web
+│   └── platform.md             # File sharing, platform-native patterns
 └── README.md                   # This file
 ```
 
@@ -159,7 +157,7 @@ User: [Pastes ListView with product cards]
 Claude:
 1. Identifies anti-patterns (unsized images, unformatted price, empty text fallback)
 2. Shows corrected code with references
-3. Links to data.md for NumberFormat, layout.md for image sizing
+3. Links to data.md for NumberFormat and image sizing
 ```
 
 ### Conversation 3: Implementation Help
