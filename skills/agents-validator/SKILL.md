@@ -69,24 +69,43 @@ Scans project structure based on configuration.
 | File | Check | Pass | Fail |
 |------|-------|------|------|
 | CLAUDE.md | Has `#` heading | ✅ | ❌ No heading |
-| CLAUDE.md | References @AGENTS.md | ✅ Contains @AGENTS.md | ❌ Missing ref |
-| CLAUDE.md | Min word count | ✅ Met | ❌ Too short |
+| CLAUDE.md | Contains @AGENTS.md | ✅ On own line only | ❌ Missing or embedded in text |
+| CLAUDE.md | Min word count (excl. @AGENTS.md line) | ✅ Met | ❌ Too short |
 | AGENTS.md | Has content | ✅ Substantive | ❌ Placeholder only |
 | AGENTS.md | Min word count | ✅ Met | ❌ Too short |
 | Any file | Valid Markdown | ✅ Parses OK | ❌ Syntax error |
 
-### Reference Syntax
+### Reference Syntax - STRICT RULE
 
-**Valid:**
+**VALID (only this format):**
 ```
-✅ @AGENTS.md
+✅ @AGENTS.md            (on its own line, nothing else)
 ```
 
-**Invalid:**
+**INVALID (all of these):**
 ```
-❌ @../AGENTS.md         (no relative paths)
-❌ @root/AGENTS.md       (no absolute paths)
-❌ ../AGENTS.md          (missing @ prefix)
+❌ Follow @AGENTS.md              (embedded in text)
+❌ See @AGENTS.md for rules       (prose context)
+❌ @AGENTS.md for details         (not standalone)
+❌ @../AGENTS.md                  (relative paths)
+❌ @root/AGENTS.md                (absolute paths)
+❌ ../AGENTS.md                   (missing @ prefix)
+```
+
+**Rule:** @AGENTS.md must appear ALONE on its line. No surrounding text. This is an **import directive**, not a reference in prose.
+
+**Correct minimal CLAUDE.md:**
+```markdown
+# Module Name
+
+@AGENTS.md
+```
+
+**Incorrect:**
+```markdown
+# Module Name
+
+For patterns, see @AGENTS.md for details.    ❌ (text around it)
 ```
 
 ## Output Format
@@ -140,6 +159,13 @@ SUMMARY: 1 fail, 1 warn, 2 pass. Fix before using agent teams.
 
 ## Common Mistakes
 
+❌ **"I'll write 'Follow @AGENTS.md' for clarity"**
+→ Wrong. @AGENTS.md is import syntax, not prose. Must be alone on its line:
+```markdown
+@AGENTS.md        ✅ correct
+Follow @AGENTS.md ❌ wrong
+```
+
 ❌ **"CLAUDE.md should contain everything"**
 → No. CLAUDE.md is thin reference to AGENTS.md. Put substance in AGENTS.md.
 
@@ -147,7 +173,7 @@ SUMMARY: 1 fail, 1 warn, 2 pass. Fix before using agent teams.
 → Do this anyway. Consistency matters for agent team context.
 
 ❌ **"Using relative paths like @../AGENTS.md"**
-→ Only same-directory `@AGENTS.md` supported. Use it everywhere.
+→ Only same-directory `@AGENTS.md` supported. Must be on own line.
 
 ❌ **"AGENTS.md with only 50 words is enough"**
 → Minimum standards exist (200 root, 80 module). Meet them or agent confusion increases.
