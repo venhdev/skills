@@ -14,6 +14,7 @@ resolved_root="$(pwd -P)"
 candidate_pattern='(^|/)(AGENTS|CLAUDE|GEMINI|RULES|CONTRIBUTING|GOVERNANCE|ARCHITECTURE|DESIGN|BUSINESS|WORKFLOWS|LANG|TODO|ROADMAP|SECURITY|SUPPORT|README)(\.[^/]*)?$|(^|/)(ADR|RFC)[-_0-9]|(^|/)(docs?|documentation)/(decisions?|adrs?|rfcs?|architecture|design|specs?|research|runbooks?|policies)(/|$)'
 document_pattern='\.(md|mdx|adoc|rst|txt|pdf|docx|odt|mmd|puml|ya?ml|toml|json)$'
 authority_pattern='single source of truth|source of truth|\bSSOT\b|documentation authority|authoritative (document|record|source|specification|reference)|canonical (document|source|specification|reference)|conflict order|authority order|wins over|supersed(es|ed|ing)|replaced by|read[- ]only (document|file|directory|folder|reference|snapshot)|(do not|must not) (edit|modify)|generated (file|document|documentation)'
+metadata_pattern='^(type|kind|status|authority|ssot|supersedes|supersededby|updated):'
 
 print_header() {
   printf '\n## %s\n' "$1"
@@ -49,6 +50,11 @@ if command -v rg >/dev/null 2>&1; then
   rg -n -i "$authority_pattern" "${common_globs[@]}" \
     -g '*.md' -g '*.mdx' -g '*.adoc' -g '*.rst' -g '*.txt' \
     || true
+
+  print_header 'Common frontmatter metadata signals'
+  rg -n -i "$metadata_pattern" "${common_globs[@]}" \
+    -g '*.md' -g '*.mdx' -g '*.adoc' -g '*.rst' \
+    || true
 else
   print_header 'Candidate governance and documentation files'
   find . -type f \
@@ -79,5 +85,16 @@ else
     ! -path '*/build/*' \
     ! -path '*/dist/*' \
     -exec grep -nEi "$authority_pattern" {} + \
+    || true
+
+  print_header 'Common frontmatter metadata signals'
+  find . -type f \
+    \( -name '*.md' -o -name '*.mdx' -o -name '*.adoc' -o -name '*.rst' \) \
+    ! -path '*/.git/*' \
+    ! -path '*/node_modules/*' \
+    ! -path '*/vendor/*' \
+    ! -path '*/build/*' \
+    ! -path '*/dist/*' \
+    -exec grep -nEi "$metadata_pattern" {} + \
     || true
 fi
