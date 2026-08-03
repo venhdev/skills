@@ -1,4 +1,4 @@
 interface:
   display_name: "Documentation Governance"
-  short_description: "Discover and safely update project authorities"
-  default_prompt: "Use $docs-governance to discover this repository’s documentation authorities and update the correct SSOT or ADR without duplication."
+  short_description: "Audit, normalize, consolidate, and clean project docs"
+  default_prompt: "Use $docs-governance to discover this repository’s documentation authorities, compare its conventions with the preferred contract, and propose normalization or cleanup before editing."
