@@ -218,6 +218,131 @@ display_path() {
   printf '%s' "$path"
 }
 
+trim_value() {
+  local value="$1"
+
+  while [[ "$value" =~ ^[[:space:]] ]]; do
+    value="${value:1}"
+  done
+  while [[ "$value" =~ [[:space:]]$ ]]; do
+    value="${value:0:${#value}-1}"
+  done
+  printf '%s' "$value"
+}
+
+normalize_scalar() {
+  local value
+
+  value="$(trim_value "$1")"
+  if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then
+    value="${BASH_REMATCH[1]}"
+  elif [[ "$value" =~ ^(.*[^[:space:]])[[:space:]]+#.*$ ]]; then
+    value="$(trim_value "${BASH_REMATCH[1]}")"
+    if [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]]; then
+      value="${BASH_REMATCH[1]}"
+    fi
+  fi
+  printf '%s' "$value"
+}
+
+add_contract_candidate() {
+  contract_candidate_files+=("$1")
+  contract_candidate_lines+=("$2")
+  contract_candidate_fields+=("$3")
+  contract_candidate_values+=("$4")
+  contract_candidate_reasons+=("$5")
+}
+
+audit_frontmatter() {
+  local file="$1"
+  local lower_file="${file,,}"
+  local line field value reason type_value
+  local line_number=1
+  local closed=false
+  local -a frontmatter_lines=()
+  local -a frontmatter_line_numbers=()
+  local -a type_values=()
+  local -A seen_fields=()
+  local -A seen_types=()
+
+  [[ "$lower_file" == *.md || "$lower_file" == *.mdx ]] || return 0
+
+  {
+    IFS= read -r line || return 0
+    line="${line%$'\r'}"
+    [[ "$line" == '---' ]] || return 0
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      ((line_number += 1))
+      line="${line%$'\r'}"
+      if [[ "$line" == '---' ]]; then
+        closed=true
+        break
+      fi
+      frontmatter_lines+=("$line")
+      frontmatter_line_numbers+=("$line_number")
+    done
+  } < "$file"
+
+  [[ "$closed" == true ]] || return 0
+
+  for index in "${!frontmatter_lines[@]}"; do
+    line="${frontmatter_lines[$index]}"
+    [[ "$line" =~ ^(status|type)[[:space:]]*:[[:space:]]*(.*)$ ]] || continue
+    field="${BASH_REMATCH[1]}"
+    value="$(normalize_scalar "${BASH_REMATCH[2]}")"
+    line_number="${frontmatter_line_numbers[$index]}"
+
+    if [[ -n "${seen_fields[$field]:-}" ]]; then
+      add_contract_candidate "$file" "$line_number" "$field" "$value" \
+        'Duplicate frontmatter field'
+      continue
+    fi
+    seen_fields[$field]=1
+
+    if [[ "$field" == status ]]; then
+      if [[ "$value" != draft && "$value" != active &&
+            "$value" != completed && "$value" != deprecated &&
+            ! "$value" =~ ^deprecated\;[[:space:]]prefer[[:space:]].+ &&
+            ! "$value" =~ ^superseded[[:space:]]by[[:space:]].+ ]]; then
+        add_contract_candidate "$file" "$line_number" "$field" "$value" \
+          'Not in preferred status taxonomy'
+      fi
+      continue
+    fi
+
+    reason=''
+    if [[ ! "$value" =~ ^[a-z]+(,[[:space:]][a-z]+)*$ ]]; then
+      reason='Expected lowercase comma-separated inline types'
+    fi
+
+    IFS=',' read -r -a type_values <<< "$value"
+    for type_value in "${type_values[@]}"; do
+      type_value="$(trim_value "$type_value")"
+      if [[ " plan spec adr ssot research runbook til " != *" $type_value "* ]]; then
+        reason="${reason:+$reason; }Unknown preferred type: $type_value"
+      elif [[ -n "${seen_types[$type_value]:-}" ]]; then
+        reason="${reason:+$reason; }Duplicate type: $type_value"
+      else
+        seen_types[$type_value]=1
+      fi
+    done
+
+    if [[ -n "$reason" ]]; then
+      add_contract_candidate "$file" "$line_number" "$field" "$value" "$reason"
+    fi
+  done
+}
+
+escape_table_cell() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//|/\\|}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  printf '%s' "$value"
+}
+
 if command -v rg >/dev/null 2>&1; then
   use_rg=true
 else
@@ -256,12 +381,18 @@ fi
 
 declare -A governance_by_file=()
 declare -A metadata_by_file=()
+contract_candidate_files=()
+contract_candidate_lines=()
+contract_candidate_fields=()
+contract_candidate_values=()
+contract_candidate_reasons=()
 
 for file in "${document_files[@]}"; do
   governance_matches=''
   metadata_matches=''
   filtered_governance=''
 
+  audit_frontmatter "$file"
   governance_matches="$(scan_file "$authority_pattern" "$file")" || fail_scan "$file"
   metadata_matches="$(scan_file "$metadata_pattern" "$file")" || fail_scan "$file"
   filtered_governance="$(
@@ -275,6 +406,21 @@ done
 echo "documents: ${#document_files[@]}"
 echo "files with governance signals: ${#governance_by_file[@]}"
 echo "files with metadata signals: ${#metadata_by_file[@]}"
+echo "preferred-contract candidates: ${#contract_candidate_files[@]}"
+
+if [[ ${#contract_candidate_files[@]} -gt 0 ]]; then
+  printf '\n## Preferred-contract candidates\n\n'
+  printf '| File | Line | Field | Observed | Reason |\n'
+  printf '| --- | ---: | --- | --- | --- |\n'
+  for index in "${!contract_candidate_files[@]}"; do
+    printf '| %s | %s | %s | %s | %s |\n' \
+      "$(escape_table_cell "${contract_candidate_files[$index]}")" \
+      "${contract_candidate_lines[$index]}" \
+      "${contract_candidate_fields[$index]}" \
+      "$(escape_table_cell "${contract_candidate_values[$index]}")" \
+      "$(escape_table_cell "${contract_candidate_reasons[$index]}")"
+  done
+fi
 
 printf '\n## Documentation files\n'
 for file in "${document_files[@]}"; do

@@ -36,6 +36,8 @@ description: Discover documentation authorities and compare repository docs with
    - use `Governance` findings to locate possible ownership, precedence,
      supersession, and mutability rules;
    - use `Metadata` findings to discover existing document conventions;
+   - review `Preferred-contract candidates` against the effective repository
+     contract; they are comparison signals, not defects;
    - verify every signal in its full file and repository context;
    - treat missing signals as unknown, not proof that no rule exists.
 3. Discover the effective repository contract: authority, precedence,
