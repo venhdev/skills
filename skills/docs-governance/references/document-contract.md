@@ -30,6 +30,10 @@ Frontmatter is optional. Report its absence as a defect only when repository
 rules require it. Otherwise, recommend it only when metadata would materially
 improve authority, lifecycle, or discoverability.
 
+Never recommend frontmatter for conventionally named files (`README.md`,
+`CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`): their filename conveys role and
+discoverability, and their body is free-form narrative.
+
 ```yaml
 ---
 title: API v1
@@ -102,7 +106,7 @@ obtain user confirmation before introducing or mapping to a custom value. Omit
 | Authority candidate | `ARCHITECTURE.md` | Boundaries, components, integrations, constraints. |
 | Instruction candidate | `AGENTS.md` | Agent instructions; nested files narrow directory scope. |
 | Authority candidate | `BUSINESS.md` | Business rules, actors, terms, invariants, exceptions. |
-| Authority candidate | `DESIGN.md` | UI system, components, and design patterns. |
+| Authority candidate | `DESIGN.md` | Design system source of truth for AI-generated UI (colors, typography, spacing, component patterns). |
 | Authority candidate | `SECURITY.md` | Security policies, constraints, and boundaries. |
 | Long-term supporting | `README.md` | Project entry point and documentation map. |
 | Long-term supporting | `CHANGELOG.md` | Curated notable change history. |
