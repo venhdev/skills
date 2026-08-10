@@ -10,6 +10,7 @@ normalization; do not silently override repository conventions.
 - [Status Taxonomy](#status-taxonomy)
 - [Type Taxonomy](#type-taxonomy)
 - [Common Authority Candidates](#common-authority-candidates)
+- [Authority Boundaries](#authority-boundaries)
 - [Governance Rules](#governance-rules)
 
 ## Precedence
@@ -108,6 +109,7 @@ obtain user confirmation before introducing or mapping to a custom value. Omit
 | Authority candidate | `BUSINESS.md` | Business rules, actors, terms, invariants, exceptions. |
 | Authority candidate | `DESIGN.md` | Design system source of truth for AI-generated UI (colors, typography, spacing, component patterns). |
 | Authority candidate | `SECURITY.md` | Security policies, constraints, and boundaries. |
+| Authority candidate | `TEST.md` | Verification strategy, test contracts, coverage, and isolation policy. |
 | Long-term supporting | `README.md` | Project entry point and documentation map. |
 | Long-term supporting | `CHANGELOG.md` | Curated notable change history. |
 | Short-term | `MEMORY.md` | Findings, lessons, or handoff notes. |
@@ -115,6 +117,16 @@ obtain user confirmation before introducing or mapping to a custom value. Omit
 
 Filenames, folders, categories, and `type: ssot` identify candidates only.
 Repository evidence or an approved assignment establishes authority.
+
+## Authority Boundaries
+
+- Give each authority a bounded, declared responsibility.
+- Treat a correct fact outside that responsibility as an ownership problem.
+- Allow a document to describe a local consequence required for its own
+  purpose, but do not let it redefine the upstream rule.
+- Link to another authority only when retained content needs that context.
+- Treat an SSOT as canonical only within its established scope, not as a place
+  for every related fact.
 
 ## Governance Rules
 
