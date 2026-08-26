@@ -138,3 +138,5 @@ Repository evidence or an approved assignment establishes authority.
   future state, and rationale.
 - Treat divergence between implementation and accepted documentation as an
   unresolved conflict, not a new truth.
+- Lock runtime, framework, and package versions in exactly one master architecture index; reference the master index rather than hardcoding versions across subsystem documents.
+- Encourage structured traceability keys for domain invariants, business rules, API errors, and architectural decisions that map directly to code and tests (`BR-*`, `UC-*`, `ERR-*`, `EVT-*`, `ADR-*`, `LL-*`).
