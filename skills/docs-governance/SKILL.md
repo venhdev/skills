@@ -1,6 +1,6 @@
 ---
 name: docs-governance
-description: Govern documentation authority and ownership boundaries. Use to audit or clean SSOTs, ADRs, specs, and metadata when facts are duplicated, conflicting, stale, or stored in the wrong document.
+description: Govern documentation authority and ownership boundaries. Use to search, audit, create, update, or clean SSOTs, ADRs, specs, and metadata when facts are needed, duplicated, conflicting, stale, or misplaced.
 ---
 
 # Documentation Governance
@@ -8,12 +8,9 @@ description: Govern documentation authority and ownership boundaries. Use to aud
 ## Core Rules
 
 - Read every repository and directory instruction applicable to a target file.
-- Treat filenames, folders, and self-declared metadata as evidence, not proof of
-  authority.
-- Keep one authoritative owner per rule. A correct fact in the wrong document is
-  still cleanup work.
-- Treat code, configuration, and tests as implementation evidence, not automatic
-  replacements for accepted durable intent.
+- Treat filenames, folders, and self-declared metadata as evidence, not proof of authority.
+- Keep one authoritative owner per rule. A correct fact in the wrong document is still cleanup work.
+- Treat code, configuration, and tests as implementation evidence, not automatic replacements for accepted durable intent.
 - Preserve read-only snapshots, generated docs, and decision history by default.
 - Touch, merge, move, or delete only exact files approved by the user.
 
@@ -21,68 +18,55 @@ description: Govern documentation authority and ownership boundaries. Use to aud
 
 | Type | Use when | Action |
 | --- | --- | --- |
+| `create` | Durable fact or document does not yet exist. | Draft in the designated authoritative owner. |
 | `keep` | Content belongs to the document's responsibility. | Preserve or refine it. |
 | `move` | Durable content belongs to another approved owner. | Merge into the owner, validate it, then remove the source copy. |
 | `drop` | The owner already preserves the fact, or the content has no independent value. | Remove the source copy. |
 | `escalate` | Authority, intent, or destination remains unclear. | Preserve it, report evidence and options, and wait for the user's decision. |
 
-Move before dropping. Do not replace every removed duplicate with a link; link
-only when retained content needs the owner for context.
+Move before dropping. Do not replace every removed duplicate with a link; link only when retained content needs the owner for context.
 
 ## Process
 
 ### 1. Discover
 
-1. Resolve the repository/component in scope. Discover and read existing
-   repository or directory instructions applicable to it, such as `AGENTS.md`
-   and `CLAUDE.md`. Their absence is not a defect.
-2. Run the read-only inventory when shell access is available:
+1. **Fast-Path**: Check repository documentation index (`docs/README.md` or `README.md`) for an established Directory Structure and Authoritative Placement Matrix. If present, use it directly. Read `references/document-contract.md` for lifecycle status taxonomy, governance boundaries, and recommended directory templates.
+2. **Fallback / Deep Audit**: If no index exists or scope is uncertain, inspect applicable instructions (`AGENTS.md`) and run the inventory script:
 
    ```bash
    bash scripts/discover-docs.sh /path/to/repository
    ```
 
-   Use `--ext`, `--exclude`, or `--help` as needed. Treat the output as evidence,
-   not an authority decision; verify relevant governance and metadata signals in
-   full context, and treat missing signals as unknown.
-3. Use the inventory and repository context to identify and read relevant
-   authorities. Common candidates include `README.md`, `ARCHITECTURE.md`,
-   `BUSINESS.md`, `DESIGN.md`, `SECURITY.md`, and `TEST.md`; filenames remain
-   evidence, not proof of authority.
-4. Establish the effective contract and each authority's responsibility. Read
-   `references/document-contract.md` when auditing metadata, lifecycle, or
-   type/status conventions, or when the repository defines no effective
-   documentation contract.
-5. Read relevant ADRs/RFCs and inspect implementation evidence. Classify
-   relevant content as `keep`, `move`, `drop`, or `escalate`. When no owner
-   exists, propose one based on the fact's role; escalate unclear authority or
-   intent.
+   *Bootstrap recommendation*: If the repository lacks a clear documentation map, propose creating `docs/README.md` to define placement boundaries permanently using the template in `references/document-contract.md`.
+3. Map relevant concepts to their canonical owner by scope (global standards, domain specs, subsystem guides).
+4. **Read-only requests**: Stop and report authoritative files, sections, and findings when the request is purely search or inspection.
 
 ### 2. Propose
 
-Before editing, report the effective authorities and responsibilities; each
-relevant `keep`, `move`, `drop`, or `escalate`; exact source-to-owner mappings
-and mutations; retained or lost durable value; conflicts; affected tooling;
-validation, risk, and recovery. Stop unless the exact mutation set is already
-approved.
+1. Classify each required change as `create`, `keep`, `move`, `drop`, or `escalate`.
+2. When authoring or amending documents, follow the Universal Disciplines and Archetype Skeletons in `references/document-contract.md`.
+3. When merging scattered facts into an owner:
+   - **Synthesize**: Consolidate descriptions into a single canonical section or matrix; do not append parallel duplicate text.
+   - **Reconcile**: Align conflicting text with code/contracts, or mark as `escalate`.
+   - **Clean sources**: Replace moved text with a direct anchor link (`[Doc § N.N](path#anchor)`) only when local reading requires upstream context; otherwise drop.
+4. Present the **Mutation Set Matrix** using this compact format:
+
+   | Action | Source File (opt: -> Target) | Fact / Purpose |
+   |---|---|---|
+   | `move` | `path/source.md` -> `path/owner.md § N` | Consolidate naming invariant |
+   | `create` | `path/owner.md` | Draft new protocol specification |
+   | `drop` | `path/source.md` | Remove duplicate schema text |
+   | `escalate` | `path/source.md` (vs `code`) | Conflicting state transition rules |
+
+5. **Approval Gate**: Stop and wait for explicit user approval before modifying files.
 
 ### 3. Apply
 
-- Apply only the approved mutation set. Complete and validate moves before
-  drops; stop if new escalations or out-of-scope content appear.
-- Amend existing owners with concise repository terminology. Consolidate stale
-  text instead of appending parallel rules.
-- Preserve read-only/generated artifacts and decision history. Normalize only
-  metadata fields included in scope.
-- Refine an ADR when the decision identity is unchanged. Create a new ADR only
-  for an independent or explicitly superseding decision required by local
-  convention.
+1. Apply only approved mutations. Complete and validate `create` and `move` before `drop`. Stop on new escalations.
+2. Amend existing owners with concise terminology.
+3. Advance `updated: YYYY-MM-DD` in frontmatter of touched documents.
 
 ### 4. Verify
 
-- Search affected concepts for contradictions, duplicates, and content remaining
-  outside its owner.
-- Verify moved content is complete and run repository-prescribed documentation
-  checks, tests, linters, or audits.
-- Report changes, ownership, validation results, recovery options, and remaining
-  escalations.
+1. Check markdown link resolution and anchor validity.
+2. Verify moved facts are complete and no duplicate text remains outside its SSOT.

@@ -17,6 +17,8 @@ Arguments:
 
 Options:
   --ext     Replace the default extension list.
+  --status  Filter by status (e.g. active, draft, completed, deprecated, superseded).
+            Accepts a comma-separated list. Defaults to all.
   --exclude Exclude a path relative to <folder>. May be repeated. A literal
             directory excludes its tree; * and ? globs may span directories.
   -h, --help
@@ -24,6 +26,7 @@ Options:
 
 Defaults:
   --ext md,mdx,adoc,rst,txt,mmd,puml
+  --status (all)
 
 Supported extensions:
   md mdx adoc rst txt mmd puml yaml yml toml json
@@ -34,6 +37,8 @@ Built-in ignored directories:
 
 Examples:
   discover-docs.sh /path/to/repository
+  discover-docs.sh /path/to/repository --status active
+  discover-docs.sh /path/to/repository --status deprecated,superseded
   discover-docs.sh /path/to/repository --ext md,mdx
   discover-docs.sh /path/to/repository --exclude archive
   discover-docs.sh /path/to/repository \
@@ -71,6 +76,8 @@ target_root="$1"
 shift
 extension_csv="$default_extensions"
 seen_ext=false
+status_filter_csv=""
+seen_status=false
 custom_excludes=()
 
 while [[ $# -gt 0 ]]; do
@@ -80,6 +87,13 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 1 && "${2:-}" != -* ]] || fail_usage '--ext requires a value'
       extension_csv="$2"
       seen_ext=true
+      shift 2
+      ;;
+    --status)
+      [[ "$seen_status" == false ]] || fail_usage '--status may be provided only once'
+      [[ $# -gt 1 && "${2:-}" != -* ]] || fail_usage '--status requires a value'
+      status_filter_csv="${2,,}"
+      seen_status=true
       shift 2
       ;;
     --exclude)
@@ -103,6 +117,13 @@ done
 [[ -d "$target_root" ]] || fail_usage "audit folder is not a directory: $target_root"
 [[ "$extension_csv" =~ ^[a-z0-9]+(,[a-z0-9]+)*$ ]] || \
   fail_usage '--ext must be a comma-separated list without dots or spaces'
+
+declare -a status_filters=()
+if [[ -n "$status_filter_csv" && "$status_filter_csv" != "all" ]]; then
+  [[ "$status_filter_csv" =~ ^[a-z0-9_-]+(,[a-z0-9_-]+)*$ ]] || \
+    fail_usage '--status must be a comma-separated list of status names (e.g. active,draft)'
+  IFS=',' read -r -a status_filters <<< "$status_filter_csv"
+fi
 
 for exclude in "${custom_excludes[@]}"; do
   [[ -n "$exclude" ]] || fail_usage '--exclude cannot be empty'
@@ -131,7 +152,7 @@ done
 find_types+=(')')
 
 authority_pattern='single source of truth|source of truth|(^|[^[:alnum:]_])SSOT([^[:alnum:]_]|$)|(this |the )?(document|file|record|source|specification|reference) (is|remains) authoritative|authoritative (document|record|source|specification|reference)|(this |the )?(document|file|specification|reference) (is|remains) canonical|canonical (document|source|specification|reference)|conflict order|authority order|wins over|takes precedence|higher priority than|overrides? (older|previous|legacy) (document|documentation|descriptions?|rules?|specifications?)|supersed(es|ed|ing)|replaced by|replaces|deprecated;[[:space:]]*prefer|read[- ]only (document|file|directory|folder|reference|snapshot|material)|read[- ]only[^[:alnum:]]{0,3}(do not|must not) (edit|modify)|(this |the )?(file|document|documentation) (is|was) (auto[- ]?)?generated|(auto[- ]?)?generated (file|document|documentation)([^[:alnum:]_]|$)|(do not|must not) (edit|modify) (this|the|it)( directly)?|edit .+ and regenerate (this|the) (file|document|documentation)|edit .+ instead of (this|the) (file|document)|(this |the )?(file|document|documentation) (is|was) managed by|governed by|((rules?|contract|behavior|architecture|policy) (is|are) (defined|documented) (in|by))'
-metadata_pattern='^(title|description|status|type|created|updated|kind|authority|ssot|supersedes|superseded[-_]?by|replaced[-_]?by)[[:space:]]*:'
+metadata_pattern='^(title|description|status|created|updated|kind|authority|ssot|supersedes|superseded[-_]?by|replaced[-_]?by)[[:space:]]*:'
 
 find_prunes=(
   -name .git -o -name .hg -o -name .svn -o -name node_modules
@@ -256,14 +277,14 @@ add_contract_candidate() {
 audit_frontmatter() {
   local file="$1"
   local lower_file="${file,,}"
-  local line field value reason type_value
+  local base_file="${file##*/}"
+  local lower_base="${base_file,,}"
+  local line field value
   local line_number=1
   local closed=false
   local -a frontmatter_lines=()
   local -a frontmatter_line_numbers=()
-  local -a type_values=()
   local -A seen_fields=()
-  local -A seen_types=()
 
   [[ "$lower_file" == *.md || "$lower_file" == *.mdx ]] || return 0
 
@@ -288,8 +309,8 @@ audit_frontmatter() {
 
   for index in "${!frontmatter_lines[@]}"; do
     line="${frontmatter_lines[$index]}"
-    [[ "$line" =~ ^(status|type)[[:space:]]*:[[:space:]]*(.*)$ ]] || continue
-    field="${BASH_REMATCH[1]}"
+    [[ "$line" =~ ^([a-zA-Z0-9_-]+)[[:space:]]*:[[:space:]]*(.*)$ ]] || continue
+    field="${BASH_REMATCH[1],,}"
     value="$(normalize_scalar "${BASH_REMATCH[2]}")"
     line_number="${frontmatter_line_numbers[$index]}"
 
@@ -298,10 +319,11 @@ audit_frontmatter() {
         'Duplicate frontmatter field'
       continue
     fi
-    seen_fields[$field]=1
+    seen_fields[$field]="$value"
 
     if [[ "$field" == status ]]; then
       if [[ "$value" != draft && "$value" != active &&
+            "$value" != accepted && "$value" != proposed && "$value" != rejected &&
             "$value" != completed && "$value" != deprecated &&
             ! "$value" =~ ^deprecated\;[[:space:]]prefer[[:space:]].+ &&
             ! "$value" =~ ^superseded[[:space:]]by[[:space:]].+ ]]; then
@@ -310,28 +332,47 @@ audit_frontmatter() {
       fi
       continue
     fi
+  done
 
-    reason=''
-    if [[ ! "$value" =~ ^[a-z]+(,[[:space:]][a-z]+)*$ ]]; then
-      reason='Expected lowercase comma-separated inline types'
+  # Warn if frontmatter exists on a specification document but description is missing or blank
+  if [[ "$lower_base" != readme.md && "$lower_base" != changelog.md &&
+        "$lower_base" != contributing.md && "$lower_base" != license* ]]; then
+    if [[ -z "${seen_fields[description]:-}" ]]; then
+      add_contract_candidate "$file" "1" "description" "(missing)" \
+        'Missing description in frontmatter'
     fi
+  fi
 
-    IFS=',' read -r -a type_values <<< "$value"
-    for type_value in "${type_values[@]}"; do
-      type_value="$(trim_value "$type_value")"
-      if [[ " plan spec adr ssot research runbook til " != *" $type_value "* ]]; then
-        reason="${reason:+$reason; }Unknown preferred type: $type_value"
-      elif [[ -n "${seen_types[$type_value]:-}" ]]; then
-        reason="${reason:+$reason; }Duplicate type: $type_value"
-      else
-        seen_types[$type_value]=1
-      fi
-    done
+  status_by_file["$file"]="${seen_fields[status]:-}"
+}
 
-    if [[ -n "$reason" ]]; then
-      add_contract_candidate "$file" "$line_number" "$field" "$value" "$reason"
+matches_status_filter() {
+  local file="$1"
+  [[ ${#status_filters[@]} -eq 0 ]] && return 0
+
+  local raw_status="${status_by_file[$file]:-}"
+  [[ -n "$raw_status" ]] || return 1
+
+  local base_status="$raw_status"
+  if [[ "$raw_status" =~ ^deprecated\; ]]; then
+    base_status="deprecated"
+  elif [[ "$raw_status" =~ ^superseded[[:space:]]by ]]; then
+    base_status="superseded"
+  fi
+
+  for filter in "${status_filters[@]}"; do
+    if [[ "$filter" == "$raw_status" || "$filter" == "$base_status" ]]; then
+      return 0
+    fi
+    # Map active <-> accepted and draft <-> proposed
+    if [[ "$filter" == "active" && "$raw_status" == "accepted" ]]; then
+      return 0
+    fi
+    if [[ "$filter" == "draft" && "$raw_status" == "proposed" ]]; then
+      return 0
     fi
   done
+  return 1
 }
 
 escape_table_cell() {
@@ -349,6 +390,8 @@ else
   use_rg=false
 fi
 
+declare -A status_by_file=()
+
 cd -- "$target_root"
 resolved_root="$(pwd -P)"
 
@@ -357,6 +400,9 @@ if [[ "$use_rg" == false ]]; then
 fi
 echo "documentation inventory root: $resolved_root"
 echo "extensions: $extension_csv"
+if [[ -n "$status_filter_csv" && "$status_filter_csv" != "all" ]]; then
+  echo "status filter: $status_filter_csv"
+fi
 if [[ ${#custom_excludes[@]} -gt 0 ]]; then
   printf 'custom excludes: %s\n' "${custom_excludes[*]}"
 fi
@@ -387,12 +433,40 @@ contract_candidate_fields=()
 contract_candidate_values=()
 contract_candidate_reasons=()
 
+# Discover status across all candidate files
+for file in "${document_files[@]}"; do
+  audit_frontmatter "$file"
+done
+
+# Apply status filter if specified
+if [[ ${#status_filters[@]} -gt 0 ]]; then
+  filtered_docs=()
+  for file in "${document_files[@]}"; do
+    if matches_status_filter "$file"; then
+      filtered_docs+=("$file")
+    fi
+  done
+  document_files=()
+  if [[ ${#filtered_docs[@]} -gt 0 ]]; then
+    document_files=("${filtered_docs[@]}")
+  fi
+
+  # Reset contract candidate findings to only reflect filtered files
+  contract_candidate_files=()
+  contract_candidate_lines=()
+  contract_candidate_fields=()
+  contract_candidate_values=()
+  contract_candidate_reasons=()
+  for file in "${document_files[@]}"; do
+    audit_frontmatter "$file"
+  done
+fi
+
 for file in "${document_files[@]}"; do
   governance_matches=''
   metadata_matches=''
   filtered_governance=''
 
-  audit_frontmatter "$file"
   governance_matches="$(scan_file "$authority_pattern" "$file")" || fail_scan "$file"
   metadata_matches="$(scan_file "$metadata_pattern" "$file")" || fail_scan "$file"
   filtered_governance="$(
