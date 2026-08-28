@@ -19,12 +19,13 @@ description: Govern documentation authority and ownership boundaries. Use to sea
 | Type | Use when | Action |
 | --- | --- | --- |
 | `create` | Durable fact or document does not yet exist. | Draft in the designated authoritative owner. |
-| `keep` | Content belongs to the document's responsibility. | Preserve or refine it. |
+| `update` | Content exists but has factual gaps, errors, or missing information. | Correct facts, add missing details, fix inaccuracies. |
+| `refine` | Content is factually correct but could be clearer, better structured, or have better examples. | Reorganize, clarify language, add examples, improve formatting. |
 | `move` | Durable content belongs to another approved owner. | Merge into the owner, validate it, then remove the source copy. |
 | `drop` | The owner already preserves the fact, or the content has no independent value. | Remove the source copy. |
-| `escalate` | Authority, intent, or destination remains unclear. | Preserve it, report evidence and options, and wait for the user's decision. |
+| `escalate` | Authority, intent, or destination remains unclear. | Preserve it, report evidence and options, wait for user decision. |
 
-Move before dropping. Do not replace every removed duplicate with a link; link only when retained content needs the owner for context.
+Move before dropping. Do not replace every removed duplicate with a link; link only when kept content needs the owner for context.
 
 ## Process
 
@@ -43,7 +44,7 @@ Move before dropping. Do not replace every removed duplicate with a link; link o
 
 ### 2. Propose
 
-1. Classify each required change as `create`, `keep`, `move`, `drop`, or `escalate`.
+1. Classify each required change as `create`, `update`, `refine`, `move`, `drop`, or `escalate`.
 2. When authoring or amending documents, follow the Universal Disciplines and Archetype Skeletons in `references/document-contract.md`.
 3. When merging scattered facts into an owner:
    - **Synthesize**: Consolidate descriptions into a single canonical section or matrix; do not append parallel duplicate text.
@@ -55,6 +56,8 @@ Move before dropping. Do not replace every removed duplicate with a link; link o
    |---|---|---|
    | `move` | `path/source.md` -> `path/owner.md § N` | Consolidate naming invariant |
    | `create` | `path/owner.md` | Draft new protocol specification |
+   | `update` | `path/owner.md` | Correct API version references |
+   | `refine` | `path/owner.md` | Add examples to authentication section |
    | `drop` | `path/source.md` | Remove duplicate schema text |
    | `escalate` | `path/source.md` (vs `code`) | Conflicting state transition rules |
 
@@ -63,7 +66,7 @@ Move before dropping. Do not replace every removed duplicate with a link; link o
 ### 3. Apply
 
 1. Apply only approved mutations. Complete and validate `create` and `move` before `drop`. Stop on new escalations.
-2. Amend existing owners with concise terminology.
+2. Amend existing owners with concise terminology (via `update`/`refine`).
 3. Advance `updated: YYYY-MM-DD` in frontmatter of touched documents.
 
 ### 4. Verify
