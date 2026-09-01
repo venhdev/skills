@@ -22,10 +22,10 @@ description: Govern documentation authority and ownership boundaries. Use to sea
 | `update` | Content exists but has factual gaps, errors, or missing information. | Correct facts, add missing details, fix inaccuracies. |
 | `refine` | Content is factually correct but could be clearer, better structured, or have better examples. | Reorganize, clarify language, add examples, improve formatting. |
 | `move` | Durable content belongs to another approved owner. | Merge into the owner, validate it, then remove the source copy. |
-| `drop` | The owner already preserves the fact, or the content has no independent value. | Remove the source copy. |
+| `delete` | The owner already preserves the fact, or the content has no independent value. | Remove the source copy. |
 | `escalate` | Authority, intent, or destination remains unclear. | Preserve it, report evidence and options, wait for user decision. |
 
-Move before dropping. Do not replace every removed duplicate with a link; link only when kept content needs the owner for context.
+Move before deleting. Do not replace every removed duplicate with a link; link only when kept content needs the owner for context.
 
 ## Process
 
@@ -44,28 +44,29 @@ Move before dropping. Do not replace every removed duplicate with a link; link o
 
 ### 2. Propose
 
-1. Classify each required change as `create`, `update`, `refine`, `move`, `drop`, or `escalate`.
+1. Classify each required change as `create`, `update`, `refine`, `move`, `delete`, or `escalate`.
 2. When authoring or amending documents, follow the Universal Disciplines and Archetype Skeletons in `references/document-contract.md`.
 3. When merging scattered facts into an owner:
    - **Synthesize**: Consolidate descriptions into a single canonical section or matrix; do not append parallel duplicate text.
    - **Reconcile**: Align conflicting text with code/contracts, or mark as `escalate`.
-   - **Clean sources**: Replace moved text with a direct anchor link (`[Doc § N.N](path#anchor)`) only when local reading requires upstream context; otherwise drop.
-4. Present the **Mutation Set Matrix** using this compact format:
+   - **Clean sources**: Replace moved text with a direct anchor link (`[Doc § N.N](path#anchor)`) only when local reading requires upstream context; otherwise delete.
+4. Present the **Docs Mutation Set Matrix** using a clear hierarchical tree template grouped by directory / subsystem:
 
-   | Action | Source File (opt: -> Target) | Fact / Purpose |
-   |---|---|---|
-   | `move` | `path/source.md` -> `path/owner.md § N` | Consolidate naming invariant |
-   | `create` | `path/owner.md` | Draft new protocol specification |
-   | `update` | `path/owner.md` | Correct API version references |
-   | `refine` | `path/owner.md` | Add examples to authentication section |
-   | `drop` | `path/source.md` | Remove duplicate schema text |
-   | `escalate` | `path/source.md` (vs `code`) | Conflicting state transition rules |
+   ```text
+   📁 <directory_or_subsystem>/
+   ├── 📄 <path/to/target_document_1>.md
+   │   └── [<ACTION_TAG>] <Precise description of specification / canonical link>.
+   └── 📄 <path/to/target_document_2>.md
+       └── [<ACTION_TAG>] <Precise description of refinement / duplicate pruning>.
+   ```
+
+   Action tags: `[CREATE]`, `[UPDATE]`, `[REFINE]`, `[MOVE]`, `[DELETE]`, `[ESCALATE]`.
 
 5. **Approval Gate**: Stop and wait for explicit user approval before modifying files.
 
 ### 3. Apply
 
-1. Apply only approved mutations. Complete and validate `create` and `move` before `drop`. Stop on new escalations.
+1. Apply only approved mutations. Complete and validate `create` and `move` before `delete`. Stop on new escalations.
 2. Amend existing owners with concise terminology (via `update`/`refine`).
 3. Advance `updated: YYYY-MM-DD` in frontmatter of touched documents.
 
