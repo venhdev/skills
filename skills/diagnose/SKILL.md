@@ -9,6 +9,7 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 
 ## Operating Invariants
 
+- **Scope Discipline**: Focus exclusively on isolating and resolving the specific reported defect. Forbid unsolicited refactoring, styling, or feature alterations outside the defect's blast radius.
 - **Pre-Mutation Gate**: Isolate the root cause and present verified findings in Lean Delivery format. Forbid modifying codebase implementation files or permanent tests without affirmative human authorization.
 - **Clean Room Tagging**: Tag all temporary diagnostic logging and probes with an isolated unique prefix (`[DEBUG-<hex>]`). Forbid leaving debug probes in working tree upon completion.
 - **Tight Signal Requirement**: Mandate a single deterministic command that executes in seconds and asserts the exact user symptom. Forbid proposing code patches based solely on code inspection.
@@ -16,26 +17,26 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 
 ## Domain Engine & Standards
 
-### 1. Triage & Harness Hierarchy
-- **Fast-Path Triage**: If the failure is an unambiguous syntax error, typo, or deterministic trace where the root cause is already verified, bypass throwaway harnesses and proceed directly to Step 3.
-- **Feedback Loop Hierarchy** (Tightest to Loosest):
-  1. *Automated Test*: Unit, integration, or e2e test exercising the failure at the call site.
-  2. *Direct Invocation*: CLI or HTTP curl command against running process with diffed output.
-  3. *Isolated Harness*: Minimal throwaway script exercising the faulty function in isolation with mocked external I/O.
-  4. *Trace Replay*: Replaying saved network payload, event log, or HAR file.
-  5. *Bisection Harness*: Automated check command passed to `git bisect run`.
-  6. *Human-In-The-Loop*: Interactive terminal script (`scripts/hitl-loop.template.sh`).
+### 1. Diagnostic Guardrails (When NOT to Touch)
+- **No Speculative Harnesses**: If the failure is an unambiguous syntax error, typo, or deterministic trace with verified root cause, bypass throwaway harnesses and proceed directly to Step 3 (Fast-Path Triage).
+- **No Theory Without Signal**: Forbid formulating hypotheses or inspecting implementation logic until a reproducible command fails RED.
+- **No Shallow Tests**: If no natural architectural seam exists, report the architectural deficiency plainly rather than authoring shallow mocks that yield false confidence.
 
-### 2. Flaky & Non-Deterministic Strategies
+### 2. Feedback Loop Hierarchy (Tightest to Loosest)
+1. *Automated Test*: Unit, integration, or e2e test exercising the failure at the call site.
+2. *Direct Invocation*: CLI or HTTP curl command against running process with diffed output.
+3. *Isolated Harness*: Minimal throwaway script exercising the faulty function in isolation with mocked external I/O.
+4. *Trace Replay*: Replaying saved network payload, event log, or HAR file.
+5. *Bisection Harness*: Automated check command passed to `git bisect run`.
+6. *Human-In-The-Loop*: Interactive terminal script (`scripts/hitl-loop.template.sh`).
+
+### 3. Flaky & Non-Deterministic Strategies
 - Elevate reproduction rate: loop execution $N$ times, inject concurrency, narrow timing windows, or pin random seeds until the failure rate is actionable.
 
-### 3. Falsifiable Hypothesis Rubric
+### 4. Falsifiable Hypothesis Rubric
 - Formulate 3–5 ranked hypotheses before probing.
 - State an explicit testable prediction for each:
   `"If <Cause X>, then <Intervention Y> causes <Observed Result Z>."`
-
-### 4. Architectural Seam Criteria
-- A regression test must exercise the real bug pattern at its natural architectural seam. If no such seam exists, report the architectural deficiency plainly rather than authoring a shallow test that yields false confidence.
 
 ## Execution Protocol
 
@@ -62,7 +63,7 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
    └── 📄 <target_file>
        └── [UPDATE] <Atomic fix summary>
    ```
-2. Offer execution options: approve applying fix with regression test, inspect alternate hypotheses, or refine seam.
+2. Offer execution options: approve applying atomic fix with regression test, hand off proposed changeset to `/forge`, or inspect alternate hypotheses.
 3. Forbid modifying codebase source files within this turn.
 4. Halt turn immediately and wait for affirmative human authorization.
 
@@ -71,4 +72,4 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 2. Apply the atomic fix to codebase files (verify GREEN).
 3. Re-run the Phase 1 feedback loop against the original scenario.
 4. Remove all temporary `[DEBUG-<hex>]` instrumentation and throwaway harnesses (verify clean tree via `grep`).
-5. Report verified resolution and hand off to `/forge` or commit with the confirmed hypothesis in commit message.
+5. Report verified resolution and provide git commit message documenting the confirmed root cause and hypothesis.
