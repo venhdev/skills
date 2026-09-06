@@ -3,15 +3,6 @@
 Preferred convention for documentation governance. Use it to audit and propose
 normalization; do not silently override repository conventions.
 
-## Contents
-
-- [Precedence](#precedence)
-- [Frontmatter & Naming](#frontmatter--naming)
-- [Status Taxonomy](#status-taxonomy)
-- [Recommended Directory Structure](#recommended-directory-structure)
-- [Common Authority Candidates](#common-authority-candidates)
-- [Authoring Disciplines & Archetype Skeletons](#authoring-disciplines--archetype-skeletons)
-- [Authority Boundaries & Governance Rules](#authority-boundaries--governance-rules)
 
 ## Precedence
 
@@ -106,15 +97,15 @@ Repository evidence or an approved assignment establishes authority.
 ### 2. Archetype Skeletons
 - **Archetype 1: UI & Surface Specs (`ui/`, `screens/`, `experience/`)**: ASCII Viewport Wireframe → Component Interaction Matrix (`Priority | Component | Visibility | Interaction | Route/Action`) → Guardrails & Non-Goals (`❌`).
 - **Archetype 2: Domain & Feature Specs (`specs/`, `domain/`, `features/`)**: Data Schema (JSON pseudo-schema) → Domain Invariants (`BR-*`) → State Machine Decision Table (`Scenario | Trigger | Transition | Mutation`) → Standard SSOT Links.
-- **Archetype 3: Architecture & Engineering Standards (`architecture/`, `standards/`)**: Context & Boundaries → Data Storage Matrix (`PostgreSQL | SQLite | DTO`) → Multi-Stage Processing Pipelines → REST Endpoints & Error Codes (`ERR-*`).
+- **Archetype 3: Architecture & Engineering Standards (`architecture/`, `standards/`)**: Context & Boundaries → Data Storage Matrix (`Primary Store | Cache / Replica | DTO`) → Multi-Stage Processing Pipelines → REST Endpoints & Error Codes (`ERR-*`).
 - **Archetype 4: Workflows & Use Cases (`workflows/`, `use-cases/`, `flows/`)**: Trigger & Preconditions → Step-by-Step Sequence (`Step | Actor | UI Action | System Mutation`) → Offline & Recovery States.
 - **Archetype 5: Decisions & Postmortems (`adr/`, `lessons-learned/`, `postmortems/`)**: MADR (`Context → Drivers → Options → Outcome → Consequences`) & 4-Part Postmortem (`Context/Symptoms → RCA → Mitigation → Impact`).
 
 ## Authority Boundaries & Governance Rules
 
 - **Bounded Responsibility**: Give each authority a declared scope. A correct fact in the wrong document is an ownership defect.
-- **Local Consequences vs. Global Rules**: Subsystem/package READMEs may describe local consequences, but must never redefine upstream global standards.
-- **Single Source of Truth**: Never duplicate canonical rules across files; link instead of copying.
+- **Local Consequences vs. Global Rules**: Subsystem/package READMEs describe local consequences, but defer to upstream global standards without redefining them.
+- **Single Source of Truth**: Maintain single ownership per rule; reference via anchor links instead of copying.
 - **Lifecycle Authority**: Treat a draft SSOT as non-authoritative and a superseded document as no longer current. Limit a deprecated SSOT to its declared legacy scope.
 - **Durable Intent vs. Code**: Use code, configuration, and tests as evidence of implemented behavior; use authoritative documents for durable intent, constraints, and rationale.
 - **Divergence as Conflict**: Treat divergence between implementation and accepted documentation as an unresolved conflict, not an automatic new truth.

@@ -18,12 +18,12 @@ Map exact filesystem modifications, trace dependency blast radius, and establish
 ## Process
 
 **RECOMMENDED PREREQUISITE:** clarify
-**OPTIONAL SUB-SKILL:** docs-governance
+**OPTIONAL SUB-SKILL:** ssot
 
 ### Phase 1: Ingestion & Blast Radius Tracing
 1. Ingest the governing architectural decisions (such as a `Decision Matrix`), feature requirements, or target scope.
 2. Inspect relevant codebase files, type contracts, schema definitions, and tests using available non-mutating capabilities.
-3. Trace all files affected by the change (callers, broken imports, unit tests, and documentation). Leverage sub-skill `docs-governance` when available to locate authoritative docs.
+3. Trace all files affected by the change (callers, broken imports, unit tests, and documentation). Leverage sub-skill `ssot` when available to locate authoritative docs.
 4. If the target scope contains unresolved architectural dilemmas or ambiguous requirements, halt immediately and request explicit clarification (recommending sub-skill `clarify` when available) before mapping the changeset.
 
 ### Phase 2: Changeset Construction

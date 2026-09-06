@@ -17,11 +17,11 @@ Uncover hidden assumptions, evaluate architectural trade-offs, and establish def
 
 ## Process
 
-**OPTIONAL SUB-SKILL:** docs-governance
+**OPTIONAL SUB-SKILL:** ssot
 
 ### Phase 1: Surface & Gap Ingestion
 1. Inspect the user proposal, referenced specifications, and authoritative contracts using available non-mutating capabilities (environment inspection tools, discovery scripts, or delegated exploratory subagents).
-2. Ground inspection in authoritative repository documentation or architectural schemas. If documentation boundaries or canonical SSOTs require auditing, leverage sub-skill `docs-governance` when available.
+2. Ground inspection in authoritative repository documentation or architectural schemas. If documentation boundaries or canonical SSOTs require auditing, leverage sub-skill `ssot` when available.
 3. Identify latent assumptions, failure modes, data contracts, and backward compatibility risks.
 4. If the scope contains zero architectural ambiguities, proceed immediately to Phase 3.
 

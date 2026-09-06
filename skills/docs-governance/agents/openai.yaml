@@ -1,4 +1,0 @@
-interface:
-  display_name: "Documentation Governance"
-  short_description: "Audit ownership and clean misplaced documentation"
-  default_prompt: "Use $docs-governance to audit documentation authorities and propose keeping, moving, dropping, or escalating misplaced content before editing."
