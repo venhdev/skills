@@ -1,7 +1,6 @@
 ---
 name: forge
 description: Use when implementing features, bugfixes, or tasks from approved changesets, tickets, or specifications, and driving tests to pass.
-status: active
 ---
 
 # forge — Implementation & Verification Engine

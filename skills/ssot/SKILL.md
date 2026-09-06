@@ -1,7 +1,6 @@
 ---
 name: ssot
 description: Use when documentation authority is unclear, specifications conflict, architecture decisions or metadata need auditing, or when creating, updating, moving, or pruning SSOT records.
-status: active
 ---
 
 # ssot — Single Source of Truth & Documentation Custodian

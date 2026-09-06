@@ -1,7 +1,6 @@
 ---
 name: changeset
 description: Use when architectural decisions or feature requirements need decomposing into exact file modifications, mapping the codebase blast radius, or planning atomic changes before execution.
-status: active
 ---
 
 # changeset — Codebase Blast Radius & Change Planning Engine

@@ -1,7 +1,6 @@
 ---
 name: simplify
 description: Use when code is bloated, overly complex, deeply nested, difficult to read, or when explicitly tasked to refactor and simplify code while preserving exact behavior.
-status: active
 ---
 
 # simplify — Code Clarity & Refactoring Engine

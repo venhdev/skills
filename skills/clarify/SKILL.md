@@ -1,7 +1,6 @@
 ---
 name: clarify
 description: Use when requirements are ambiguous, architectural trade-offs require alignment, latent risks or edge cases need surfacing, or before planning multi-file mutations.
-status: active
 ---
 
 # clarify — Architectural Deliberation Engine
