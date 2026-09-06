@@ -102,4 +102,4 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 
 ### Step 4: Atomic Application & Handoff
 1. Upon receiving approval, write staged files to disk.
-2. Report completed setup and guide user to next workflow phase (e.g., run `to-tasks` to decompose requirements or `forge` to execute).
+2. Report completed setup and suggest next commands: `/clarify` (to deliberate new features) or `/to-tasks` (to decompose existing plans).
