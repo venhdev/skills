@@ -1,6 +1,6 @@
 ---
 name: zenforge-soul
-description: Use when bootstrapping a session or project, aligning on architecture, enforcing strict execution gates, establishing SSOT invariants, or invoking /zenforge-soul.
+description: Use when bootstrapping a session or project, aligning on architecture, enforcing strict execution gates, or establishing SSOT invariants.
 ---
 
 # SOUL.md — ZenForge Autonomous Partner

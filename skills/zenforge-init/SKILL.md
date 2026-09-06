@@ -23,7 +23,7 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
   - No remote or offline environment -> Propose **Local Markdown (`.agents/tasks/`)**.
 
 ### 2. Git Privacy & Ignore Invariants
-- **Default Privacy Baseline**: Enforce local-first isolation by appending to `.gitignore` automatically without prompt:
+- **Default Privacy Baseline**: Stage local-first privacy rules in `.gitignore` by default:
   ```gitignore
   .agents/scratch/
   .agents/tasks/
@@ -64,16 +64,14 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 ## Execution Protocol
 
 ### Step 1: Read-Only Discovery
-1. Inspect repository state:
-   - Run `git remote -v` to detect remotes.
-   - Check existence of `.agents/task-tracker.md`, `.agents/tasks/`, and `.gitignore`.
-   - Check existence of `AGENTS.md`.
-   - Scan for existing documentation files and directories across the repository.
-2. Formulate recommended tracker type (`local-markdown`, `github`, or `gitlab`). Plan default Git privacy rules (`.agents/scratch/` and `.agents/tasks/`).
-3. If documentation exists, plan a Placement Matrix mapping observed locations. If no documentation exists, use the Baseline Placement Matrix template.
+Inspect repository state:
+- Run `git remote -v` to detect remotes.
+- Check existence of `.agents/task-tracker.md`, `.agents/tasks/`, and `.gitignore`.
+- Check existence of `AGENTS.md`.
+- Scan for existing documentation files and directories across the repository.
 
 ### Step 2: Changeset Staging & Lean Delivery
-1. Stage all proposed modifications in Changeset format:
+1. Stage proposed modifications for missing or unconfigured scaffolding assets in Changeset format:
    ```text
    # Changeset: Repository Initialization
 

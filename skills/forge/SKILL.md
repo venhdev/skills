@@ -35,8 +35,7 @@ Execute filesystem modifications in strict dependency order:
 
 ## Execution Protocol
 
-**RECOMMENDED PREREQUISITE:** changeset
-**OPTIONAL SUB-SKILL:** clarify, ssot
+**SUB-SKILL:** changeset, clarify, ssot
 
 ### Phase 1: Readiness Audit & Scope Staging
 1. Ingest input (ticket, spec, changeset, or user prompt).

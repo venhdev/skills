@@ -49,8 +49,7 @@ Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 
 ## Execution Protocol
 
-**RECOMMENDED PREREQUISITE:** clarify
-**OPTIONAL SUB-SKILL:** ssot
+**SUB-SKILL:** clarify, ssot
 
 ### Phase 1: Ingestion & Blast Radius Tracing
 1. Ingest the governing architectural decisions (such as a `Decision Matrix`), feature requirements, or target scope.

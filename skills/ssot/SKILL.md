@@ -1,6 +1,6 @@
 ---
 name: ssot
-description: Use when documentation authority is unclear, specifications conflict, architecture decisions or metadata need auditing, or when creating, updating, moving, or pruning SSOT records.
+description: Use when documentation authority is unclear, specifications conflict, or architecture decisions and document metadata need auditing.
 ---
 
 # ssot — Single Source of Truth & Documentation Custodian

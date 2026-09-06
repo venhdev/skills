@@ -56,8 +56,7 @@ Compile settled decisions into the canonical tabular format:
 
 ## Execution Protocol
 
-**RECOMMENDED DOWNSTREAM:** changeset
-**OPTIONAL SUB-SKILL:** ssot
+**SUB-SKILL:** changeset, ssot
 
 ### Phase 1: Surface & Gap Ingestion
 1. Inspect the user proposal, referenced specifications, and authoritative contracts using non-mutating capabilities (inspection tools, discovery scripts, or delegated exploratory subagents).

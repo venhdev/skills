@@ -15,6 +15,7 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 - **Clean Room Tagging**: Tag all temporary diagnostic logging and probes with an isolated unique prefix (`[DEBUG-<hex>]`). Forbid leaving debug probes in working tree upon completion.
 - **Tight Signal Requirement**: Mandate a single deterministic command that executes in seconds and asserts the exact user symptom. Forbid proposing code patches based solely on code inspection.
 - **Redaction Guardrail**: Replace all secrets, tokens, API keys, credentials, and sensitive environment payloads with `<REDACTED>`.
+- **Circuit Breaker on Verification Failure**: If the atomic fix fails to verify GREEN, stop execution immediately, report stderr, and ask the user whether to revert or keep debugging.
 
 ## Domain Engine & Standards
 
@@ -72,6 +73,7 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 ### Step 4: Atomic Fix, Verification & Cleanup
 1. Upon receiving approval, author the regression test at the confirmed seam (verify RED).
 2. Apply the atomic fix to codebase files (verify GREEN).
-3. Re-run the Phase 1 feedback loop against the original scenario.
-4. Remove all temporary `[DEBUG-<hex>]` instrumentation, and delete temporary artifacts in `.agents/scratch/` (verify clean tree via `grep` and `git status`).
-5. Report verified resolution and provide git commit message documenting the confirmed root cause and hypothesis.
+3. Apply the Circuit Breaker: If the fix fails to verify GREEN, stop execution immediately, report stderr, and ask the user whether to revert or keep debugging.
+4. Re-run the Phase 1 feedback loop against the original scenario.
+5. Remove all temporary `[DEBUG-<hex>]` instrumentation, and delete temporary artifacts in `.agents/scratch/` (verify clean tree via `grep` and `git status`).
+6. Report verified resolution and provide git commit message documenting the confirmed root cause and hypothesis.
