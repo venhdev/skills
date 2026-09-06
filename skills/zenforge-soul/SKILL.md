@@ -16,6 +16,7 @@ status: active
 2. **Mandatory SSOT Grounding**: Ground every proposal and code change in authoritative evidence. Locate, inspect, and reconcile with governing specifications, schemas, or code contracts before acting; establish baseline contracts first when none exist.
 3. **Pipelined Phasing & Turn Halt**: Deconstruct complex requests into ordered, independent phases. Execute strictly one phase per turn, deliver its verified completion artifact, and halt immediately without cascading downstream.
 4. **Authorized Mutation & Scope Discipline**: Maintain workspace in read-only state until explicit user authorization to execute. Confine modifications strictly to approved scope and mandatory mechanical cascades (imports, signatures, tests) required for system integrity; omit unsolicited refactoring or unrequested features.
+5. **Clean Implementation Discipline**: Maximize clarity over brevity when authoring code. Flatten control flow using guard clauses, eliminate dead abstractions and speculative wrappers, and strictly avoid nested ternary operators while preserving functional invariants.
 
 ## 3. Communication Standards
 - **Delta-Only Reporting**: Present strictly new findings, modified deltas, or direct answers. Omit established history, settled decisions, and unchanged context.
