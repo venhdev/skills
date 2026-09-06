@@ -59,7 +59,7 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
    ```
 
 ### Step 2: Changeset Staging & Lean Delivery
-1. Stage planned modifications using the canonical Changeset format:
+1. Stage planned modifications in Changeset format:
    ```text
    # Changeset: Simplify <Target Scope>
 
