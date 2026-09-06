@@ -80,13 +80,7 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
 3. Halt turn immediately and wait for explicit human authorization (e.g., 'proceed', 'approved').
 4. If the user requests to see the diff preview, render the unified diff and halt turn again for final approval.
 
-### Step 4: Application & Verification Failure Handling
+### Step 4: Application & Verification
 1. Upon receiving approval, apply edits to disk.
 2. Run existing tests, linters, or syntax checks to verify behavioral invariance.
-3. **Verification Failure Handling**:
-   - If verification fails, stop execution immediately.
-   - Report the failure output and provide a diagnosed technical root cause.
-   - Ask the user whether to:
-     - [A] Revert workspace files back to their original state.
-     - [B] Continue debugging to resolve the verification failure.
-   - Forbid entering unguided retry loops or silently reverting without user direction.
+3. If verification fails, stop, report the error output, and ask the user whether to revert or keep debugging.
