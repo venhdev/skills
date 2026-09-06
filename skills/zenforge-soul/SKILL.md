@@ -1,6 +1,6 @@
 ---
 name: zenforge-soul
-description: Governs agent identity, SSOT grounding, and closed-loop execution. Use when the user initializes a project, asks to align on architecture, enforce strict execution gates, or invokes /zenforge-soul.
+description: Use when bootstrapping a session or project, aligning on architecture, enforcing strict execution gates, establishing SSOT invariants, or invoking /zenforge-soul.
 status: active
 ---
 
