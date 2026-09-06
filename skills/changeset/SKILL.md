@@ -7,52 +7,68 @@ description: Use when architectural decisions or feature requirements need decom
 
 Map exact filesystem modifications, trace dependency blast radius, and establish atomic change sets before code mutation begins.
 
-## Operating Principles
+## Operating Invariants
 
 - **Read-Only Discipline**: Maintain zero filesystem mutations. Only inspect existing contracts, trace dependencies, and plan file operations.
 - **Scope Discipline**: Confine planned changes strictly to the approved scope and mandatory dependency ripples (imports, signatures, tests). Forbid unsolicited refactoring.
-- **Four Atomic Actions**: Classify every planned file operation exclusively as `[CREATE]`, `[UPDATE]`, `[MOVE]`, or `[DELETE]`.
-- **Hierarchical Visualization**: Render changesets as a clean directory tree grouped by subsystem. State a concise summary per file, appending indented bullet points for complex multi-part modifications.
+- **Pre-Mutation Gate**: Deliver the Changeset Tree and halt turn immediately. Forbid executing file edits, writing diffs, or invoking mutating tools within this turn.
 
-## Process
+## Domain Engine & Standards
+
+### 1. Four Atomic Actions
+Classify every planned file operation exclusively into one of 4 categories:
+- `[CREATE]`: New files (modules, tests, configurations).
+- `[UPDATE]`: Existing files requiring modifications.
+- `[MOVE]`: Files requiring relocation or renaming.
+- `[DELETE]`: Deprecated or obsolete files slated for removal.
+
+### 2. Blast Radius & Guardrails
+- **Callers & Ripple Tracing**: Trace direct and indirect call sites, interface implementations, and tests affected by signature or contract modifications. Reconcile against authoritative specifications using sub-skill `ssot`.
+- **Guardrails (When NOT to Touch)**:
+  - Preserve untouched callers if interface changes remain fully backward-compatible.
+  - Forbid bundling incidental formatting, opportunistic lint fixes, or unrelated refactorings.
+  - Forbid speculative or phantom file operations lacking approved requirements.
+
+### 3. Canonical Changeset Template
+```text
+# Changeset: <Feature / Scope Name>
+
+📁 <subsystem_or_directory>/
+├── 📄 <filename_1>
+│   └── [<ACTION>] <Summary of change>.
+├── 📄 <filename_2>
+│   └── [<ACTION>] <Summary of change>:
+│       • <Specific change detail, contract modification, or invariant>.
+│       • <Specific change detail or cascade update>.
+└── 📁 <subsystem_2>/
+    └── 📄 <filename_3>
+        └── [<ACTION>] <Summary of change>.
+
+Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
+```
+
+## Execution Protocol
 
 **RECOMMENDED PREREQUISITE:** clarify
 **OPTIONAL SUB-SKILL:** ssot
 
 ### Phase 1: Ingestion & Blast Radius Tracing
 1. Ingest the governing architectural decisions (such as a `Decision Matrix`), feature requirements, or target scope.
-2. Inspect relevant codebase files, type contracts, schema definitions, and tests using available non-mutating capabilities.
+2. Inspect relevant codebase files, type contracts, schema definitions, and tests using non-mutating capabilities (or delegated exploratory subagents for wide codebases).
 3. Trace all files affected by the change (callers, broken imports, unit tests, and documentation). Leverage sub-skill `ssot` when available to locate authoritative docs.
 4. If the target scope contains unresolved architectural dilemmas or ambiguous requirements, halt immediately and request explicit clarification (recommending sub-skill `clarify` when available) before mapping the changeset.
 
 ### Phase 2: Changeset Construction
-1. Map each identified file to exactly one of the 4 atomic actions:
-   - `[CREATE]`: New files (modules, tests, configurations).
-   - `[UPDATE]`: Existing files requiring modifications.
-   - `[MOVE]`: Files requiring relocation or renaming.
-   - `[DELETE]`: Deprecated or obsolete files slated for removal.
-2. State a concise technical summary for each file. Detail complex multi-part contract or invariant modifications using indented bullet points.
-3. Construct the hierarchical tree using the canonical Changeset template:
-
-   ```text
-   # Changeset: <Feature / Scope Name>
-
-   📁 <subsystem_or_directory>/
-   ├── 📄 <filename_1>
-   │   └── [<ACTION>] <Summary of change>.
-   ├── 📄 <filename_2>
-   │   └── [<ACTION>] <Summary of change>:
-   │       • <Specific change detail, contract modification, or invariant>.
-   │       • <Specific change detail or cascade update>.
-   └── 📁 <subsystem_2>/
-       └── 📄 <filename_3>
-           └── [<ACTION>] <Summary of change>.
-
-   Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
-   ```
+1. Map each identified file strictly to one of the 4 Atomic Actions defined in the Domain Engine.
+2. Enforce Blast Radius Guardrails: exclude backward-compatible callers and cosmetic churn.
+3. State a concise technical summary per file; detail multi-part contract modifications with indented bullets.
+4. Render the output strictly adhering to the Canonical Changeset Template.
 
 ### Phase 3: Authorization Gate
 1. Present the completed Changeset Tree and halt turn immediately.
 2. Forbid executing file edits, writing diffs, or invoking mutating tools within this turn.
-3. Wait for explicit affirmative human authorization (e.g., 'proceed', 'approved', 'go') before mutating any workspace files.
-4. If the user rejects items, requests scope adjustments, or asks questions, refine the Changeset Tree and halt again.
+3. Wait for explicit affirmative human authorization (e.g., 'proceed', 'approved', 'go').
+4. Upon approval, hand off downstream to execution:
+   - For direct implementation: route to `/forge`.
+   - For complex multi-slice plans: route to `/to-tasks`.
+5. If the user rejects items, requests scope adjustments, or asks questions, refine the Changeset Tree and halt again.
