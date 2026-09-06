@@ -11,7 +11,7 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
 
 - **Authority Grounding**: Inspect existing repository conventions before proposing structure. Preserve established documentation and obtain explicit consent before adjusting existing layouts.
 - **Pre-Mutation Gate**: Stage all planned file additions, modifications, and `.gitignore` entries in Changeset format. Forbid creating or modifying files on disk without affirmative human approval.
-- **Privacy First**: Require explicit user confirmation of `.agents/` Git ignore policy before persisting changes, protecting proprietary and solo repositories from accidental leakage.
+- **Privacy First**: Automatically ignore `.agents/scratch/` and `.agents/tasks/` in `.gitignore` by default to isolate scratchpads and local task drafts; users unignore manually if shared tracking is desired.
 - **Define Once in SSOT**: Establish `.agents/task-tracker.md` as canonical authority for task tracking, and `docs/README.md` as authority for documentation placement. Keep `AGENTS.md` lean with direct pointer links.
 
 ## Domain Engine & Standards
@@ -22,10 +22,13 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
   - Remote points to GitLab (`gitlab.com` or custom host) -> Propose **GitLab Issues (`glab`)** or **Local Markdown**.
   - No remote or offline environment -> Propose **Local Markdown (`.agents/tasks/`)**.
 
-### 2. Git Privacy & Ignore Policies
-- **Private / Solo** (Recommended for solo/client repos): Add `/.agents/` to `.gitignore`. Keeps all agent tasks and metadata 100% local.
-- **Hybrid**: Add `/.agents/tasks/` to `.gitignore`, commit `.agents/task-tracker.md`. Keeps task drafts local while sharing tracker configuration with team.
-- **Shared Team**: Track `.agents/` in Git. Commit tasks to synchronize progress across developers and CI agents.
+### 2. Git Privacy & Ignore Invariants
+- **Default Privacy Baseline**: Enforce local-first isolation by appending to `.gitignore` automatically without prompt:
+  ```gitignore
+  .agents/scratch/
+  .agents/tasks/
+  ```
+- **Team Tracking Opt-In**: Keep temporary scratchpads and task drafts strictly local by default. Users manually remove `.agents/tasks/` from `.gitignore` if shared team repository tracking is desired.
 
 ### 3. Canonical Templates
 
@@ -66,7 +69,7 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
    - Check existence of `.agents/task-tracker.md`, `.agents/tasks/`, and `.gitignore`.
    - Check existence of `AGENTS.md`.
    - Scan for existing documentation files and directories across the repository.
-2. Formulate recommended tracker type (`local-markdown`, `github`, or `gitlab`) and Git privacy policy (`Private`, `Hybrid`, or `Shared`).
+2. Formulate recommended tracker type (`local-markdown`, `github`, or `gitlab`). Plan default Git privacy rules (`.agents/scratch/` and `.agents/tasks/`).
 3. If documentation exists, plan a Placement Matrix mapping observed locations. If no documentation exists, use the Baseline Placement Matrix template.
 
 ### Step 2: Changeset Staging & Lean Delivery
@@ -77,8 +80,10 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
    📁 .agents/
    ├── 📄 task-tracker.md
    │   └── [CREATE] Configure task tracking mode and status vocabulary.
-   └── 📁 tasks/
-       └── [CREATE] Create task directory for local markdown workflow.
+   ├── 📁 tasks/
+   │   └── [CREATE] Create task directory for local markdown workflow.
+   └── 📁 scratch/
+       └── [CREATE] Create scratchpad directory for temporary test harnesses and probes.
 
    📁 docs/
    └── 📄 README.md
@@ -86,7 +91,7 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 
    📁 /
    ├── 📄 .gitignore
-   │   └── [UPDATE] Add agent privacy exclusion rules.
+   │   └── [UPDATE] Add .agents/scratch/ and .agents/tasks/ privacy rules.
    └── 📄 AGENTS.md
        └── [UPDATE] Add agent workflow and documentation pointers.
    ```
@@ -95,7 +100,7 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 ### Step 3: Authorization Gate
 1. Present the staged Changeset and offer execution options:
    - Approve applying proposed configuration directly.
-   - Request to adjust settings (Tracker type, Git privacy mode, Placement Matrix paths).
+   - Request to adjust settings (Tracker type, Placement Matrix paths).
    - Request to inspect markdown previews.
 2. Forbid modifying workspace files on disk within this turn.
 3. Halt turn immediately and wait for affirmative human authorization (e.g., 'proceed', 'approved').
