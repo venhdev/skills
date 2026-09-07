@@ -1,6 +1,7 @@
 ---
 name: changeset
-description: Use when architectural decisions or feature requirements need decomposing into exact file modifications, mapping the codebase blast radius, or planning atomic changes before execution.
+description: "Map exact filesystem modifications and trace dependency blast radiuses for approved features or architectural decisions before code mutation."
+disable-model-invocation: true
 ---
 
 # changeset — Codebase Blast Radius & Change Planning Engine
@@ -9,9 +10,9 @@ Map exact filesystem modifications, trace dependency blast radius, and establish
 
 ## Operating Invariants
 
-- **Read-Only Discipline**: Maintain zero filesystem mutations. Only inspect existing contracts, trace dependencies, and plan file operations.
-- **Scope Discipline**: Confine planned changes strictly to the approved scope and mandatory dependency ripples (imports, signatures, tests). Forbid unsolicited refactoring.
-- **Pre-Mutation Gate**: Deliver the Changeset Tree and halt turn immediately. Forbid executing file edits, writing diffs, or invoking mutating tools within this turn.
+- **Read-Only Discipline**: Mandate maintaining zero filesystem mutations and inspecting existing contracts; forbid creating, editing, or deleting files on disk.
+- **Scope Discipline**: Mandate confining planned changes strictly to approved scope and mandatory dependency ripples (imports, signatures, tests); forbid unsolicited refactoring or adjacent cleanup.
+- **Pre-Mutation Gate**: Mandate delivering the Changeset Tree and halting turn immediately; forbid executing file edits, writing diffs, or invoking mutating tools within this turn.
 
 ## Domain Engine & Standards
 

@@ -1,6 +1,6 @@
 ---
 name: ssot
-description: Use when documentation authority is unclear, specifications conflict, or architecture decisions and document metadata need auditing.
+description: "Audit documentation authority, reconcile conflicting specifications, and maintain canonical Single Source of Truth records across repository documentation."
 ---
 
 # ssot — Single Source of Truth & Documentation Custodian
@@ -9,10 +9,11 @@ Audit documentation authority, reconcile conflicting specifications, and maintai
 
 ## Operating Invariants
 
-- **Authority Grounding**: Maintain exactly one authoritative owner per rule, contract, or concept. Treat folder paths and file metadata as evidence, not proof of authority.
-- **Read-Only Inspection Discipline**: Stop and report authoritative files, sections, and findings immediately when the request is purely search, navigation, or auditing.
-- **Scope Discipline**: Touch, move, or prune exclusively approved documentation files. Forbid modifying codebase implementation files or tests.
-- **Pre-Mutation Gate**: Stage changes exclusively in Changeset format (`[CREATE]`, `[UPDATE]`, `[MOVE]`, `[DELETE]`). Never mutate documentation files on disk without explicit human authorization.
+- **Authority Grounding**: Mandate maintaining exactly one authoritative owner per rule, contract, or concept; forbid duplicate or competing authorities across documents. Treat folder paths and file metadata as evidence, not proof of authority.
+- **Read-Only Inspection Discipline**: Mandate stopping and reporting authoritative files, sections, and findings immediately when the request is purely search, navigation, or auditing; forbid unsolicited edits.
+- **Scope Discipline**: Mandate touching, moving, or pruning exclusively approved documentation files; forbid modifying codebase implementation files or tests.
+- **Pre-Mutation Gate**: Mandate staging changes exclusively in Changeset format (`[CREATE]`, `[UPDATE]`, `[MOVE]`, `[DELETE]`); forbid mutating documentation files on disk without affirmative human authorization.
+- **Verification Circuit Breaker**: Mandate stopping execution immediately upon broken markdown link or anchor verification failure, reporting stderr, and prompting user whether to revert or keep debugging; forbid silent progression.
 
 ## Documentation Actions
 

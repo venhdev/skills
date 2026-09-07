@@ -1,6 +1,6 @@
 ---
 name: clarify
-description: Use when requirements are ambiguous, architectural trade-offs require alignment, latent risks or edge cases need surfacing, or before planning multi-file mutations.
+description: "Resolve architectural ambiguities, edge cases, and system trade-offs for proposed features or refactors before implementation planning."
 ---
 
 # clarify — Architectural Deliberation Engine
@@ -9,10 +9,11 @@ Uncover hidden assumptions, evaluate architectural trade-offs, and establish def
 
 ## Operating Invariants
 
-- **Read-Only Enclosure**: Maintain zero filesystem mutations. Forbid editing files, drafting code diffs, or executing mutating commands.
-- **Scope Discipline**: Confine inquiry strictly to high-impact architectural decisions, failure modes, and system invariants. Forbid syntax bikeshedding, micro-optimizations, or tangential scope expansion.
-- **Sequential Turn Discipline**: Formulate strictly one question per turn. Halt immediately after asking to await user response.
-- **Deliberation Budget**: Limit inquiries to a maximum of 3 to 5 questions. Short-circuit immediately to synthesis when no architectural ambiguities remain.
+- **Read-Only Enclosure**: Mandate maintaining zero filesystem mutations; forbid editing files, drafting code diffs, or executing mutating commands.
+- **Scope Discipline**: Mandate confining inquiry strictly to high-impact architectural decisions, failure modes, and system invariants; forbid syntax bikeshedding, micro-optimizations, or tangential scope expansion.
+- **Sequential Turn Discipline**: Mandate formulating strictly one question per turn and halting immediately to await user response; forbid asking multi-question lists or cascading without user answers.
+- **Deliberation Budget**: Mandate limiting inquiries to a maximum of 3 to 5 questions; forbid open-ended interrogation loops. Short-circuit immediately to synthesis when no architectural ambiguities remain.
+- **Contradiction Circuit Breaker**: If proposed requirements conflict with established SSOT specifications or ADRs, mandate halting immediately, citing the contradiction with file pointers, and requesting resolution before proceeding; forbid continuing execution on contradictory specifications.
 
 ## Domain Engine & Standards
 

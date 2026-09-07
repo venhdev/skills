@@ -1,6 +1,6 @@
 ---
 name: simplify
-description: Use when code is bloated, overly complex, deeply nested, difficult to read, or when explicitly tasked to refactor and simplify code while preserving exact behavior.
+description: "Refactor complex, bloated, or deeply nested code into clean and idiomatic implementations while preserving exact functional behavior."
 ---
 
 # simplify — Code Clarity & Refactoring Engine
@@ -9,9 +9,10 @@ Refactor complex, bloated, or deeply nested code into clean, readable, and idiom
 
 ## Operating Invariants
 
-- **Behavioral Invariance**: Preserve 100% of existing functionality, test outcomes, error handling, and public API signatures.
-- **Scope Discipline**: Confine refactoring strictly to targeted files or functions. Forbid unsolicited churn in untouched surrounding code.
-- **Pre-Mutation Gate**: Stage changes exclusively via Changeset summary. Never write mutations to disk without explicit user authorization.
+- **Behavioral Invariance**: Mandate preserving 100% of existing functionality, test outcomes, error handling, and public API signatures; forbid altering program semantics or breaking contracts.
+- **Scope Discipline**: Mandate confining refactoring strictly to targeted files or functions; forbid unsolicited churn in untouched surrounding code.
+- **Pre-Mutation Gate**: Mandate staging changes exclusively via Changeset summary and halting the turn immediately; forbid writing mutations to disk without affirmative human authorization.
+- **Verification Circuit Breaker**: Mandate stopping execution immediately upon verification failure, reporting stderr with file pointers, and prompting user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
 ## Refactoring Rubric
 

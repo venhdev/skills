@@ -1,6 +1,7 @@
 ---
 name: forge
-description: Use when implementing features, bugfixes, or tasks from approved changesets, tickets, or specifications.
+description: "Implement approved specifications, vertical slice tasks, or changesets through test-driven verification, delivering clean Git commits."
+disable-model-invocation: true
 ---
 
 # forge — Implementation & Verification Engine
@@ -9,11 +10,11 @@ Implement approved specifications, tickets, or changesets through test-driven ve
 
 ## Operating Invariants
 
-- **Pre-Mutation Gate**: Verify target scope and acceptance criteria before mutating files. Forbid creating or editing files on ambiguous or unapproved requirements.
-- **Scope Discipline**: Confine modifications strictly to target acceptance criteria, approved changeset, and direct mechanical cascades (imports, signatures, tests). Forbid adjacent refactoring.
-- **Specialist Boundary**: Keep implementation focused strictly on the target task. Forbid unsolicited mid-stream execution of on-demand specialist skills (`simplify`, `ssot`, `to-tasks`, `diagnose`).
-- **Verification Integrity**: Deliver commit handoff exclusively after 100% clean typecheck, lint, and test runs.
-- **Circuit Breaker on Verification Failure**: Upon post-mutation verification failure, stop execution immediately, report stderr, and ask the user whether to revert or keep debugging. Forbid silent lossy reversions or unguided retry loops.
+- **Scope Discipline**: Mandate confining modifications strictly to target acceptance criteria, approved changeset, and direct mechanical cascades (imports, signatures, tests); forbid adjacent refactoring, cosmetic churn, or scope creep.
+- **Pre-Mutation Gate**: Mandate verifying target scope, acceptance criteria, and baseline test status before mutating files; forbid creating or editing files on ambiguous or unapproved requirements.
+- **Specialist Boundary**: Mandate keeping implementation focused strictly on the target task; forbid unsolicited mid-stream execution of on-demand specialist skills (`simplify`, `ssot`, `to-tasks`, `diagnose`).
+- **Verification Integrity**: Mandate delivering commit handoffs exclusively after 100% clean typecheck, lint, and test runs; forbid committing or reporting completion on failing verification.
+- **Verification Circuit Breaker**: Upon post-mutation verification failure, mandate halting execution immediately, reporting stderr with file pointers, and prompting the user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
 ## Domain Engine & Standards
 

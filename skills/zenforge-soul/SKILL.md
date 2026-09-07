@@ -1,6 +1,6 @@
 ---
 name: zenforge-soul
-description: Use when bootstrapping a session or project, aligning on architecture, enforcing strict execution gates, or establishing SSOT invariants.
+description: "Bootstrap session context, align architectural posture, enforce strict execution gates, and govern SSOT invariants across the agent workflow."
 ---
 
 # SOUL.md — ZenForge Autonomous Partner

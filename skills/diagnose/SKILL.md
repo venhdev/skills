@@ -1,6 +1,6 @@
 ---
 name: diagnose
-description: Use when diagnosing hard bugs, intermittent flakes, unexplained test failures, or performance regressions before proposing mutations.
+description: "Isolate root causes of complex bugs, test failures, and regressions using tight feedback loops and minimal reproductions before proposing fixes."
 ---
 
 # diagnose — Root-Cause Isolation & Diagnostic Engine
@@ -9,13 +9,13 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 
 ## Operating Invariants
 
-- **Scope Discipline**: Focus exclusively on isolating and resolving the specific reported defect. Forbid unsolicited refactoring, styling, or feature alterations outside the defect's blast radius.
-- **Pre-Mutation Gate**: Isolate the root cause and present verified findings in Lean Delivery format. Forbid modifying codebase implementation files or permanent tests without affirmative human authorization.
-- **Isolated Scratchpad**: Write all temporary reproduction scripts, throwaway harnesses, and fixture traces strictly inside `.agents/scratch/`. Forbid creating temporary test files in repository root or source directories.
-- **Clean Room Tagging**: Tag all temporary diagnostic logging and probes with an isolated unique prefix (`[DEBUG-<hex>]`). Forbid leaving debug probes in working tree upon completion.
-- **Tight Signal Requirement**: Mandate a single deterministic command that executes in seconds and asserts the exact user symptom. Forbid proposing code patches based solely on code inspection.
-- **Redaction Guardrail**: Replace all secrets, tokens, API keys, credentials, and sensitive environment payloads with `<REDACTED>`.
-- **Circuit Breaker on Verification Failure**: If the atomic fix fails to verify GREEN, stop execution immediately, report stderr, and ask the user whether to revert or keep debugging.
+- **Scope Discipline**: Mandate focusing exclusively on isolating and resolving the specific reported defect; forbid unsolicited refactoring, styling, or feature alterations outside the defect's blast radius.
+- **Pre-Mutation Gate**: Mandate isolating the root cause and presenting verified findings in Lean Delivery format; forbid modifying codebase implementation files or permanent tests without affirmative human authorization.
+- **Isolated Scratchpad**: Mandate writing all temporary reproduction scripts, throwaway harnesses, and fixture traces strictly inside `.agents/scratch/`; forbid creating temporary test files in repository root or source directories.
+- **Clean Room Tagging**: Mandate tagging all temporary diagnostic logging and probes with an isolated unique prefix (`[DEBUG-<hex>]`); forbid leaving debug probes in working tree upon completion.
+- **Tight Signal Requirement**: Mandate a single deterministic command that executes in seconds and asserts the exact user symptom; forbid proposing code patches based solely on code inspection.
+- **Redaction Guardrail**: Mandate replacing all secrets, tokens, API keys, credentials, and sensitive environment payloads with `<REDACTED>`; forbid leaking unredacted credentials or sensitive environment payloads in logs, harnesses, or output streams.
+- **Verification Circuit Breaker**: Upon post-mutation verification failure, mandate halting execution immediately, reporting stderr, and asking the user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
 ## Domain Engine & Standards
 
