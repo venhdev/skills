@@ -14,10 +14,11 @@ Authoritative architectural principles and engineering quality criteria for the 
 - **Instruction Debt Pruning**: Ruthlessly purge conversational filler, flowery adjectives, moralizing preambles, and generic advice modern LLMs obey by default (e.g., "write clean code", "be helpful", "think step-by-step").
 - **High-Density Terse Register**: System instructions written in a compact, authoritative, technical register force the model to mirror the same concise, high-density precision.
 
-## 3. Affirmative Framing & Paired Directives (Mandate–Forbid)
+## 3. Affirmative Framing & Paired Directives (Action & Boundary)
 - **Positive Operational Framing**: Formulate procedures as direct constructive actions stating precisely what to produce and which tools to invoke.
-- **Paired Directive Syntax**: For non-negotiable gates and boundary enforcement, always pair the affirmative requirement directly with the explicit prohibition:
-  > *"Mandate [Required Action / Output Artifact]; Forbid [Prohibited Behavior / Premature Cascade]."*
+- **Paired Boundary Enforcement**: For non-negotiable gates and invariants, always pair the affirmative action with its explicit negative boundary. State what to do, and explicitly bound what never to exceed:
+  > *"Do [Required Action / Scope] strictly. Never [Prohibited Behavior / Premature Cascade]."*  
+  Avoid robotic boilerplating or literal repetitive phrasing; use natural, forceful engineering imperatives (`Strictly`, `Always`, `Never`, `Only`, `Confine`, `Omit`).
 - **Anti-Priming Rule**: Never state negative prohibitions in isolation without immediately defining the approved alternative.
 
 ## 4. Single-Skill Isolation & Pipeline Orchestration
