@@ -16,9 +16,7 @@ Authoritative architectural principles and engineering quality criteria for the 
 
 ## 3. Affirmative Framing & Paired Directives (Action & Boundary)
 - **Positive Operational Framing**: Formulate procedures as direct constructive actions stating precisely what to produce and which tools to invoke.
-- **Paired Boundary Enforcement**: For non-negotiable gates and invariants, always pair the affirmative action with its explicit negative boundary. State what to do, and explicitly bound what never to exceed:
-  > *"Do [Required Action / Scope] strictly. Never [Prohibited Behavior / Premature Cascade]."*  
-  Avoid robotic boilerplating or literal repetitive phrasing; use natural, forceful engineering imperatives (`Strictly`, `Always`, `Never`, `Only`, `Confine`, `Omit`).
+- **Paired Boundary Enforcement**: Pair every non-negotiable action with its explicit negative boundary (*what to do vs. what never to exceed*), using varied, natural engineering imperatives (`Confine`, `Verify`, `Stage`, `Omit`, `Never`, `Only`).
 - **Anti-Priming Rule**: Never state negative prohibitions in isolation without immediately defining the approved alternative.
 
 ## 4. Single-Skill Isolation & Pipeline Orchestration
