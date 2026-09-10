@@ -1,6 +1,6 @@
 ---
 name: zenforge-init
-description: "Initialize repository task tracking, configure .agents/task-tracker.md, and scaffold SSOT documentation governance."
+description: "Scaffold complete repository ecosystem: task tracking, Git ignore privacy, SSOT documentation index, and AGENTS.md constitution."
 disable-model-invocation: true
 ---
 
@@ -10,41 +10,27 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
 
 ## Operating Invariants
 
-- **Authority Grounding**: Inspect existing repository conventions before proposing structure; forbid modifying established documentation layouts without explicit human consent.
-- **Pre-Mutation Gate**: Stage all planned file additions, modifications, and `.gitignore` entries in Changeset format and halt turn immediately; forbid creating or modifying files on disk without affirmative human approval.
-- **Privacy First**: Isolate `.agents/scratch/` via `.gitignore`; forbid committing temporary scratchpads. Govern `.agents/tasks/` via explicit dual-mode consent (Local-Only vs Team-Shared).
+- **Pre-Mutation Gate**: Stage strictly missing assets via Changeset and halt turn for human approval; never overwrite valid existing configurations.
+- **Privacy Baseline**: Always isolate `.agents/scratch/` in `.gitignore`.
 
-## Domain Engine & Standards
+## Scaffolding Components & Templates
 
-### 1. Tracker Type Selection
+### 1. Task Tracker Matrix (`.agents/task-tracker.md`)
 
-- **Feasibility Matrix**:
-  - Remote GitHub + `gh auth status` valid -> Propose **GitHub Issues (`gh`)** [Recommended] or **Local Markdown**. Seed from `references/issue-tracker-github.md`.
-  - Remote GitHub + `gh` unauthenticated/missing -> Propose **Local Markdown**; suggest `gh auth login` for GitHub.
-  - Remote GitLab + `glab auth status` valid -> Propose **GitLab Issues (`glab`)** [Recommended] or **Local Markdown**. Seed from `references/issue-tracker-gitlab.md`.
-  - No remote / offline / solo -> Propose **Local Markdown (`.agents/tasks/`)**. Seed from `references/issue-tracker-local.md`.
+- Remote GitHub + `gh auth status` valid -> Propose **GitHub Issues (`gh`)** (template [`references/issue-tracker-github.md`](./references/issue-tracker-github.md)) or **Local Markdown**.
+- Remote GitHub + `gh` unauthenticated/missing -> Halt and ask: proceed with **Local Markdown** immediately OR authenticate via `gh auth login` for GitHub Issues.
+- Remote GitLab + `glab auth status` valid -> Propose **GitLab Issues (`glab`)** (template [`references/issue-tracker-gitlab.md`](./references/issue-tracker-gitlab.md)) or **Local Markdown**.
+- Remote GitLab + `glab` unauthenticated/missing -> Halt and ask: proceed with **Local Markdown** immediately OR authenticate via `glab auth login` for GitLab Issues.
+- Solo / Offline / No remote -> Propose **Local Markdown** (`.agents/tasks/`, template [`references/issue-tracker-local.md`](./references/issue-tracker-local.md)).
 
-### 2. Git Privacy & Ignore Invariants
+### 2. Git Privacy Baseline (`.gitignore`)
 
-- **Private Scratchpad (Strict Invariant)**: `.agents/scratch/` is always added to `.gitignore`.
-- **Task Tracker Dual-Mode**:
-  - *Local-Only (Recommended Default for local to prevent repo clutter)*: `.agents/tasks/` is added to `.gitignore`.
-  - *Team-Shared*: `.agents/tasks/` is tracked in Git alongside code changesets.
-- Confirm mode explicitly via Changeset before mutating `.gitignore`.
+- Always isolate temporary scratchpads: add `.agents/scratch/` to `.gitignore`.
+- For Local Markdown: propose adding `.agents/tasks/` to `.gitignore` (Local-Only) unless user requests team tracking (Team-Shared).
 
-### 3. Canonical Templates
+### 3. Documentation Placement Matrix (`docs/README.md`)
 
-#### A. Task Tracker (`.agents/task-tracker.md`)
-
-Instantiate `.agents/task-tracker.md` directly from the appropriate Tier 3 seed template in `references/`:
-
-- **GitHub**: Seed from [`references/issue-tracker-github.md`](./references/issue-tracker-github.md)
-- **GitLab**: Seed from [`references/issue-tracker-gitlab.md`](./references/issue-tracker-gitlab.md)
-- **Local Markdown**: Seed from [`references/issue-tracker-local.md`](./references/issue-tracker-local.md)
-
-#### B. Baseline Placement Matrix (`docs/README.md`)
-
-Use as baseline for greenfield repositories; adapt rows dynamically to map observed documentation for existing projects:
+Establish baseline index for execution tasks; defer full documentation taxonomy, specifications, and ADR placement to **SUB-SKILL:** `/ssot` (when available):
 
 ```markdown
 # Documentation Index & Placement Matrix
@@ -52,16 +38,17 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 | Topic / Scope | Authoritative SSOT | Responsibility |
 | :--- | :--- | :--- |
 | **Tasks & Execution** | `.agents/tasks/` | Decomposed task units and progress tracking |
-| **Domain & Specifications** | `docs/specs/` | Business rules, use cases, domain vocabulary |
-| **Architecture & Decisions** | `docs/adr/` | Architectural Decision Records (MADR format) |
+| **Documentation Governance** | `docs/` | Governed via `/ssot` (when available) |
 ```
 
-#### C. Constitution Hook (`AGENTS.md`)
+### 4. Agent Constitution Hook (`AGENTS.md` or `CLAUDE.md`)
+
+Target `CLAUDE.md` if already present in repository; otherwise target `AGENTS.md`. If file already exists, append this block to the end; do not overwrite:
 
 ```markdown
 ## Agent Workflow
 - **Task Tracker**: Configured in `.agents/task-tracker.md`. Active tasks in `.agents/tasks/`.
-- **Documentation**: Governed by `docs/README.md`.
+- **Documentation**: Governed by `docs/README.md` (via `/ssot` when available).
 ```
 
 ## Execution Protocol
@@ -77,7 +64,19 @@ Inspect repository state:
 3. **Workspace Signals**:
    - Check `AGENTS.md` vs `CLAUDE.md` (preserve existing, forbid duplicating).
    - Check `.gitignore`, `.agents/task-tracker.md`, `.agents/tasks/`.
-   - Scan existing documentation (`docs/README.md`, `docs/specs/`, `docs/adr/`) and monorepo indicators.
+   - Scan existing documentation (`docs/README.md` or `README.md`) and monorepo indicators.
+4. **Clean-Pass Short-Circuit**: If all scaffolding assets (`.agents/task-tracker.md`, `.gitignore` privacy rules, `docs/README.md`, and constitution hook) are already configured and valid, report:
+
+   ```text
+   Repository ecosystem is already initialized and up-to-date.
+
+   Pipeline Next Steps:
+   - /clarify   ── Deliberate architecture or feature trade-offs.
+   - /to-tasks  ── Decompose approved plans into vertical slice tasks.
+   - /ssot      ── Audit and organize documentation authority.
+   ```
+
+   Halt turn immediately without staging redundant mutations.
 
 ### Phase 2: Changeset Staging & Lean Delivery
 
@@ -98,11 +97,11 @@ Inspect repository state:
    └── 📄 README.md
        └── [CREATE] Establish documentation Placement Matrix.
 
-   📁 /
+   📁 <root>/
    ├── 📄 .gitignore
-   │   └── [UPDATE] Add .agents/scratch/ and .agents/tasks/ privacy rules.
-   └── 📄 AGENTS.md
-       └── [UPDATE] Add agent workflow and documentation pointers.
+   │   └── [CREATE | UPDATE] Add .agents/scratch/ and .agents/tasks/ privacy rules.
+   └── 📄 <AGENTS.md | CLAUDE.md>
+       └── [CREATE | UPDATE] Add agent workflow and documentation pointers.
    ```
 
 2. **Lean Delivery**: Present strictly the Changeset summary, recommended configuration choices, and technical rationale. Forbid dumping voluminous raw file contents into chat by default.
@@ -115,9 +114,10 @@ Inspect repository state:
    - Request to inspect markdown previews.
 2. Forbid modifying workspace files on disk within this turn.
 3. Halt turn immediately and wait for affirmative human authorization (e.g., 'proceed', 'approved').
+4. If the user requests adjustments or file previews, update the staged Changeset or render preview, and halt turn again for final approval.
 
 ### Phase 4: Atomic Application & Handoff
 
 1. Upon receiving approval, write staged files to disk.
 2. **Circuit Breaker**: If writing files or updating `.gitignore` fails, halt immediately, report stderr, and prompt user whether to retry or abort. Forbid continuing silently on write failure.
-3. Report completed setup and suggest next commands: `/clarify` (to deliberate new features) or `/to-tasks` (to decompose existing plans).
+3. Report completed setup and suggest next commands: `/ssot` (to audit and organize documentation), `/clarify` (to deliberate new features), or `/to-tasks` (to decompose existing plans).
