@@ -42,7 +42,8 @@ Authoritative architectural principles and engineering quality criteria for the 
 ## 5. Invocation Gating & 3-Tier Progressive Disclosure
 
 - **Invocation Governance**:
-  - Assign `disable-model-invocation: true` to all planning, scaffolding, destructive, or specialized human-facing slash-command skills (`zenforge-init`, `changeset`, `to-tasks`, `forge`, `recon`, `scout`, `distill`, `lens`). They must run exclusively via human slash commands.
+  - Assign `disable-model-invocation: true` to all planning, scaffolding, destructive, refactoring, diagnostic, or worktree skills (`zenforge-init`, `changeset`, `to-tasks`, `forge`, `simplify`, `diagnose`, `worktree`, `recon`, `scout`, `distill`, `lens`). They must run exclusively via human slash commands.
+  - Advisory or inquiry-driven skills (`clarify`, `ssot`) permit model invocation so the agent can autonomously request architectural clarification on ambiguous requirements or verify authoritative documentation contracts.
   - Skill frontmatter `description` must follow a concise, high-density affirmative formula:
     `[Imperative Action] + [Target Entity] + [Context / Purpose]`
     Keep descriptions compact (under 25 words / 35 tokens). Forbid negative boundary clauses (`Do NOT use for...`) in frontmatter to prevent catalog bloat and negative priming; enforce negative boundaries strictly via Operating Invariants inside the skill body.

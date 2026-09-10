@@ -1,6 +1,7 @@
 ---
 name: simplify
 description: "Refactor complex, bloated, or deeply nested code into clean and idiomatic implementations while preserving exact functional behavior."
+disable-model-invocation: true
 ---
 
 # simplify — Code Clarity & Refactoring Engine
@@ -9,10 +10,10 @@ Refactor complex, bloated, or deeply nested code into clean, readable, and idiom
 
 ## Operating Invariants
 
-- **Behavioral Invariance**: Mandate preserving 100% of existing functionality, test outcomes, error handling, and public API signatures; forbid altering program semantics or breaking contracts.
-- **Scope Discipline**: Mandate confining refactoring strictly to targeted files or functions; forbid unsolicited churn in untouched surrounding code.
-- **Pre-Mutation Gate**: Mandate staging changes exclusively via Changeset summary and halting the turn immediately; forbid writing mutations to disk without affirmative human authorization.
-- **Verification Circuit Breaker**: Mandate stopping execution immediately upon verification failure, reporting stderr with file pointers, and prompting user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
+- **Behavioral Invariance**: Preserve 100% of existing functionality, test outcomes, error handling, and public API signatures; forbid altering program semantics or breaking contracts.
+- **Scope Discipline**: Confine refactoring strictly to targeted files or functions; forbid unsolicited churn in untouched surrounding code.
+- **Pre-Mutation Gate**: Stage changes exclusively via Changeset summary and halt turn immediately; forbid writing mutations to disk without affirmative human authorization.
+- **Verification Circuit Breaker**: Stop execution immediately upon verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
 ## Refactoring Rubric
 
@@ -29,9 +30,9 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
    - Guardrail: Keep obvious 1–2 clause conditions (`user && user.isActive`) inline.
 
 3. **Function Cohesion (Vertical Scope)**
-   - Smell: Functions > 30 lines mixing high-level orchestration with low-level mechanics (parsing, formatting, regex).
+   - Smell: Functions mixing high-level orchestration with low-level mechanics (parsing, formatting, regex).
    - Remedy: Extract low-level mechanics into focused single-task helper functions.
-   - Guardrail: Forbid micro-extractions (< 5 lines used once); preserve cohesive linear logic.
+   - Guardrail: Forbid trivial micro-extractions used once; preserve cohesive linear logic.
 
 4. **Code Repetition (Horizontal Duplication)**
    - Smell: Identical copy-pasted blocks (≥ 3 occurrences) within the target file.
@@ -50,16 +51,20 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
 
 ## Execution Protocol
 
-### Step 1: Target Ingestion & Clean-Pass Check
+### Phase 1: Inspect & Clean-Pass Check
+
 1. Inspect the target file, diff, or function using non-mutating file tools.
 2. Evaluate target code against the Refactoring Rubric.
 3. **Clean-Pass Exit**: If zero code smells breach the rubric or all candidate refactors violate guardrails, emit this assessment and halt turn immediately:
+
    ```text
    Assessment: Target code is already clean, idiomatic, and minimal. No refactoring required.
    ```
 
-### Step 2: Changeset Staging & Lean Delivery
+### Phase 2: Stage Changeset & Lean Delivery
+
 1. Stage planned modifications in Changeset format:
+
    ```text
    # Changeset: Simplify <Target Scope>
 
@@ -69,9 +74,11 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
            • <Dimension applied, e.g., Flatten nested conditionals via guard clauses>.
            • <Dimension applied, e.g., Extract low-level parsing into helper function>.
    ```
+
 2. **Lean Delivery**: Present strictly the high-density Changeset summary and technical rationale. Forbid dumping voluminous raw diffs into chat by default.
 
-### Step 3: Authorization Gate
+### Phase 3: Authorization Gate
+
 1. Present the Changeset summary and offer execution options:
    - Approve applying changes directly.
    - Request to inspect the full unified diff preview first.
@@ -80,7 +87,8 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
 3. Halt turn immediately and wait for explicit human authorization (e.g., 'proceed', 'approved').
 4. If the user requests to see the diff preview, render the unified diff and halt turn again for final approval.
 
-### Step 4: Application & Verification
+### Phase 4: Mutate & Verify
+
 1. Upon receiving approval, apply edits to disk.
 2. Run existing tests, linters, or syntax checks to verify behavioral invariance.
 3. If verification fails, stop, report the error output, and ask the user whether to revert or keep debugging.
