@@ -17,12 +17,14 @@ Deconstruct raw inquiries, expose XY problems, isolate latent assumptions, and e
 ## Domain Standards
 
 ### 1. Diagnostic Categories
+
 - `Aligned`: Mechanism $Y$ directly and proportionally resolves Objective $X$ with minimal overhead.
 - `Overkill`: Mechanism $Y$ resolves Objective $X$ but introduces disproportionate accidental complexity.
 - `Misaligned`: Mechanism $Y$ treats superficial symptoms without resolving the root cause of Objective $X$.
 - `Premature`: Mechanism $Y$ optimizes for unverified future requirements without empirical justification.
 
 ### 2. Latent Assumption Vectors
+
 - **Scale & Volume**: Traffic, data volume, and concurrency expectations.
 - **Consistency & Latency**: Synchronization models, eventual consistency tolerances, and real-time demands.
 - **Operational Capacity**: Maintenance bandwidth, infrastructure costs, and cognitive complexity.

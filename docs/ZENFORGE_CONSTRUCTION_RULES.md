@@ -17,6 +17,7 @@ Authoritative architectural principles and engineering quality criteria for the 
 - **High-Density Terse Register**: System instructions written in a compact, authoritative, technical register force the model to mirror the same concise, high-density precision.
 - **Qualitative Density over Arbitrary Counts**: Forbid brittle numerical micro-quotas (e.g., "strictly under 35 lines", "exactly 3 steps"). Frontier LLMs lack lookahead line counters; hard quotas induce truncation panic and distorted grouping. Enforce brevity qualitatively through explicit scope exclusion (omit historical chronology, theoretical proofs, and tangential edge cases) and natural structural progression.
 - **No-Op Transitional Glue**: Forbid conversational filler between section headers and artifact templates (e.g., "Render the explanation directly using this format:"). Section headers are self-describing; attach artifact templates directly beneath their governing headings.
+- **Tool-Aware Zero-Waste**: Do not instruct models or subagents to manually avoid what underlying tooling (`fd`, `ripgrep` default gitignore handling) or subagent permission boundaries (read-only agents lacking write tools) already enforce by design.
 
 ## 3. Affirmative Framing & Paired Directives (Action & Boundary)
 
@@ -30,6 +31,9 @@ Authoritative architectural principles and engineering quality criteria for the 
 - **Execution Topology (Single-Turn vs. Multi-Phase)**:
   - **Multi-Phase Skills** (state mutation, interactive deliberation, code refactoring): Mandate explicit gated phases (`Phase 1: Inspect → Phase 2: Stage → Phase 3: Authorize → Phase 4: Mutate & Verify`).
   - **Single-Turn Skills** (conceptual translation, problem framing, cartography): Forbid synthetic multi-phase workflow ceremony (`Ingestion → Synthesis → Delivery`). Structure single-turn skills strictly via Operating Invariants and Canonical Artifact Templates.
+- **Subagent Delegation Architecture (Fan-out / Fan-in)**: When a single-turn skill delegates deep exploration or research to subagents:
+  - *Fan-out*: Partition by architectural boundary or query vector, passing the target scope and inlining the Canonical Artifact Template directly into the subagent prompt as the mandatory output contract.
+  - *Fan-in*: Reconcile and merge findings into a single unified artifact, emit to stream, and halt turn immediately without cascading into file mutations.
 - **Tracer-Bullet Vertical Slicing**: Mandate end-to-end vertical capabilities per task (schema → logic → UI → test); forbid horizontal layer sprawl across multiple subsystems in one turn.
 - **Expand–Contract Sequence**: For wide refactors with large blast radiuses, mandate the 3-phase sequence: Expand interface → Migrate callers in batches → Contract obsolete interfaces.
 - **Turn-Halt Execution Gates**: When a phase meets its completion criteria, halt the conversation turn immediately. Forbid cascading into downstream phases or mutating files without affirmative human authorization.
@@ -38,7 +42,7 @@ Authoritative architectural principles and engineering quality criteria for the 
 ## 5. Invocation Gating & 3-Tier Progressive Disclosure
 
 - **Invocation Governance**:
-  - Assign `disable-model-invocation: true` to all planning, scaffolding, or destructive skills (`zenforge-init`, `changeset`, `to-tasks`, `forge`). They must run exclusively via human slash commands.
+  - Assign `disable-model-invocation: true` to all planning, scaffolding, destructive, or specialized human-facing slash-command skills (`zenforge-init`, `changeset`, `to-tasks`, `forge`, `recon`, `scout`, `distill`, `lens`). They must run exclusively via human slash commands.
   - Skill frontmatter `description` must follow a concise, high-density affirmative formula:
     `[Imperative Action] + [Target Entity] + [Context / Purpose]`
     Keep descriptions compact (under 25 words / 35 tokens). Forbid negative boundary clauses (`Do NOT use for...`) in frontmatter to prevent catalog bloat and negative priming; enforce negative boundaries strictly via Operating Invariants inside the skill body.
@@ -71,10 +75,11 @@ Authoritative architectural principles and engineering quality criteria for the 
 ## 9. Canonical Artifact Contract & Delivery Boundary
 
 - **Defined Completion Artifact**: Every skill must specify exactly one structured, deterministic artifact that marks its phase completion (e.g., Changeset Tree, Decision Matrix, Task Staging Table).
-- **Staging-Before-Mutation**: Output representations must be optimized for fast human review (structured markdown tables under 15–20 lines, high-density bullet trees, or Conventional Commit handoffs).
+- **Staging-Before-Mutation**: Output representations must be optimized for fast human review (compact markdown tables, high-density bullet trees, or Conventional Commit handoffs).
 - **Prohibition of Raw Dumps**: Forbid emitting raw, multi-page unified diffs or full file bodies into the conversation stream during staging phases. Reserve code blocks exclusively for newly authored contracts or minimal diffs.
 
 ## 10. Test-Driven Skill Authoring (Eval-Driven Refinement)
 
 - **Empirical Baseline Failures**: Author and modify skills strictly against observed agent rationalizations or failure traces without the rule.
 - **Minimal Loophole Directives**: Deploy the absolute minimal instruction needed to plug the specific failure loophole; reject speculative rules that address hypothetical problems.
+- **Preservation of Domain Intelligence**: Prune conversational ceremony and no-op pseudo-steps ruthlessly, but strictly preserve domain-specific guardrails, authority hierarchies, query strategies, and safety budgets that prevent real-world failure modes.
