@@ -14,7 +14,6 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 - **Tracker Authority Grounding**: Resolve target configuration strictly from `.agents/task-tracker.md`; forbid guessing storage paths or publishing to unconfigured remotes.
 - **Vertical Slicing Discipline**: Deliver end-to-end vertical capability per task; forbid horizontal layer-only separation except wide refactors.
 - **Pre-Mutation Gate**: Stage proposed tasks in high-density summary format and halt turn immediately; forbid writing task files to disk or remote trackers without affirmative human approval.
-- **Publication Circuit Breaker**: Stop execution immediately upon any CLI publication failure (non-zero exit code), retain already-published task IDs, report stderr with the failing task ID, and prompt user whether to retry or abort; forbid continuing silently on broken dependency chains.
 
 ## Domain Engine & Standards
 
@@ -33,7 +32,7 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 - **`Blocked by`**: Declare explicit predecessor task IDs (`None` designates the starting frontier).
 - **Task States**:
-  - `ready`: Default initial state for all tasks. Actionable once all predecessors in `Blocked by` are `done`.
+  - `ready`: Default initial state for all tasks. Actionable when unblocked per Dynamic Frontier Rule.
   - `in-progress`: Claimed by an agent or developer during active implementation.
   - `done`: Implementation complete, all acceptance criteria verified `[x]`.
 - **Dynamic Frontier Rule**: A task is unblocked and eligible for `/forge` strictly when its `Status` is `ready` AND (`Blocked by: None` OR every task listed in `Blocked by` has `Status: done`). Never write a static "blocked" status to disk.
@@ -78,11 +77,9 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 ### Phase 1: Context & Tracker Discovery
 
-1. Inspect input context (discussion, specs in `docs/specs/`, or staged changesets).
+1. Ingest requirements from input context (conversation, specifications under `docs/` or governed via `/ssot`, tickets, or staged changesets).
 2. Derive `<feature-slug>` from context or specification.
-3. Read `.agents/task-tracker.md` to resolve tracker type (`local-markdown`, `github`, `gitlab`) and bind **Execution Protocols**. If absent, halt and present an **Interactive Fork**:
-   - **[1] Use Local Markdown Tracker Immediately (Fast-path)**: Automatically initialize `.agents/task-tracker.md` for local markdown, append `.agents/tasks/` to `.gitignore` to keep the repo clean, explicitly notify the user (*"Local tasks are gitignored by default to keep the repository clean. Remove from .gitignore if team tracking is desired."*), and proceed with task decomposition.
-   - **[2] Configure Remote Tracker**: Direct user to run `/zenforge-init` for full repository onboarding and remote credential verification.
+3. Read `.agents/task-tracker.md` to resolve tracker type (`local-markdown`, `github`, `gitlab`). If absent, halt turn immediately and direct user to run `/zenforge-init` to initialize repository tracking and privacy safeguards.
 
 ### Phase 2: Slice Decomposition & Changeset Partitioning
 
@@ -111,12 +108,7 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 1. Upon receiving approval, execute task publication following `.agents/task-tracker.md`:
    - **Local Markdown**: Write one file per task as `.agents/tasks/<feature-slug>/<NN>-<slug>.md` in dependency order.
-   - **Remote Tracker**: Call the execution protocol commands (e.g. `gh issue create`) and link issue dependencies.
-2. **Publication Circuit Breaker**: If any CLI publication command fails (non-zero exit code):
-   - Halt execution immediately.
-   - Retain already-published task IDs and report the exact failure state.
-   - Report `stderr` with the failing task ID, and prompt user whether to retry from the failing task or abort.
-   - Forbid continuing publication on broken dependency chains.
-3. Report the active frontier (first `ready` task) and hand off to `/forge`:
+   - **Remote Tracker**: Publish issues via CLI commands (e.g. `gh issue create`) and link issue dependencies.
+2. Report the active frontier (first `ready` task) and hand off to `/forge`:
    - Local: `/forge .agents/tasks/<feature-slug>/01-<slug>.md`
    - Remote: `/forge #<ID>`
