@@ -10,13 +10,14 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
 
 ## Operating Invariants
 
-- **Authority Grounding**: Mandate inspecting existing repository conventions before proposing structure; forbid modifying established documentation layouts without explicit human consent.
-- **Pre-Mutation Gate**: Mandate staging all planned file additions, modifications, and `.gitignore` entries in Changeset format and halting turn immediately; forbid creating or modifying files on disk without affirmative human approval.
-- **Privacy First**: Mandate isolating `.agents/scratch/` via `.gitignore`; forbid committing temporary scratchpads. Govern `.agents/tasks/` via explicit dual-mode consent (Local-Only vs Team-Shared).
+- **Authority Grounding**: Inspect existing repository conventions before proposing structure; forbid modifying established documentation layouts without explicit human consent.
+- **Pre-Mutation Gate**: Stage all planned file additions, modifications, and `.gitignore` entries in Changeset format and halt turn immediately; forbid creating or modifying files on disk without affirmative human approval.
+- **Privacy First**: Isolate `.agents/scratch/` via `.gitignore`; forbid committing temporary scratchpads. Govern `.agents/tasks/` via explicit dual-mode consent (Local-Only vs Team-Shared).
 
 ## Domain Engine & Standards
 
 ### 1. Tracker Type Selection
+
 - **Feasibility Matrix**:
   - Remote GitHub + `gh auth status` valid -> Propose **GitHub Issues (`gh`)** [Recommended] or **Local Markdown**. Seed from `references/issue-tracker-github.md`.
   - Remote GitHub + `gh` unauthenticated/missing -> Propose **Local Markdown**; suggest `gh auth login` for GitHub.
@@ -24,6 +25,7 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
   - No remote / offline / solo -> Propose **Local Markdown (`.agents/tasks/`)**. Seed from `references/issue-tracker-local.md`.
 
 ### 2. Git Privacy & Ignore Invariants
+
 - **Private Scratchpad (Strict Invariant)**: `.agents/scratch/` is always added to `.gitignore`.
 - **Task Tracker Dual-Mode**:
   - *Local-Only (Recommended Default for local to prevent repo clutter)*: `.agents/tasks/` is added to `.gitignore`.
@@ -33,13 +35,17 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
 ### 3. Canonical Templates
 
 #### A. Task Tracker (`.agents/task-tracker.md`)
+
 Instantiate `.agents/task-tracker.md` directly from the appropriate Tier 3 seed template in `references/`:
+
 - **GitHub**: Seed from [`references/issue-tracker-github.md`](./references/issue-tracker-github.md)
 - **GitLab**: Seed from [`references/issue-tracker-gitlab.md`](./references/issue-tracker-gitlab.md)
 - **Local Markdown**: Seed from [`references/issue-tracker-local.md`](./references/issue-tracker-local.md)
 
 #### B. Baseline Placement Matrix (`docs/README.md`)
+
 Use as baseline for greenfield repositories; adapt rows dynamically to map observed documentation for existing projects:
+
 ```markdown
 # Documentation Index & Placement Matrix
 
@@ -51,6 +57,7 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 ```
 
 #### C. Constitution Hook (`AGENTS.md`)
+
 ```markdown
 ## Agent Workflow
 - **Task Tracker**: Configured in `.agents/task-tracker.md`. Active tasks in `.agents/tasks/`.
@@ -61,8 +68,10 @@ Use as baseline for greenfield repositories; adapt rows dynamically to map obser
 
 **SUB-SKILL:** changeset, ssot
 
-### Step 1: Read-Only Discovery
+### Phase 1: Read-Only Discovery
+
 Inspect repository state:
+
 1. **Remote & Topology**: Run `git remote -v` and inspect `.git/config` to resolve host and repository path (`owner/repo`).
 2. **Toolchain Pre-flight**: Verify `command -v gh/glab` and test session via `gh auth status` / `glab auth status`.
 3. **Workspace Signals**:
@@ -70,8 +79,10 @@ Inspect repository state:
    - Check `.gitignore`, `.agents/task-tracker.md`, `.agents/tasks/`.
    - Scan existing documentation (`docs/README.md`, `docs/specs/`, `docs/adr/`) and monorepo indicators.
 
-### Step 2: Changeset Staging & Lean Delivery
+### Phase 2: Changeset Staging & Lean Delivery
+
 1. Stage proposed modifications for missing or unconfigured scaffolding assets in Changeset format:
+
    ```text
    # Changeset: Repository Initialization
 
@@ -93,9 +104,11 @@ Inspect repository state:
    └── 📄 AGENTS.md
        └── [UPDATE] Add agent workflow and documentation pointers.
    ```
+
 2. **Lean Delivery**: Present strictly the Changeset summary, recommended configuration choices, and technical rationale. Forbid dumping voluminous raw file contents into chat by default.
 
-### Step 3: Authorization Gate
+### Phase 3: Authorization Gate
+
 1. Present the staged Changeset and offer execution options:
    - Approve applying proposed configuration directly.
    - Request to adjust settings (Tracker type, Placement Matrix paths, Git privacy mode).
@@ -103,7 +116,8 @@ Inspect repository state:
 2. Forbid modifying workspace files on disk within this turn.
 3. Halt turn immediately and wait for affirmative human authorization (e.g., 'proceed', 'approved').
 
-### Step 4: Atomic Application & Handoff
+### Phase 4: Atomic Application & Handoff
+
 1. Upon receiving approval, write staged files to disk.
 2. **Circuit Breaker**: If writing files or updating `.gitignore` fails, halt immediately, report stderr, and prompt user whether to retry or abort. Forbid continuing silently on write failure.
 3. Report completed setup and suggest next commands: `/clarify` (to deliberate new features) or `/to-tasks` (to decompose existing plans).
