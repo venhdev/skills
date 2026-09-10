@@ -11,22 +11,20 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
 ## Operating Invariants
 
 - **Pre-Mutation Gate**: Stage strictly missing assets via Changeset and halt turn for human approval; never overwrite valid existing configurations.
-- **Privacy Baseline**: Always isolate `.agents/scratch/` in `.gitignore`.
+- **Privacy Baseline**: Always isolate `.agents/scratch/` in `.gitignore`; forbid committing transient scratch files.
 
 ## Scaffolding Components & Templates
 
 ### 1. Task Tracker Matrix (`.agents/task-tracker.md`)
 
-- Remote GitHub + `gh auth status` valid -> Propose **GitHub Issues (`gh`)** (template [`references/issue-tracker-github.md`](./references/issue-tracker-github.md)) or **Local Markdown**.
-- Remote GitHub + `gh` unauthenticated/missing -> Halt and ask: proceed with **Local Markdown** immediately OR authenticate via `gh auth login` for GitHub Issues.
-- Remote GitLab + `glab auth status` valid -> Propose **GitLab Issues (`glab`)** (template [`references/issue-tracker-gitlab.md`](./references/issue-tracker-gitlab.md)) or **Local Markdown**.
-- Remote GitLab + `glab` unauthenticated/missing -> Halt and ask: proceed with **Local Markdown** immediately OR authenticate via `glab auth login` for GitLab Issues.
-- Solo / Offline / No remote -> Propose **Local Markdown** (`.agents/tasks/`, template [`references/issue-tracker-local.md`](./references/issue-tracker-local.md)).
+- Remote GitHub + `gh auth status` valid ──> Propose **GitHub Issues (`gh`)** (template [`references/issue-tracker-github.md`](./references/issue-tracker-github.md)) or **Local Markdown**.
+- Remote GitLab + `glab auth status` valid ──> Propose **GitLab Issues (`glab`)** (template [`references/issue-tracker-gitlab.md`](./references/issue-tracker-gitlab.md)) or **Local Markdown**.
+- Unauthenticated CLI / Other remotes / Offline ──> Propose **Local Markdown** (`.agents/tasks/`, template [`references/issue-tracker-local.md`](./references/issue-tracker-local.md)). Report CLI auth status to user so they can choose to authenticate or remain local.
 
-### 2. Git Privacy Baseline (`.gitignore`)
+### 2. Git Privacy Configuration (`.gitignore`)
 
-- Always isolate temporary scratchpads: add `.agents/scratch/` to `.gitignore`.
-- For Local Markdown: propose adding `.agents/tasks/` to `.gitignore` (Local-Only) unless user requests team tracking (Team-Shared).
+- Ensure `.agents/scratch/` is isolated per Privacy Baseline.
+- For Local Markdown: propose adding `.agents/tasks/` to `.gitignore` (Local-Only default) unless user requests team tracking (Team-Shared).
 
 ### 3. Documentation Placement Matrix (`docs/README.md`)
 
@@ -37,17 +35,17 @@ Establish baseline index for execution tasks; defer full documentation taxonomy,
 
 | Topic / Scope | Authoritative SSOT | Responsibility |
 | :--- | :--- | :--- |
-| **Tasks & Execution** | `.agents/tasks/` | Decomposed task units and progress tracking |
+| **Tasks & Execution** | Defined in `.agents/task-tracker.md` | Decomposed task units and progress tracking |
 | **Documentation Governance** | `docs/` | Governed via `/ssot` (when available) |
 ```
 
 ### 4. Agent Constitution Hook (`AGENTS.md` or `CLAUDE.md`)
 
-Target `CLAUDE.md` if already present in repository; otherwise target `AGENTS.md`. If file already exists, append this block to the end; do not overwrite:
+Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). If target file exists, append this block; do not overwrite:
 
 ```markdown
 ## Agent Workflow
-- **Task Tracker**: Configured in `.agents/task-tracker.md`. Active tasks in `.agents/tasks/`.
+- **Task Tracker**: Governed by `.agents/task-tracker.md`.
 - **Documentation**: Governed by `docs/README.md` (via `/ssot` when available).
 ```
 
@@ -60,7 +58,7 @@ Target `CLAUDE.md` if already present in repository; otherwise target `AGENTS.md
 Inspect repository state:
 
 1. **Remote & Topology**: Run `git remote -v` and inspect `.git/config` to resolve host and repository path (`owner/repo`).
-2. **Toolchain Pre-flight**: Verify `command -v gh/glab` and test session via `gh auth status` / `glab auth status`.
+2. **Toolchain Pre-flight**: Test `gh auth status` / `glab auth status` and record authentication state for the detected remote.
 3. **Workspace Signals**:
    - Check `AGENTS.md` vs `CLAUDE.md` (preserve existing, forbid duplicating).
    - Check `.gitignore`, `.agents/task-tracker.md`, `.agents/tasks/`.
@@ -88,14 +86,14 @@ Inspect repository state:
    📁 .agents/
    ├── 📄 task-tracker.md
    │   └── [CREATE] Configure task tracking mode and execution protocols.
-   ├── 📁 tasks/
+   ├── 📁 tasks/ (Local Markdown only)
    │   └── [CREATE] Create task directory for local markdown workflow.
    └── 📁 scratch/
        └── [CREATE] Create scratchpad directory for temporary test harnesses and probes.
 
    📁 docs/
    └── 📄 README.md
-       └── [CREATE] Establish documentation Placement Matrix.
+       └── [CREATE | UPDATE] Establish documentation Placement Matrix.
 
    📁 <root>/
    ├── 📄 .gitignore
@@ -104,11 +102,12 @@ Inspect repository state:
        └── [CREATE | UPDATE] Add agent workflow and documentation pointers.
    ```
 
-2. **Lean Delivery**: Present strictly the Changeset summary, recommended configuration choices, and technical rationale. Forbid dumping voluminous raw file contents into chat by default.
+2. **Lean Delivery**: Present strictly the Changeset summary, recommended configuration choices, toolchain auth status (if unauthenticated), and technical rationale. Forbid dumping voluminous raw file contents into chat by default.
 
 ### Phase 3: Authorization Gate
 
-1. Present the staged Changeset and offer execution options:
+1. Present the staged Changeset, report toolchain/auth findings, and offer execution options:
+   - If remote CLI is unauthenticated or missing, report findings and prompt: proceed with **Local Markdown** OR authenticate via `gh/glab auth login` for remote issues.
    - Approve applying proposed configuration directly.
    - Request to adjust settings (Tracker type, Placement Matrix paths, Git privacy mode).
    - Request to inspect markdown previews.
@@ -120,4 +119,4 @@ Inspect repository state:
 
 1. Upon receiving approval, write staged files to disk.
 2. **Circuit Breaker**: If writing files or updating `.gitignore` fails, halt immediately, report stderr, and prompt user whether to retry or abort. Forbid continuing silently on write failure.
-3. Report completed setup and suggest next commands: `/ssot` (to audit and organize documentation), `/clarify` (to deliberate new features), or `/to-tasks` (to decompose existing plans).
+3. Report completed setup and suggest next commands: `/clarify` (to deliberate new features), `/to-tasks` (to decompose existing plans), or `/ssot` (to audit and organize documentation).
