@@ -48,6 +48,8 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 
 ## Execution Protocol
 
+**SUB-SKILL:** forge, clarify
+
 ### Phase 1: Feedback Loop Construction & Minimization
 
 1. Construct the tightest viable command asserting the user's exact reported symptom (using existing tests, direct invocation, or an isolated harness in `.agents/scratch/`).
@@ -76,9 +78,7 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
        └── [UPDATE] <Atomic fix summary>
    ```
 
-2. Offer execution options: approve applying atomic fix with regression test, hand off proposed changeset to `/forge`, or inspect alternate hypotheses.
-3. Forbid modifying codebase source files within this turn.
-4. Halt turn immediately and wait for affirmative human authorization.
+2. Halt turn immediately for human authorization; forbid modifying codebase source files or executing fixes without affirmative approval.
 
 ### Phase 4: Atomic Fix, Verification & Cleanup
 

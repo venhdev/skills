@@ -55,3 +55,11 @@ Deconstruct raw inquiries, expose XY problems, isolate latent assumptions, and e
 - `/clarify` ── Objective X requires multi-turn deliberation across architectural trade-offs.
 - `/changeset` ── Problem boundaries and baseline approach for Objective X are unambiguous.
 ```
+
+## Execution Protocol
+
+**SUB-SKILL:** scout, clarify, changeset
+
+1. Ingest the user inquiry, proposed solution, or problem statement.
+2. Evaluate against Diagnostic Categories and Latent Assumption Vectors.
+3. Present the completed Framing Dossier into the conversation stream and halt turn immediately. Never create, modify, or delete repository files.

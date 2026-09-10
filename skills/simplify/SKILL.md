@@ -51,6 +51,8 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
 
 ## Execution Protocol
 
+**SUB-SKILL:** forge
+
 ### Phase 1: Inspect & Clean-Pass Check
 
 1. Inspect the target file, diff, or function using non-mutating file tools.
@@ -61,7 +63,7 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
    Assessment: Target code is already clean, idiomatic, and minimal. No refactoring required.
    ```
 
-### Phase 2: Stage Changeset & Lean Delivery
+### Phase 2: Staging & Authorization Gate
 
 1. Stage planned modifications in Changeset format:
 
@@ -75,19 +77,10 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
            • <Dimension applied, e.g., Extract low-level parsing into helper function>.
    ```
 
-2. **Lean Delivery**: Present strictly the high-density Changeset summary and technical rationale. Forbid dumping voluminous raw diffs into chat by default.
+2. Present strictly the Changeset summary and technical rationale. Forbid dumping raw diffs into chat.
+3. Halt turn immediately for human authorization; forbid modifying workspace files on disk without explicit approval.
 
-### Phase 3: Authorization Gate
-
-1. Present the Changeset summary and offer execution options:
-   - Approve applying changes directly.
-   - Request to inspect the full unified diff preview first.
-   - Adjust scope or cancel.
-2. Forbid modifying workspace files on disk or executing mutating commands within this turn.
-3. Halt turn immediately and wait for explicit human authorization (e.g., 'proceed', 'approved').
-4. If the user requests to see the diff preview, render the unified diff and halt turn again for final approval.
-
-### Phase 4: Mutate & Verify
+### Phase 3: Mutate & Verify
 
 1. Upon receiving approval, apply edits to disk.
 2. Run existing tests, linters, or syntax checks to verify behavioral invariance.

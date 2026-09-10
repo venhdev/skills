@@ -26,6 +26,8 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
 
 ## Execution Protocol
 
+**SUB-SKILL:** changeset, clarify
+
 ### Phase 1: Discover & Authority Audit
 
 1. **Index Fast-Path**: Check repository documentation index (`docs/README.md` or `README.md`) for an established Placement Matrix. Refer to local `references/document-contract.md` for lifecycle taxonomy and recommended directory templates.
@@ -41,7 +43,7 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
    - Report conflicting evidence with pointer citations (`[Doc A:L12]` vs `[Doc B:L40]`).
    - Present resolution options and wait for explicit human direction before staging mutations.
 
-### Phase 2: Changeset Staging & Lean Delivery
+### Phase 2: Staging & Authorization Gate
 
 1. Stage planned modifications in Changeset format:
 
@@ -55,19 +57,10 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
        └── [<ACTION>] <Summary of update or duplicate pruning>.
    ```
 
-2. **Lean Delivery**: Present strictly the high-density Changeset summary and technical rationale. Forbid dumping voluminous raw document diffs into chat by default.
+2. Present strictly the high-density Changeset summary and technical rationale. Forbid dumping raw document diffs into chat.
+3. Halt turn immediately for human authorization; forbid modifying workspace files on disk without explicit approval.
 
-### Phase 3: Authorization Gate
-
-1. Present the Changeset summary and offer execution options:
-   - Approve applying documentation changes directly.
-   - Request to inspect markdown diff preview first.
-   - Adjust scope or cancel.
-2. Forbid modifying workspace files on disk within this turn.
-3. Halt turn immediately and wait for explicit human authorization (e.g., 'proceed', 'approved').
-4. If the user requests to see the diff preview, render the diff and halt turn again for final approval.
-
-### Phase 4: Application & Link Verification
+### Phase 3: Application & Link Verification
 
 1. Upon receiving approval, apply mutations to disk (complete `[CREATE]` and `[MOVE]` before `[DELETE]`).
 2. Advance `updated: YYYY-MM-DD` in frontmatter of touched documents.

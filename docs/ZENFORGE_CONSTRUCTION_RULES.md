@@ -8,6 +8,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Stack & Host Agnostic**: Author all instructions independent of specific programming languages, frameworks, or host repositories.
 - **Cross-LLM Determinism**: Ensure high-fidelity execution across all frontier LLM families without model-specific quirks.
+- **Self-Contained Encapsulation**: Package all references, templates, and scripts locally within the skill directory; forbid relative links or dependencies to paths outside the skill directory.
 
 ## 2. Zero-Waste & Anti-No-Op
 
@@ -21,12 +22,15 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Paired Action & Boundary**: State direct operational actions paired with explicit negative boundaries (*what to produce vs. what never to exceed*), using natural imperatives (`Stage`, `Verify`, `Confine`, `Never`, `Only`).
 - **Anti-Priming**: Never state negative prohibitions in isolation without immediately defining the approved alternative.
 
-## 4. Execution Topology & Pipeline Orchestration
+## 4. Archetype-Driven Topology & Modular Blocks
 
 - **Single Responsibility**: Each skill must perform exactly one job and deliver one canonical artifact.
-- **Turn-Bounded Topology**:
-  - *Multi-Phase Skills* (mutations, task publication): Structure phases strictly along natural turn boundaries (`Discovery → Staging & Authorization Gate → Atomic Mutation & Handoff`). Combine Staging and Gate in the same turn to eliminate artificial bureaucracy.
-  - *Single-Turn Skills* (cartography, synthesis): Forbid multi-phase ceremony; structure strictly via Operating Invariants and Canonical Artifact Templates.
+- **Contextual Structural Blocks**: Structural components (`Operating Invariants`, `Domain Engine / Rubric`, `Execution Protocol`, `Pre-Mutation Gate`) are modular building blocks applied strictly by operational archetype; forbid imposing universal 4-layer boilerplate or empty phantom sections onto every skill.
+- **Operational Archetypes**:
+  - *Archetype A (Deterministic Utilities & Direct Transforms)* (e.g., `distill`, format converters, CLI runners): Single-shot input-to-output delivery. Structure: Frontmatter + Input/Output Contract + Transformation Steps/Heuristics. Forbid pre-mutation gates, invariants sections, or multi-phase ceremony.
+  - *Archetype B (Exploratory Cartography & Deliberation)* (e.g., `recon`, `scout`, `clarify`, `lens`): Read-only codebase inspection, external research, or conceptual deliberation. Structure: Frontmatter + Scope/Search Budget + Domain Rubric / Deliberation Dimensions + Canonical Report Template + Delegation/Synthesis Protocol. Forbid filesystem mutation gates or test verification cascades.
+  - *Archetype C (Stateful & Mutating Workflows)* (e.g., `changeset`, `forge`, `simplify`): Filesystem modifications, state transitions, and test runs. Structure: Frontmatter + Operating Invariants (Pre-mutation gate, scope discipline, behavioral invariance) + Blast Radius / Refactoring Rubric + Turn-Bounded Execution Protocol (`Discovery` → `Staging & Authorization Gate` in single turn → `Mutation & Test Cascade`).
+- **Turn-Bounded Execution**: Combine Discovery, Staging, and Authorization Gate into a single turn whenever feasible to eliminate artificial conversational bureaucracy. Halt turn immediately at the authorization gate.
 - **Universal Mention Convention**: Reference supporting sub-skills conditionally in templates and prose (`(via /<name> when available)`). Never treat sub-skills as hard blocking dependencies.
 
 ## 5. Invocation Gating & 3-Tier Economics
