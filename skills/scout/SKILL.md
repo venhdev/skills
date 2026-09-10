@@ -1,6 +1,6 @@
 ---
 name: scout
-description: "Investigate real-system best practices, battle-tested production archetypes, and failure modes via an autonomous research subagent before architectural commitment."
+description: "Investigate real-system best practices, production archetypes, and failure modes before architectural commitment."
 disable-model-invocation: true
 ---
 
@@ -11,21 +11,23 @@ Investigate battle-tested production archetypes, real-world failure modes, and b
 ## Domain Engine & Standards
 
 ### 1. Source Authority Hierarchy
+
 Triangulate technical inquiries against authoritative production evidence:
+
 - **Tier 1 (Canonical Standards & Official Specs)**: RFCs, language specifications, cloud vendor reference architectures, and formal technical papers.
 - **Tier 2 (High-Scale Production Engineering)**: Tech blogs and architecture disclosures from proven high-scale engineering organizations (e.g., Stripe, Netflix, Cloudflare, Discord, Uber, Meta).
 - **Tier 3 (Battle Scars & Postmortems)**: Documented production outages, postmortems, and root-cause analyses revealing edge cases, operational bottlenecks, and failure modes.
 - **Exclusion Filter**: Exclude SEO-optimized content farms, unverified personal blog posts, vendor marketing collateral, and unvetted AI summaries.
 
 ### 2. Search & Inclusion Budget
+
 - **Exploration Ceiling**: Maximum 8 search queries and 10 fetched pages per scouting run.
 - **Inclusion Budget**: Synthesize from 3 to 5 premier, high-signal sources.
 - **Short-Circuit Stop**: Terminate search as soon as the canonical pattern and known failure modes are triangulated with primary evidence.
 
-### 3. Canonical Scout Report Format
-Present findings in the structured, high-density format:
+## Canonical Scout Report Format
 
-````markdown
+```markdown
 # Scout Report: <Topic / Inquiry>
 
 ## 1. Executive Summary
@@ -43,22 +45,22 @@ Present findings in the structured, high-density format:
 
 ## 4. Primary Citations
 - [<Source Title>](<Verified URL>) — <Core insight or concrete data point extracted>
-````
 
-## Workflow
+## 5. Pipeline Routing
+- `/clarify` ── Deliberate trade-offs or evaluate architectural fit for the project.
+- `/changeset` ── Archetype is selected and baseline approach is ready for change planning.
+```
+
+## Delegation & Synthesis Protocol
 
 **SUB-SKILL:** clarify, changeset
 
-### Phase 1: Query Triangulation
-1. Ingest the user's technical inquiry, architectural dilemma, or technology choice.
-2. Formulate 2 to 3 targeted search queries crossing canonical standards, high-scale engineering cases, and failure postmortems.
+1. **Query Triangulation & Dispatch**:
+   - Formulate 2 to 3 targeted search queries crossing: canonical standards/RFCs, high-scale engineering cases, and failure postmortems.
+   - Launch a `research` subagent (Role: `Real-System Research Scout`) supplying:
+     - The triangulated queries and Search Budget (max 8 queries, 10 fetched pages).
+     - The **Canonical Scout Report Format** above as the required output contract.
+   - Mandate the subagent to inspect full page bodies via URL tools before synthesizing; cite strictly verified URLs and never synthesize from search snippets alone.
 
-### Phase 2: Autonomous Research Delegation
-1. Spawn the read-only `research` subagent (Role: `Real-System Research Scout`) with the formulated queries and search budget. Never execute web searches, page reads, or exploration traces in the parent conversation stream.
-2. Direct the subagent to inspect page bodies directly via URL reading tools before synthesizing. Cite strictly verified URLs returned from tool execution; never synthesize from search snippets alone or fabricate URL paths from memory.
-3. Collect the subagent's structured research findings via the message channel.
-
-### Phase 3: Delivery & Staging
-1. Synthesize the collected findings into the Canonical Scout Report format and deliver strictly in the conversation stream. Never create, modify, or delete repository files.
-2. Offer optional persistence to `.agents/scratch/scout-<slug>.md`. Halt turn immediately to await user review before any downstream architectural commitment.
-3. Guide the user to proceed to architectural clarification via `/clarify` or change planning via `/changeset`.
+2. **Synthesis & Halt**:
+   - Emit the completed Canonical Scout Report into the conversation stream and halt turn immediately. Never create, modify, or delete repository files.

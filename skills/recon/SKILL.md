@@ -1,64 +1,47 @@
 ---
 name: recon
-description: "Survey codebase topology, map module boundaries, and trace data-flow execution paths through progressive read-only disclosure before planning modifications."
+description: "Map codebase topology, module seams, and execution call chains."
 disable-model-invocation: true
 ---
 
 # recon — Codebase Topology & Architecture Cartography Engine
 
-Map repository topology, module seams, and data-flow paths through progressive read-only exploration before architectural planning.
+Map repository topology, module seams, and execution call chains through progressive exploration.
 
-## Domain Engine & Standards
+## Delegation & Synthesis Protocol
 
-### 1. Progressive Disclosure Strategy
-Explore unfamiliar codebases through layered depth expansion:
-- **Topography & Entrypoints**: Scan directory layouts, project manifests, and documentation indices (`docs/README.md`, specs, ADRs) to locate boundary entrypoints.
-- **Architectural Seams**: Inspect public interfaces, exported contracts, and module boundaries before reading internal implementation logic.
-- **Targeted Flow Tracing**: Trace the execution path through active call sites, mapping how data transforms and where state persists.
+1. **Dispatch (Fan-out)**:
+   - Launch 1 `research` subagent for a single module, or 2–3 concurrent subagents partitioned by layer for broad cross-service flows.
+   - In each subagent prompt, supply:
+     - The target scope and any known entrypoints, files, or symbols from the session.
+     - The **Canonical Codebase Cartography Format** below as the required output contract.
 
-### 2. Reconnaissance Guardrails
-- **Confined Search**: Exclude build caches, package vendor directories, and lockfiles (`build/`, `dist/`, `node_modules/`, `vendor/`, `*.lock`). Focus queries on source roots.
-- **Call-Site Focus**: Inspect source files in targeted spans around active call chains; avoid bulk reading large, unrelated implementation files.
-- **Upstream First**: Understand caller invariants and state lifecycles before evaluating leaf helper utilities.
+2. **Synthesis & Halt (Fan-in)**:
+   - Reconcile subagent findings into a single unified cartography artifact.
+   - Emit the final cartography into the stream and halt turn immediately. Never propose diffs or edit files.
 
-### 3. Canonical Codebase Cartography Format
-Present findings in the structured, high-density format:
+## Canonical Codebase Cartography Format
 
-````markdown
+```markdown
 # Codebase Cartography: <Subsystem / Target Scope>
 
 ## 1. Topography & Architectural Seams
-- **Boundary Entrypoints**: <Primary entrypoints: routes, CLI commands, handlers, or UI roots>
-- **Core Abstractions & SSOTs**: <Governing interfaces, schemas, or authoritative specifications in docs/>
-- **Module Boundaries**: <Division of responsibilities across packages/directories>
+- **Entrypoints**: <Primary routes, CLI commands, handlers, or event consumers with file pointers>
+- **Core Contracts & Schemas**: <Key interfaces, database models, or governing doc specifications>
+- **Module Boundaries**: <Key directories/packages and their distinct responsibilities>
 
-## 2. Execution Path & Data Flow
-```mermaid
-<flowchart TD or LR mapping the observed execution path, decision branches, and persistence using NodeID["[Role] Symbol (path/to/file#L10)"]>
-```
+## 2. Key Execution Flows
+### Flow: <Primary Flow Name, e.g., Request Handling / Ingestion Pipeline>
+1. `<Symbol>` ([<file>#L<N>](file:///path/to/file#L10)) ── <Trigger or input intake>
+2. `<Symbol>` ([<file>#L<N>](file:///path/to/file#L50)) ── <Intermediate validation, dispatch, or middleware>
+3. `<Symbol>` ([<file>#L<N>](file:///path/to/file#L90)) ── <Core transformation, state transition, or persistence>
+*(Add secondary flow if distinct execution path exists, e.g., background worker or event consumer)*
 
-## 3. Critical Invariants & Gotchas
-- **State & Concurrency Invariants**: <Observed lifecycle rules, mutexes, or transaction boundaries>
-- **Specification Drift & Gotchas**: <Discrepancies against authoritative specifications, implicit side-effects, or hidden couplings>
+## 3. Invariants & Gotchas
+- **Invariants (Must Preserve)**: <Core rules, transaction boundaries, or state lifecycles that cannot be broken>
+- **Gotchas (Watch Out)**: <Hidden side-effects, spec drift, or surprising couplings; state 'None observed' if clean>
 
 ## 4. Pipeline Routing
 - `/changeset` ── Execution paths and mutation boundaries are clear; proceed to change planning.
-- `/clarify` ── Deliberate architectural trade-offs or component boundaries before planning.
-- `/distill <inferred_slug>` ── Reframe problem boundaries if observed architecture reveals XY tensions.
-````
-
-## Workflow
-
-**SUB-SKILL:** ssot
-
-### Phase 1: Topography Scan
-1. Survey directory structure, project manifests, and canonical specifications, using `discover-docs.sh` in sub-skill `/ssot` when available.
-2. Identify primary entrypoints and module boundaries without reading internal implementation logic.
-
-### Phase 2: Seam & Flow Tracing
-1. Trace execution paths across identified seams using targeted symbol search and code inspection.
-2. Uncover caller relationships, data transformations, and architectural invariants.
-
-### Phase 3: Cartography Delivery & Turn Halt
-1. Synthesize findings into the Canonical Codebase Cartography format and deliver strictly in the conversation stream in a single turn. Never create, modify, or delete repository files or propose code diffs.
-2. Halt turn immediately to await user review before any downstream architectural commitment.
+- `/clarify` ── Discovered architectural tensions, trade-offs, or multiple viable implementation paths.
+```
