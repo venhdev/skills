@@ -100,9 +100,7 @@ Decompose architectural plans, specifications, and changesets into dependency-se
    | **02** | <Title 2> | 01 | `waiting on 01` | <One-line capability> |
    ```
 
-2. Offer review options: approve publication, adjust granularity or `<feature-slug>`, or inspect individual changesets.
-3. Forbid writing files or calling tracker APIs within this turn.
-4. Halt turn immediately and wait for affirmative human authorization.
+2. Halt turn immediately for user confirmation; forbid writing files or publishing tasks without approval.
 
 ### Phase 4: Atomic Publication & Frontier Handoff
 
