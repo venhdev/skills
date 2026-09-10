@@ -1,10 +1,10 @@
 ---
 name: zenforge-init
-description: "Scaffold complete repository ecosystem: task tracking, Git ignore privacy, SSOT documentation index, and AGENTS.md constitution."
+description: "Scaffold repository task tracking, Git ignore privacy, SSOT documentation index, and agent constitution."
 disable-model-invocation: true
 ---
 
-# zenforge-init — Repository Scaffolding & Ecosystem Bootstrapper
+# zenforge-init — Repository Scaffolding Engine
 
 Initialize repository task tracking, Git privacy safeguards, SSOT documentation governance, and agent constitution hooks.
 
@@ -23,12 +23,10 @@ Initialize repository task tracking, Git privacy safeguards, SSOT documentation 
 
 ### 2. Git Privacy Configuration (`.gitignore`)
 
-- Ensure `.agents/scratch/` is isolated per Privacy Baseline.
-- For Local Markdown: propose adding `.agents/tasks/` to `.gitignore` (Local-Only default) unless user requests team tracking (Team-Shared).
+- `.agents/scratch/`: Private scratchpad (immutable).
+- `.agents/tasks/`: Local-Only default for local markdown; omit if user requests team-shared tracking.
 
 ### 3. Documentation Placement Matrix (`docs/README.md`)
-
-Establish baseline index for execution tasks; defer full documentation taxonomy, specifications, and ADR placement to **SUB-SKILL:** `/ssot` (when available):
 
 ```markdown
 # Documentation Index & Placement Matrix
@@ -55,14 +53,12 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 
 ### Phase 1: Read-Only Discovery
 
-Inspect repository state:
-
-1. **Remote & Topology**: Run `git remote -v` and inspect `.git/config` to resolve host and repository path (`owner/repo`).
+1. **Remote & Topology**: Run `git remote -v` to resolve host and repository path (`owner/repo`).
 2. **Toolchain Pre-flight**: Test `gh auth status` / `glab auth status` and record authentication state for the detected remote.
 3. **Workspace Signals**:
    - Check `AGENTS.md` vs `CLAUDE.md` (preserve existing, forbid duplicating).
    - Check `.gitignore`, `.agents/task-tracker.md`, `.agents/tasks/`.
-   - Scan existing documentation (`docs/README.md` or `README.md`) and monorepo indicators.
+   - Scan existing documentation (`docs/README.md` or `README.md`).
 4. **Clean-Pass Short-Circuit**: If all scaffolding assets (`.agents/task-tracker.md`, `.gitignore` privacy rules, `docs/README.md`, and constitution hook) are already configured and valid, report:
 
    ```text
@@ -76,9 +72,9 @@ Inspect repository state:
 
    Halt turn immediately without staging redundant mutations.
 
-### Phase 2: Changeset Staging & Lean Delivery
+### Phase 2: Staging & Authorization Gate
 
-1. Stage proposed modifications for missing or unconfigured scaffolding assets in Changeset format:
+1. Stage missing or unconfigured scaffolding assets in Changeset format:
 
    ```text
    # Changeset: Repository Initialization
@@ -102,21 +98,10 @@ Inspect repository state:
        └── [CREATE | UPDATE] Add agent workflow and documentation pointers.
    ```
 
-2. **Lean Delivery**: Present strictly the Changeset summary, recommended configuration choices, toolchain auth status (if unauthenticated), and technical rationale. Forbid dumping voluminous raw file contents into chat by default.
+2. Present Changeset summary, recommended tracker choice, and toolchain status (report auth status if CLI is unauthenticated). Forbid emitting raw file bodies into chat.
+3. Halt turn immediately for human approval; forbid modifying workspace files on disk without affirmative authorization.
 
-### Phase 3: Authorization Gate
-
-1. Present the staged Changeset, report toolchain/auth findings, and offer execution options:
-   - If remote CLI is unauthenticated or missing, report findings and prompt: proceed with **Local Markdown** OR authenticate via `gh/glab auth login` for remote issues.
-   - Approve applying proposed configuration directly.
-   - Request to adjust settings (Tracker type, Placement Matrix paths, Git privacy mode).
-   - Request to inspect markdown previews.
-2. Forbid modifying workspace files on disk within this turn.
-3. Halt turn immediately and wait for affirmative human authorization (e.g., 'proceed', 'approved').
-4. If the user requests adjustments or file previews, update the staged Changeset or render preview, and halt turn again for final approval.
-
-### Phase 4: Atomic Application & Handoff
+### Phase 3: Atomic Application & Handoff
 
 1. Upon receiving approval, write staged files to disk.
-2. **Circuit Breaker**: If writing files or updating `.gitignore` fails, halt immediately, report stderr, and prompt user whether to retry or abort. Forbid continuing silently on write failure.
-3. Report completed setup and suggest next commands: `/clarify` (to deliberate new features), `/to-tasks` (to decompose existing plans), or `/ssot` (to audit and organize documentation).
+2. Report setup complete and suggest next step: `/clarify`, `/to-tasks`, or `/ssot`.
