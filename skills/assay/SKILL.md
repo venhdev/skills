@@ -59,14 +59,16 @@ Inspect mutation artifacts against 4 structural dimensions:
 
 **SUB-SKILL:** forge, changeset, clarify
 
-1. **Context Seeding & Dispatch (Fan-out)**:
+1. **Scope Partitioning & Dispatch (Fan-out)**:
    - Identify target artifact (uncommitted diff, staged changeset, `.agents/tasks/`, or commit range).
-   - Seed the subagent with:
-     - The target artifact or git diff pointers.
-     - Relevant governing specifications from session context, task headers, or `docs/README.md`.
+   - Launch 1 `research` subagent for isolated diffs or single-task reviews, or 2–3 concurrent subagents partitioned by subsystem boundary or task cluster for broad multi-package changesets.
+   - Seed each subagent with:
+     - Its allocated diff slice or target task pointers.
+     - Relevant governing specifications cited from session context, task headers, or `docs/README.md`.
      - The Dual-Citation Rule and Canonical Assay Report Format as the required output contract.
-   - Launch a `research` subagent (Role: `Mutation & Architecture Reviewer`).
+   - Assign subagent role: `Mutation & Architecture Reviewer (<Target Slice/Subsystem>)`.
 
 2. **Synthesis & Turn-Halt Gate (Fan-in)**:
-   - Reconcile subagent findings into the **Canonical Assay Report Format**.
+   - Reconcile and deduplicate subagent findings into the **Canonical Assay Report Format**.
+   - Compute the definitive Executive Verdict (`PASS` only if all slices pass; downgrade to `CONDITIONAL` or `FAIL` based on highest defect severity).
    - Emit the report and halt turn immediately. Never mutate files or propose code diffs.
