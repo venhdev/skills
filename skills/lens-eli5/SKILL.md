@@ -1,10 +1,10 @@
 ---
-name: lens
+name: lens-eli5
 description: "Deconstruct complex technical concepts, architecture, or code into intuitive physical analogies and beginner-friendly mental models."
 disable-model-invocation: true
 ---
 
-# lens — Intuitive Mental Model Engine
+# lens-eli5 — Intuitive Mental Model Engine
 
 Deconstruct complex technical concepts, system architecture, and obscure code mechanics into intuitive physical analogies and jargon-free mental models.
 
@@ -15,10 +15,10 @@ Deconstruct complex technical concepts, system architecture, and obscure code me
 - **Context Isolation**: Explain the inquiry in isolation. Never derail active session tasks, adopt unrequested work, or mutate project scope.
 - **Read-Only Stream**: Deliver output exclusively to the conversation stream and halt turn immediately. Never create files, edit code, or run mutating commands.
 
-## Canonical Lens Format
+## Canonical Lens [ELI5] Format
 
 ```markdown
-# Lens: <Target Concept / Symbol / Mechanism>
+# Lens [ELI5]: <Target Concept / Symbol / Mechanism>
 
 ## 1. Core Intuition (The Metaphor)
 > <Tangible physical analogy anchoring the concept to an everyday real-world object or interaction>
