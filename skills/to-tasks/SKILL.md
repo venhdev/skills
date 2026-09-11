@@ -11,7 +11,7 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 ## Operating Invariants
 
 - **Task Scope Discipline**: Generate and publish strictly task definitions and tracking metadata; forbid modifying codebase implementation files or tests.
-- **Tracker Authority Grounding**: Resolve target configuration strictly from `.agents/task-tracker.md`; forbid guessing storage paths or publishing to unconfigured remotes.
+- **Tracker Mutex**: Publish strictly to the tracker defined in `.agents/task-tracker.md`; never publish to both local and remote unless explicitly requested.
 - **Vertical Slicing Discipline**: Deliver end-to-end vertical capability per task; forbid horizontal layer-only separation except wide refactors.
 - **Pre-Mutation Gate**: Stage proposed tasks in high-density summary format and halt turn immediately; forbid writing task files to disk or remote trackers without affirmative human approval.
 
@@ -73,21 +73,16 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, clarify, ssot
+**SUB-SKILL:** changeset, clarify, ssot, zenforge-init
 
-### Phase 1: Context & Tracker Discovery
+### Phase 1: Ingestion & Slice Decomposition
 
 1. Ingest requirements from input context (conversation, specifications under `docs/` or governed via `/ssot`, tickets, or staged changesets).
 2. Derive `<feature-slug>` from context or specification.
-3. Read `.agents/task-tracker.md` to resolve tracker type (`local-markdown`, `github`, `gitlab`). If absent, halt turn immediately and direct user to run `/zenforge-init` to initialize repository tracking and privacy safeguards.
+3. Decompose requirements into sequential tracer-bullet vertical slices with acyclic blocking edges (`Blocked by`).
+4. Partition the global Changeset into per-task Embedded Changesets, sequencing by dependency edges.
 
-### Phase 2: Slice Decomposition & Changeset Partitioning
-
-1. Decompose requirements into sequential tracer-bullet vertical slices.
-2. Establish acyclic blocking edges (`Blocked by`).
-3. Partition the global Changeset into per-task Embedded Changesets, sequencing by dependency edges (`Blocked by`).
-
-### Phase 3: Staging & Authorization Gate
+### Phase 2: Staging & Authorization Gate
 
 1. Present the task breakdown and derived `<feature-slug>` in Lean Delivery summary format:
 
@@ -102,11 +97,15 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 2. Halt turn immediately for user confirmation; forbid writing files or publishing tasks without approval.
 
-### Phase 4: Atomic Publication & Frontier Handoff
+### Phase 3: Tracker Resolution & Publication
 
-1. Upon receiving approval, execute task publication following `.agents/task-tracker.md`:
-   - **Local Markdown**: Write one file per task as `.agents/tasks/<feature-slug>/<NN>-<slug>.md` in dependency order.
-   - **Remote Tracker**: Publish issues via CLI commands (e.g. `gh issue create`) and link issue dependencies.
-2. Report the active frontier (first `ready` task) and hand off to `/forge`:
-   - Local: `/forge .agents/tasks/<feature-slug>/01-<slug>.md`
-   - Remote: `/forge #<ID>`
+1. Read `.agents/task-tracker.md`. If absent:
+   - If `/zenforge-init` is available: prompt user to choose `[1] Full Init (run /zenforge-init)` or `[2] Quick Setup (seed local markdown tracker)`. Halt turn for response.
+   - If `/zenforge-init` is unavailable: automatically bootstrap `.agents/task-tracker.md` from `references/issue-tracker-local.md` and proceed to the next step.
+2. Publish tasks to the designated tracker:
+   - `local-markdown`: Write `.agents/tasks/<feature-slug>/<NN>-<slug>.md` in dependency order.
+   - `github`: Publish issues via `gh issue create` and link dependencies.
+   - `gitlab`: Publish issues via `glab issue create` and link dependencies.
+3. Report the active frontier (first `ready` task) and hand off to `/forge`:
+   - `local-markdown`: `/forge .agents/tasks/<feature-slug>/01-<slug>.md`
+   - `github` | `gitlab`: `/forge #<ID>`

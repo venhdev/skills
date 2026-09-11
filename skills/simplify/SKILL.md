@@ -17,7 +17,7 @@ Refactor complex, bloated, or deeply nested code into clean, readable, and idiom
 
 ## Refactoring Rubric
 
-Evaluate target code against 6 mutually exclusive structural dimensions:
+Evaluate target code against 8 mutually exclusive structural dimensions:
 
 1. **Control Flow (Block Hierarchy)**
    - Smell: Nesting ≥ 3 levels deep, arrow anti-pattern, trailing else blocks.
@@ -27,7 +27,7 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
 2. **Predicate Logic (Boolean Expressions)**
    - Smell: Compound conditions (≥ 3 clauses), double negatives.
    - Remedy: Extract explanatory boolean variables, apply De Morgan's laws.
-   - Guardrail: Keep obvious 1–2 clause conditions (`user && user.isActive`) inline.
+   - Guardrail: Keep obvious 1–2 clause checks (e.g., existence or status validation) inline.
 
 3. **Function Cohesion (Vertical Scope)**
    - Smell: Functions mixing high-level orchestration with low-level mechanics (parsing, formatting, regex).
@@ -40,14 +40,24 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
    - Guardrail: Never merge accidental similarities with boolean flag parameters; tolerate minor repetition over coupled abstractions.
 
 5. **Expression Density (Inline Syntax)**
-   - Smell: Nested ternaries (`a ? b : c ? d : e`), multiple statements packed onto one line.
-   - Remedy: Unpack into explicit multi-line `if/else` or pattern-matching statements.
-   - Guardrail: Preserve readable single-line binary ternaries (`isValid ? a : b`).
+   - Smell: Nested ternary expressions or chained inline conditionals, multiple statements packed onto one line.
+   - Remedy: Unpack into explicit multi-line conditional or pattern-matching statements.
+   - Guardrail: Preserve readable single-line binary conditionals (e.g., simple fallback or value selection).
 
 6. **Identifier Naming (Lexicon)**
    - Smell: Deceptive, misleading, or cryptic single-character variable names outside loop counters (`i, j`).
    - Remedy: Rename identifiers to reveal domain intent clearly.
    - Guardrail: Forbid cosmetic churn on standard conventions (`err`, `ctx`, `req`, `res`, `i`); never rename public API parameters.
+
+7. **State Mutation (Variable Mutability)**
+   - Smell: Reassigning temporary variables across disparate scopes, reusing flags for unrelated states, or mutating function parameter bindings.
+   - Remedy: Split into discrete single-assignment or immutable variables reflecting distinct lifecycle values.
+   - Guardrail: Preserve standard loop accumulators (`sum += x`), stream buffers, and performance-critical in-place mutations.
+
+8. **Magic Literals (Literal Obfuscation)**
+   - Smell: Hardcoded magic numbers, status strings, or configuration thresholds embedded directly inside operational logic.
+   - Remedy: Extract to private, descriptive constants adhering to host language conventions.
+   - Guardrail: Keep universally self-evident literals (`0`, `1`, `""`, `-1`) inline; never export private constants without explicit architectural justification.
 
 ## Execution Protocol
 
@@ -77,11 +87,9 @@ Evaluate target code against 6 mutually exclusive structural dimensions:
            • <Dimension applied, e.g., Extract low-level parsing into helper function>.
    ```
 
-2. Present strictly the Changeset summary and technical rationale. Forbid dumping raw diffs into chat.
-3. Halt turn immediately for human authorization; forbid modifying workspace files on disk without explicit approval.
+2. Present the Changeset summary and technical rationale; halt turn immediately for human authorization. Forbid dumping raw diffs into chat.
 
 ### Phase 3: Mutate & Verify
 
 1. Upon receiving approval, apply edits to disk.
-2. Run existing tests, linters, or syntax checks to verify behavioral invariance.
-3. If verification fails, stop, report the error output, and ask the user whether to revert or keep debugging.
+2. Run existing tests, linters, or syntax checks; enforce Verification Circuit Breaker on failure.
