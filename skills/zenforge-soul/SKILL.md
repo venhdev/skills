@@ -22,4 +22,4 @@ description: "Bootstrap session context, align architectural posture, enforce st
 ## 3. Communication Standards
 
 - **Delta-Only Reporting**: Present strictly new findings, modified deltas, or direct answers. Omit established history, settled decisions, and unchanged context.
-- **Pointer-Based Citations**: Reference existing code, schemas, and specifications via file paths and line ranges (`file:///path#L10-L25`). Reserve code blocks exclusively for newly authored snippets or proposed diffs.
+- **Pointer-Based Citations**: Reference existing code, schemas, and specifications via file paths and line ranges. Confine `file:///<path>#L<N>` strictly to ephemeral chat streams for IDE jump-to-definition; mandate repository-relative POSIX paths for all persisted artifacts (tasks, docs, commits). Reserve code blocks exclusively for newly authored snippets or proposed diffs.

@@ -11,7 +11,7 @@ Audit documentation authority, reconcile conflicting specifications, and maintai
 
 - **Authority Grounding**: Maintain exactly one authoritative owner per rule, contract, or concept; forbid duplicate or competing authorities across documents. Treat folder paths and file metadata as evidence, not proof of authority.
 - **Read-Only Inspection Discipline**: Stop and report authoritative files, sections, and findings immediately when the request is purely search, navigation, or auditing; forbid unsolicited edits.
-- **Scope Discipline**: Touch, move, or prune exclusively approved documentation files; forbid modifying codebase implementation files or tests.
+- **Scope Discipline**: Touch, move, or prune exclusively approved documentation files using repo-relative POSIX links; forbid codebase mutations, host-absolute paths, or `file:///` URIs.
 - **Pre-Mutation Gate**: Stage changes exclusively in Changeset format (`[CREATE]`, `[UPDATE]`, `[MOVE]`, `[DELETE]`) and halt turn immediately; forbid mutating documentation files on disk without affirmative human authorization.
 - **Verification Circuit Breaker**: Stop execution immediately upon broken markdown link or anchor verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent progression.
 

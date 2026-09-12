@@ -10,7 +10,7 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 ## Operating Invariants
 
-- **Task Scope Discipline**: Generate and publish strictly task definitions and tracking metadata; forbid modifying codebase implementation files or tests.
+- **Task Scope Discipline**: Generate and publish strictly task definitions and tracking metadata using repo-relative POSIX paths; forbid codebase mutations, host-absolute paths, or `file:///` URIs.
 - **Tracker Mutex**: Publish strictly to the tracker defined in `.agents/task-tracker.md`; never publish to both local and remote unless explicitly requested.
 - **Vertical Slicing Discipline**: Deliver end-to-end vertical capability per task; forbid horizontal layer-only separation except wide refactors.
 - **Pre-Mutation Gate**: Stage proposed tasks in high-density summary format and halt turn immediately; forbid writing task files to disk or remote trackers without affirmative human approval.

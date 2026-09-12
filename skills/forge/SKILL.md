@@ -13,7 +13,7 @@ Implement approved specifications, tickets, or changesets through test-driven ve
 - **Scope Discipline**: Confine modifications strictly to target acceptance criteria, approved changeset, and direct mechanical cascades (imports, signatures, tests); forbid adjacent refactoring, cosmetic churn, or scope creep.
 - **Pre-Mutation Gate**: Verify target scope, acceptance criteria, and baseline test status before mutating files; forbid creating or editing files on ambiguous or unapproved requirements.
 - **Specialist Boundary**: Keep implementation focused strictly on the target task; forbid unsolicited mid-stream execution of on-demand specialist skills (`simplify`, `ssot`, `to-tasks`, `diagnose`).
-- **Verification Integrity**: Deliver commit handoffs exclusively after 100% clean typecheck, lint, and test runs; forbid committing or reporting completion on failing verification.
+- **Verification Integrity**: Deliver commit handoffs with repo-relative POSIX paths exclusively after 100% clean typecheck, lint, and test runs; forbid failing verification or host-absolute `file:///` URIs.
 - **Verification Circuit Breaker**: Stop execution immediately upon post-mutation verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
 ## Domain Engine & Standards
