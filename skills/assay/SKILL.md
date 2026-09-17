@@ -28,7 +28,7 @@ Inspect mutation artifacts against 4 structural dimensions:
 ### 3. Anti-Hallucination & Grounding Guardrails
 
 - **Dual-Citation Rule**: Every reported `Contract & Spec Fidelity` defect must explicitly cite both the offending code pointer (`file:///path/to/code#L<N>`) and the violated specification or interface contract (`file:///path/to/spec#L<M>`). Forbid claiming drift without contract citation.
-- **Ungrounded State Handling**: If no governing specification or interface exists in `docs/` or task headers, mark Contract Fidelity as `UNGROUNDED` and evaluate strictly on Scope Integrity and Hygiene. Forbid inventing imaginary architectural requirements.
+- **Multi-Layer Contract Grounding**: Ground mutations against 3 authoritative layers: explicit specifications/tasks, structural code interfaces/schemas, and baseline test invariants. Mark Contract Fidelity as `UNGROUNDED` only when no governing specs or code contracts exist across the repository; evaluate strictly on Scope Integrity and Hygiene. Forbid inventing imaginary requirements.
 
 ## Canonical Assay Report Format
 
@@ -59,16 +59,22 @@ Inspect mutation artifacts against 4 structural dimensions:
 
 **SUB-SKILL:** forge, changeset, clarify
 
-1. **Scope Partitioning & Dispatch (Fan-out)**:
-   - Identify target artifact (uncommitted diff, staged changeset, `.agents/tasks/`, or commit range).
-   - Launch 1 `research` subagent for isolated diffs or single-task reviews, or 2–3 concurrent subagents partitioned by subsystem boundary or task cluster for broad multi-package changesets.
-   - Seed each subagent with:
-     - Its allocated diff slice or target task pointers.
-     - Relevant governing specifications cited from session context, task headers, or `docs/README.md`.
-     - The Dual-Citation Rule and Canonical Assay Report Format as the required output contract.
-   - Assign subagent role: `Mutation & Architecture Reviewer (<Target Slice/Subsystem>)`.
+### Phase 1: Scope & Contract Grounding
 
-2. **Synthesis & Turn-Halt Gate (Fan-in)**:
-   - Reconcile and deduplicate subagent findings into the **Canonical Assay Report Format**.
-   - Compute the definitive Executive Verdict (`PASS` only if all slices pass; downgrade to `CONDITIONAL` or `FAIL` based on highest defect severity).
-   - Emit the report and halt turn immediately. Never mutate files or propose code diffs.
+1. Ingest target mutation artifact (uncommitted diff, staged changeset, `.agents/tasks/`, or commit range).
+2. Trace and ground governing boundaries across the codebase per Multi-Layer Contract Grounding guardrails.
+
+### Phase 2: Partitioning & Adversarial Review (Fan-out)
+
+1. Launch 1 `research` subagent for isolated diffs or single tasks, or 2–3 concurrent subagents partitioned by subsystem boundary for broad multi-package changesets.
+2. Seed each subagent with:
+   - Its allocated diff slice and target file pointers.
+   - Discovered governing contracts and invariant baselines.
+   - The Dual-Citation Rule and Canonical Assay Report Format as the mandatory output contract.
+3. Assign subagent role: `Mutation & Architecture Reviewer (<Target Slice/Subsystem>)`.
+
+### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
+
+1. Reconcile and deduplicate subagent findings into the **Canonical Assay Report Format**.
+2. Compute the definitive Executive Verdict (`PASS` only if all slices pass; downgrade to `CONDITIONAL` or `FAIL` based on highest defect severity).
+3. Emit the report and halt turn immediately. Never mutate files or propose code diffs.

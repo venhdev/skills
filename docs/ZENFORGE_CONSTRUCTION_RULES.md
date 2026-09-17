@@ -74,3 +74,18 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Empirical Baseline Failures**: Author and modify skills strictly against observed agent failure traces without the rule.
 - **Preserve Domain Intelligence**: Prune conversational ceremony ruthlessly, but strictly preserve domain-specific guardrails, query strategies, and safety budgets that prevent real-world failure modes.
+
+## 10. Subagent Delegation & Orchestration Architecture
+
+- **Two-Tier Discovery (Macro Grounding vs. Micro Execution)**:
+  - *Main Agent (Orchestrator)*: Pre-scouts high-level architectural anchors (shared primitives, governing specs, boundary coordinates) before dispatching to ground subagent scope. Forbid blind dispatch without grounded anchor context.
+  - *Subagents (Workers)*: Execute deep, parallel, file-by-file traversal or multi-query search strictly within their partitioned slice.
+- **Context Seeding Contract**: Subagents run in isolated conversation contexts and do not inherit active memory. The Main Agent must explicitly seed each subagent with:
+  1. *Target Slice*: Exact directory or file boundary.
+  2. *Discovered Anchors*: Pre-scouted primitives, interfaces, or specs to audit against.
+  3. *Governing Rubric & References*: Relevant evaluation rules and the exact path to any Tier 3 reference files (`references/*.md`) for the subagent to view on demand.
+  4. *Output Contract*: Mandatory sub-report schema for deterministic fan-in.
+- **Scale-Adaptive Execution Threshold**:
+  - *In-Turn Execution*: If the target scope is localized (e.g., 1–5 files, single cohesive module), the Main Agent executes the audit directly in-turn to eliminate subagent spawning latency and token overhead.
+  - *Subagent Fan-Out*: Launch 2–3 concurrent subagents strictly when the codebase spans multiple architectural layers, cross-package subsystems, or exceeds single-turn inspection budgets.
+

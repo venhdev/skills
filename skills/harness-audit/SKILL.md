@@ -73,12 +73,13 @@ Before executing audit passes, agents MUST read and ground themselves in:
 ## 5. Pipeline Routing
 - `/zenforge-init` ── Harness anchor (.agents/harness-anchor.md) is missing; bootstrap project agent governance.
 - `/forge` ── Authorize and execute the Remediation Changeset in a single unified turn.
+- `/perimeter` ── Architectural boundaries, raw API bypasses, or missing constraint declarations observed; route to /perimeter.
 - `/simplify` ── Test suite is verified and robust; proceed to safe code refactoring.
 ```
 
 ## Delegation & Synthesis Protocol
 
-**SUB-SKILL:** zenforge-init, forge, simplify
+**SUB-SKILL:** forge, perimeter, simplify, zenforge-init
 
 1. **Grounding & Scope Intake**:
    - Inspect `.agents/harness-anchor.md` if present.
