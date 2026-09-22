@@ -64,8 +64,12 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 
 ```text
 📁 <directory>/
-└── 📄 <target_file>
-    └── [<ACTION>] <File mutation summary>
+├── 📄 <file_1>
+│   └── [<ACTION>] <File mutation summary>.
+└── 📄 <file_2>
+    └── [<ACTION>] <Cascade update or test summary>.
+
+Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ```
 
 *(Note: Restrict embedded code snippets exclusively to binding schemas, interface contracts, or state machine transitions; forbid pasting volatile implementation code).*

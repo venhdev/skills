@@ -62,13 +62,15 @@ Before executing audit passes, agents MUST read and ground themselves in:
 ## 4. Remediation Changeset (Staged for /forge)
 *(If defects or missing infrastructure are identified, stage a ready-to-run Changeset)*
 
-# Changeset: Remediate Test Harness & Coverage for <Scope>
+# Changeset: Remediate Test Harness (<Target Scope>)
 
-📁 <target_test_dir>/
-├── 📄 <new_or_updated_helper>
-│   └── [CREATE/UPDATE] <Fix, e.g., Controlled virtual clock provider or harness anchor>.
-└── 📄 <remediated_test_file>
-    └── [UPDATE] <Fix, e.g., Eliminate clock leaks and add D4 concurrency tests>.
+📁 <test_directory>/
+├── 📄 <helper_or_primitive_file>
+│   └── [<ACTION>] <Hermetic test primitive fix>.
+└── 📄 <test_suite_file>
+    └── [UPDATE] <Flakiness or invariant test fix>.
+
+Summary: <N> files affected (<C> created, <U> updated).
 
 ## 5. Pipeline Routing
 - `/zenforge-init` ── Harness anchor (.agents/harness-anchor.md) is missing; bootstrap project agent governance.

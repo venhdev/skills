@@ -91,22 +91,20 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
    📁 .agents/
    ├── 📄 task-tracker.md
    │   └── [CREATE] Configure task tracking mode and execution protocols.
-   ├── 📄 harness-anchor.md
-   │   └── [CREATE] Establish test SSOT routing and hermetic primitives registry.
-   ├── 📁 tasks/ (Local Markdown only)
-   │   └── [CREATE] Create task directory for local markdown workflow.
-   └── 📁 scratch/
-       └── [CREATE] Create scratchpad directory for temporary test harnesses and probes.
+   └── 📄 harness-anchor.md
+       └── [CREATE] Establish test SSOT routing and hermetic primitives registry.
 
    📁 docs/
    └── 📄 README.md
-       └── [CREATE | UPDATE] Establish documentation Placement Matrix.
+       └── [<ACTION>] Establish documentation Placement Matrix.
 
-   📁 <root>/
+   📁 ./
    ├── 📄 .gitignore
-   │   └── [CREATE | UPDATE] Add .agents/scratch/ and .agents/tasks/ privacy rules.
+   │   └── [<ACTION>] Add .agents/scratch/ and .agents/tasks/ privacy rules.
    └── 📄 <AGENTS.md | CLAUDE.md>
-       └── [CREATE | UPDATE] Add agent workflow and documentation pointers.
+       └── [<ACTION>] Add agent workflow and documentation pointers.
+
+   Summary: <N> files affected (<C> created, <U> updated).
    ```
 
 2. Present Changeset summary, recommended tracker choice, and toolchain status (report auth status if CLI is unauthenticated). Forbid emitting raw file bodies into chat.

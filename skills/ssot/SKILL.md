@@ -50,11 +50,13 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
    ```text
    # Changeset: SSOT Documentation Governance (<Target Scope>)
 
-   📁 <directory_or_subsystem>/
-   ├── 📄 <path/to/target_document_1>.md
-   │   └── [<ACTION>] <Summary of specification or canonical link>.
-   └── 📄 <path/to/target_document_2>.md
-       └── [<ACTION>] <Summary of update or duplicate pruning>.
+   📁 docs/<subsystem>/
+   ├── 📄 <document_1>.md
+   │   └── [<ACTION>] <Specification or canonical update>.
+   └── 📄 <document_2>.md
+       └── [<ACTION>] <Reconciliation or duplicate pruning>.
+
+   Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
    ```
 
 2. Present strictly the high-density Changeset summary and technical rationale. Forbid dumping raw document diffs into chat.

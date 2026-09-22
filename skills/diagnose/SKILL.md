@@ -72,10 +72,15 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
    - **Verification Proof**: `<single command>` producing RED signal, confirmed by probe `<tag>`.
    - **Architectural Seam**: <Seam available for regression test | Architectural deficiency noted>
 
-   ### Proposed Changeset
+   # Changeset: Fix <Defect Slug>
+
    📁 <directory>/
-   └── 📄 <target_file>
-       └── [UPDATE] <Atomic fix summary>
+   ├── 📄 <test_file>
+   │   └── [<ACTION>] <Regression test asserting defect>.
+   └── 📄 <source_file>
+       └── [UPDATE] <Atomic bugfix resolving root cause>.
+
+   Summary: <N> files affected (<C> created, <U> updated).
    ```
 
 2. Halt turn immediately for human authorization; forbid modifying codebase source files or executing fixes without affirmative approval.

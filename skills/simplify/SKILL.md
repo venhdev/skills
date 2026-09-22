@@ -81,10 +81,11 @@ Evaluate target code against 8 mutually exclusive structural dimensions:
    # Changeset: Simplify <Target Scope>
 
    📁 <subsystem_or_directory>/
-   └── 📄 <filename>
+   └── 📄 <target_file>
        └── [UPDATE] Simplify <component_or_function>:
-           • <Dimension applied, e.g., Flatten nested conditionals via guard clauses>.
-           • <Dimension applied, e.g., Extract low-level parsing into helper function>.
+           • <Dimension applied from rubric>.
+
+   Summary: 1 file affected (1 updated).
    ```
 
 2. Present the Changeset summary and technical rationale; halt turn immediately for human authorization. Forbid dumping raw diffs into chat.
