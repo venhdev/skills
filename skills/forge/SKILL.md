@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # forge — Implementation & Verification Engine
 
-Implement approved specifications, tickets, or changesets through test-driven verification, and deliver clean commits.
 
 ## Operating Invariants
 
@@ -16,7 +15,7 @@ Implement approved specifications, tickets, or changesets through test-driven ve
 - **Verification Integrity**: Deliver commit handoffs with repo-relative POSIX paths exclusively after 100% clean typecheck, lint, and test runs; forbid failing verification or host-absolute `file:///` URIs.
 - **Verification Circuit Breaker**: Stop execution immediately upon post-mutation verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Construction Sequencing (Topological Ordering)
 
@@ -35,7 +34,7 @@ Execute filesystem modifications in strict dependency order:
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, clarify, ssot
+**SUB-SKILL:** changeset, clarify
 
 ### Phase 1: Readiness Audit & Scope Staging
 

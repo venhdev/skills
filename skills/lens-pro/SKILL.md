@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # lens-pro — Professional Engineering Deconstruction Engine
 
-Deconstruct complex technical concepts, system architecture, and code mechanics into precise engineering definitions, state lifecycles, and production trade-offs.
 
 ## Operating Invariants
 

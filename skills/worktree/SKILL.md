@@ -1,52 +1,59 @@
 ---
 name: worktree
-description: "Create and delete isolated Git worktrees under .agents/worktree/ for concurrent agent sessions."
+description: "Isolate concurrent agent sessions in dedicated Git worktrees under .agents/worktree/ to prevent workspace collisions."
 disable-model-invocation: true
 ---
 
-# worktree
+# worktree — Isolated Session & Branching Engine
 
-Isolate concurrent agent sessions in dedicated Git worktrees to prevent workspace collisions.
+## Operating Invariants
 
-## Conventions
+- **Path Isolation**: Confine all branch edits, shell commands, and test executions strictly within `.agents/worktree/<branch>`; forbid modifying root repository files from a worktree session.
+- **Dirty Tree Breaker**: Verify working tree cleanliness via `git status --porcelain` before deleting a worktree; forbid deleting worktrees containing uncommitted modifications.
+- **Pre-Mutation Gate**: Stage worktree creation or removal in Canonical Changeset format and halt turn immediately; forbid executing worktree mutations on disk without affirmative human authorization.
 
-- `<branch>`: `<type>/<slug>` (`feat/`, `fix/`, `refactor/`, `chore/`, `test/`).
-- `<path>`: `.agents/worktree/<branch>`.
-- Root `.gitignore` must contain `.agents/worktree/`.
+## Domain Rubric
 
-## Rules
+### 1. Naming & Storage Conventions
 
-- Confine all edits, commands, and tests strictly within `<path>`. Never touch root files.
-- Always confirm with the user before creating or deleting a worktree.
-- Never delete `<path>` if `git status --porcelain` shows uncommitted changes.
+- `<branch>`: Strictly format as `<type>/<slug>` (`feat/`, `fix/`, `refactor/`, `chore/`, `test/`).
+- `<path>`: Dedicated path strictly under `.agents/worktree/<branch>`.
+- Privacy Anchor: Root `.gitignore` must contain `.agents/worktree/`.
 
-## Workflow
+### 2. Supported Worktree Operations
 
-### 1. Create
+- `[CREATE]`: Add a new worktree branch checked out at target path.
+- `[DELETE]`: Remove worktree directory and prune git administrative metadata.
+- `[LIST]`: Inspect active worktrees and associated branches.
 
-1. Check `git worktree list` for collisions.
-2. Propose to user:
+## Canonical Output Contract
 
-   ```text
-   Worktree: <path> (<branch> from <base_ref>)
-   ```
+```text
+# Changeset: Git Worktree <Action>
 
-3. On approval, execute:
+📁 .agents/worktree/
+└── 📁 <branch>/
+    └── [<ACTION>] <Worktree operation summary>.
 
-   ```bash
-   git worktree add <path> -b <branch> <base_ref>
-   ```
+Summary: 1 worktree affected (<branch>).
+```
 
-### 2. List
+## Execution Protocol
 
-- Run `git worktree list` to show active worktrees, branches, and commits.
+### Phase 1: Pre-flight & Collision Audit
 
-### 3. Delete
+1. For create: Inspect `git worktree list` and verify no branch or directory collision exists.
+2. For delete: Inspect `git status --porcelain` inside target `<path>`. If dirty, halt immediately and report uncommitted files.
+3. For list: Run `git worktree list` and present active worktrees, halting turn immediately.
 
-1. Check `git status --porcelain` inside `<path>`. If dirty, halt.
-2. On approval, execute:
+### Phase 2: Staging & Authorization Gate
 
-   ```bash
-   git worktree remove <path>
-   git worktree prune
-   ```
+1. Stage the planned worktree modification in Canonical Changeset format.
+2. Present the staging summary and halt turn immediately. Never execute git mutations without affirmative authorization.
+
+### Phase 3: Atomic Execution & Handoff
+
+1. On approval, execute the required operation:
+   - Create: `git worktree add <path> -b <branch> <base_ref>`
+   - Delete: `git worktree remove <path> && git worktree prune`
+2. Report operation completed with the absolute workspace path for IDE navigation.

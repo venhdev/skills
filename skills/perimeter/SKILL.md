@@ -6,9 +6,8 @@ disable-model-invocation: true
 
 # perimeter — Architectural Boundary & Bypass Detection Engine
 
-Isolate raw runtime API bypasses that circumvent internal abstractions, and codify enforceable boundary constraints (Banned APIs & Layer Restrictions) without mutating code.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Boundary Audit Dimensions
 

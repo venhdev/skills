@@ -5,7 +5,6 @@ description: "Resolve architectural ambiguities, edge cases, and system trade-of
 
 # clarify — Architectural Deliberation Engine
 
-Uncover hidden assumptions, evaluate architectural trade-offs, and establish definitive system invariants before implementation planning begins.
 
 ## Operating Invariants
 
@@ -15,7 +14,7 @@ Uncover hidden assumptions, evaluate architectural trade-offs, and establish def
 - **Deliberation Budget**: Limit inquiries to a maximum of 3 to 5 questions; forbid open-ended interrogation loops. Short-circuit immediately to synthesis when no architectural ambiguities remain.
 - **Contradiction Circuit Breaker**: If proposed requirements conflict with established SSOT specifications or ADRs, halt immediately, cite the contradiction with file pointers, and resolve before proceeding; forbid executing against contradictory specifications.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Deliberation Dimensions
 

@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # changeset — Codebase Blast Radius & Change Planning Engine
 
-Map exact filesystem modifications, trace dependency blast radius, and establish atomic change sets before code mutation begins.
 
 ## Operating Invariants
 
@@ -54,7 +53,7 @@ Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 
 ## Execution Protocol
 
-**SUB-SKILL:** clarify, ssot
+**SUB-SKILL:** clarify, ssot, forge, to-tasks
 
 ### Phase 1: Ingestion & Blast Radius Tracing
 

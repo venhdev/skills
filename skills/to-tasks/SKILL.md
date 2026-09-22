@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # to-tasks — Task Decomposition & Slicing Engine
 
-Decompose architectural plans, specifications, and changesets into dependency-sequenced, tracer-bullet vertical slice tasks with embedded file changesets.
 
 ## Operating Invariants
 
@@ -15,7 +14,7 @@ Decompose architectural plans, specifications, and changesets into dependency-se
 - **Vertical Slicing Discipline**: Deliver end-to-end vertical capability per task; forbid horizontal layer-only separation except wide refactors.
 - **Pre-Mutation Gate**: Stage proposed tasks in high-density summary format and halt turn immediately; forbid writing task files to disk or remote trackers without affirmative human approval.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Vertical Slice Criteria
 
@@ -77,7 +76,7 @@ Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, clarify, ssot, zenforge-init
+**SUB-SKILL:** forge, zenforge-init
 
 ### Phase 1: Ingestion & Slice Decomposition
 

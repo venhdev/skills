@@ -6,14 +6,13 @@ disable-model-invocation: true
 
 # zenforge-init — Repository Scaffolding Engine
 
-Initialize repository task tracking, test harness anchor, Git privacy safeguards, SSOT documentation governance, and agent constitution hooks.
 
 ## Operating Invariants
 
 - **Pre-Mutation Gate**: Stage strictly missing assets via Changeset and halt turn for human approval; never overwrite valid existing configurations.
 - **Privacy Baseline**: Always isolate `.agents/scratch/` in `.gitignore`; forbid committing transient scratch files.
 
-## Scaffolding Components & Templates
+## Domain Rubric
 
 ### 1. Task Tracker Matrix (`.agents/task-tracker.md`)
 
@@ -58,7 +57,7 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, ssot, harness-audit
+**SUB-SKILL:** clarify, harness-audit, ssot
 
 ### Phase 1: Read-Only Discovery
 

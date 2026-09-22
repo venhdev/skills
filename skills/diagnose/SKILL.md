@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # diagnose — Root-Cause Isolation & Diagnostic Engine
 
-Isolate root causes of complex bugs, intermittent flakes, and regressions through tight feedback loops, load-bearing minimization, and falsifiable hypotheses before proposing code modifications.
 
 ## Operating Invariants
 
@@ -18,7 +17,7 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 - **Redaction Guardrail**: Replace all secrets, tokens, API keys, credentials, and sensitive environment payloads with `<REDACTED>`; forbid leaking unredacted credentials or sensitive environment payloads in logs, harnesses, or output streams.
 - **Verification Circuit Breaker**: Stop execution immediately upon post-mutation verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Diagnostic Guardrails (When NOT to Touch)
 
@@ -48,7 +47,6 @@ Isolate root causes of complex bugs, intermittent flakes, and regressions throug
 
 ## Execution Protocol
 
-**SUB-SKILL:** forge, clarify
 
 ### Phase 1: Feedback Loop Construction & Minimization
 

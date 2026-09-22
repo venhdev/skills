@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # distill — Intent Deconstruction & Problem Framing Engine
 
-Deconstruct raw inquiries, expose XY problems, isolate latent assumptions, and establish crisp problem boundaries before architectural design or implementation planning.
 
 ## Operating Invariants
 
@@ -14,7 +13,7 @@ Deconstruct raw inquiries, expose XY problems, isolate latent assumptions, and e
 - **Root-First Isolation**: Separate the underlying operational objective ($X$) from the requested tool or mechanism ($Y$); challenge premature technical commitments.
 - **Context Preservation**: Frame problem boundaries in isolation without derailing active session context or mutating project scope.
 
-## Domain Standards
+## Domain Rubric
 
 ### 1. Diagnostic Categories
 
@@ -62,4 +61,4 @@ Deconstruct raw inquiries, expose XY problems, isolate latent assumptions, and e
 
 1. Ingest the user inquiry, proposed solution, or problem statement.
 2. Evaluate against Diagnostic Categories and Latent Assumption Vectors.
-3. Present the completed Framing Dossier into the conversation stream and halt turn immediately. Never create, modify, or delete repository files.
+3. Present the completed Framing Dossier into the conversation stream and halt turn immediately.

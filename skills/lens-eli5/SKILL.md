@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # lens-eli5 — Intuitive Mental Model Engine
 
-Deconstruct complex technical concepts, system architecture, and obscure code mechanics into intuitive physical analogies and jargon-free mental models.
 
 ## Operating Invariants
 

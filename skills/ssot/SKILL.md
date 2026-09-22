@@ -5,7 +5,6 @@ description: "Audit documentation authority, reconcile conflicting specification
 
 # ssot — Single Source of Truth & Documentation Custodian
 
-Audit documentation authority, reconcile conflicting specifications, and maintain canonical Single Source of Truth (SSOT) records across the repository.
 
 ## Operating Invariants
 
@@ -15,7 +14,7 @@ Audit documentation authority, reconcile conflicting specifications, and maintai
 - **Pre-Mutation Gate**: Stage changes exclusively in Changeset format (`[CREATE]`, `[UPDATE]`, `[MOVE]`, `[DELETE]`) and halt turn immediately; forbid mutating documentation files on disk without affirmative human authorization.
 - **Verification Circuit Breaker**: Stop execution immediately upon broken markdown link or anchor verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent progression.
 
-## Documentation Actions
+## Domain Rubric
 
 Classify every planned documentation operation into exactly one of the 4 atomic actions:
 
@@ -26,7 +25,7 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, clarify
+**SUB-SKILL:** clarify
 
 ### Phase 1: Discover & Authority Audit
 

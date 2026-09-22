@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # simplify — Code Clarity & Refactoring Engine
 
-Refactor complex, bloated, or deeply nested code into clean, readable, and idiomatic implementations while preserving exact functional behavior.
 
 ## Operating Invariants
 
@@ -15,7 +14,7 @@ Refactor complex, bloated, or deeply nested code into clean, readable, and idiom
 - **Pre-Mutation Gate**: Stage changes exclusively via Changeset summary and halt turn immediately; forbid writing mutations to disk without affirmative human authorization.
 - **Verification Circuit Breaker**: Stop execution immediately upon verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
-## Refactoring Rubric
+## Domain Rubric
 
 Evaluate target code against 8 mutually exclusive structural dimensions:
 
@@ -61,7 +60,6 @@ Evaluate target code against 8 mutually exclusive structural dimensions:
 
 ## Execution Protocol
 
-**SUB-SKILL:** forge
 
 ### Phase 1: Inspect & Clean-Pass Check
 

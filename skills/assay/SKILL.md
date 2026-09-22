@@ -6,9 +6,8 @@ disable-model-invocation: true
 
 # assay — Mutation Review & Adversarial Quality Engine
 
-Critique and evaluate changesets, task breakdowns, working tree diffs, and commits for scope integrity, contract fidelity, and latent regressions before authorization or integration.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Review Dimensions
 
@@ -64,9 +63,11 @@ Inspect mutation artifacts against 4 structural dimensions:
 1. Ingest target mutation artifact (uncommitted diff, staged changeset, `.agents/tasks/`, or commit range).
 2. Trace and ground governing boundaries across the codebase per Multi-Layer Contract Grounding guardrails.
 
-### Phase 2: Partitioning & Adversarial Review (Fan-out)
+### Phase 2: Scale-Adaptive Adversarial Review
 
-1. Launch 1 `research` subagent for isolated diffs or single tasks, or 2–3 concurrent subagents partitioned by subsystem boundary for broad multi-package changesets.
+1. Evaluate mutation scope scale:
+   - *In-Turn Review* (localized diff, 1–5 files, or single task card): Audit mutations directly in-turn against review dimensions.
+   - *Subagent Fan-Out* (multi-package changesets or broad PR diffs): Launch 2–3 `research` subagents (Role: `Mutation Reviewer (<Slice>)`). Seed each with target diff slice, discovered contracts, and Canonical Assay Report Format.
 2. Seed each subagent with:
    - Its allocated diff slice and target file pointers.
    - Discovered governing contracts and invariant baselines.

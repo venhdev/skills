@@ -6,7 +6,17 @@ disable-model-invocation: true
 
 # recon — Codebase Topology & Architecture Cartography Engine
 
-Map repository topology, module seams, and execution call chains through progressive, grounded exploration.
+## Domain Rubric
+
+### 1. Cartography Dimensions
+
+- **Topography & Module Seams**: Entrypoints, schemas, data models, and architectural boundaries between subsystems.
+- **Key Execution Flows**: Sequential call chains tracing runtime dispatch from intake to terminal state persistence with exact code pointers (`file:///path/to/file#L<N>`).
+- **System Invariants & Gotchas**: Transaction boundaries, state lifecycles, hidden side-effects, or specification drift.
+
+### 2. Exploration Guardrails (What to Ignore)
+
+- Focus strictly on architectural transitions and module seams; forbid cataloging trivial leaf utilities, transient test fixtures, or dumping raw directory listings.
 
 ## Canonical Codebase Cartography Format
 
@@ -38,11 +48,19 @@ Map repository topology, module seams, and execution call chains through progres
 
 **SUB-SKILL:** changeset, clarify
 
-1. **Scope Partitioning & Dispatch (Fan-out)**:
-   - Launch 1 `research` subagent for an isolated subsystem, or 2–3 concurrent subagents partitioned by architectural layer for broad cross-boundary flows.
-   - Instruct subagents to focus strictly on architectural transitions and module seams, skipping trivial leaf utilities and raw directory dumps.
-   - Mandate the **Canonical Codebase Cartography Format** above as the strict output contract, requiring exact clickable file pointers (`file:///path/to/file#L<N>`) for all cited symbols.
+### Phase 1: Macro Anchor Grounding
 
-2. **Synthesis & Turn-Halt Gate (Fan-in)**:
-   - Reconcile subagent findings into a single unified cartography artifact.
-   - Present the completed cartography into the conversation stream and halt turn immediately. Never propose code diffs, write mutations, or create files on disk.
+1. Ingest target subsystem or codebase scope.
+2. Scout high-level architectural anchors (entrypoints, key schemas, router boundaries) using file and symbol tools.
+3. Establish anchor coordinates before deep inspection.
+
+### Phase 2: Scale-Adaptive Cartography
+
+1. Evaluate target scope scale:
+   - *In-Turn Execution* (1–5 files or single cohesive module): Trace call flows against discovered anchors directly in-turn to eliminate subagent latency and token overhead.
+   - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Cartography Scout (<Layer>)`). Seed each with target boundary, discovered anchors, and Canonical Cartography Format.
+
+### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
+
+1. Reconcile subagent findings into Canonical Codebase Cartography Format.
+2. Present the completed cartography into the conversation stream and halt turn immediately. Never propose code diffs, write mutations, or create files on disk.

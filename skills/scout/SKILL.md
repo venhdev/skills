@@ -6,9 +6,8 @@ disable-model-invocation: true
 
 # scout — Real-System Best Practices & Production Archetype Engine
 
-Investigate battle-tested production archetypes, real-world failure modes, and boring tech baselines via an autonomous research subagent before committing to architectural decisions.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. Source Authority Hierarchy
 

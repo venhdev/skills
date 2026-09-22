@@ -6,9 +6,8 @@ disable-model-invocation: true
 
 # harness-audit — Test Suite & Harness Quality Inspector
 
-Audit repository test suites for harness anchor compliance, infrastructure deficits, flakiness smells, and invariant blind spots without mutating code.
 
-## Domain Engine & Standards
+## Domain Rubric
 
 ### 1. The Audit Hierarchy
 
@@ -86,9 +85,9 @@ Summary: <N> files affected (<C> created, <U> updated).
 1. **Grounding & Scope Intake**:
    - Inspect `.agents/harness-anchor.md` if present.
    - Read `references/test-smells.md` and `references/invariant-dimensions.md`.
-2. **Scope Partitioning & Dispatch (Fan-out)**:
-   - Launch `research` subagents partitioned by test directory or package.
-   - Instruct subagents to evaluate target tests against the Audit Hierarchy and cite exact pointers.
+2. **Scale-Adaptive Audit Dispatch**:
+   - *In-Turn Execution* (1–5 test files or localized suite): Inspect test suite against Audit Hierarchy directly in-turn.
+   - *Subagent Fan-Out* (broad multi-package test suites): Launch 1–3 `research` subagents partitioned by directory, seeding with anchor and reference paths.
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
    - Deduplicate findings into the **Canonical Audit Report Format**.
    - If deficits exist, draft the Remediation Changeset directly in the report for `/forge`.
