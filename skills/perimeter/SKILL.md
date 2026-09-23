@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # perimeter — Architectural Boundary & Bypass Detection Engine
 
-
 ## Domain Rubric
 
 ### 1. Boundary Audit Dimensions
@@ -23,7 +22,7 @@ Qualify candidate constraints strictly against 3 conditions:
 3. *Quantifiable Failure Risk*: Bypass induces architectural drift, resource leaks, memory exhaustion, or security exposure.
 - **Negative Boundary**: Forbid declaring constraints for cosmetic styling, trivial utilities (`Math.*`, collections), or speculative rules lacking active primitives.
 
-## Canonical Perimeter Report Format
+## Canonical Output Contract
 
 ```markdown
 # Perimeter Report: <Target Subsystem / Scope>
@@ -54,9 +53,7 @@ Qualify candidate constraints strictly against 3 conditions:
 - `/clarify` ── Boundary ownership, whitelist exceptions, or architectural trade-offs require human deliberation.
 ```
 
-## Delegation & Synthesis Protocol
-
-**SUB-SKILL:** clarify, forge
+## Execution Protocol
 
 ### Phase 1: Macro Anchor Grounding
 
@@ -76,6 +73,6 @@ Qualify candidate constraints strictly against 3 conditions:
 
 ### Phase 3: Codification & Turn-Halt Gate (Fan-in)
 
-1. Reconcile findings into the **Canonical Perimeter Report Format**, moving ungrounded rules to Section 3 (Pruned).
-2. If boundary ownership or whitelist exemptions contain unresolved trade-offs: halt and deliberate (via `/clarify` when available).
-3. Emit the report into the conversation stream and halt turn immediately. Never mutate files or propose code patches.
+1. Reconcile findings into the Canonical Output Contract, moving ungrounded rules to Section 3 (Pruned).
+2. If boundary ownership or whitelist exemptions contain unresolved trade-offs: halt and deliberate (via `/clarify`).
+3. Emit the report into the conversation stream and halt turn immediately.

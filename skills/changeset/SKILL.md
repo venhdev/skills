@@ -26,7 +26,7 @@ Classify every planned file operation exclusively into one of 4 discrete actions
 
 ### 2. Blast Radius & Guardrails
 
-- **Cascade & Ripple Tracing**: Trace direct and indirect callers, interface implementations, and tests affected by contract changes. Reconcile against authoritative specifications (via `/ssot` when available).
+- **Cascade & Ripple Tracing**: Trace direct and indirect callers, interface implementations, and tests affected by contract changes. Reconcile against authoritative specifications (via `/ssot`).
 - **Guardrails (When NOT to Touch)**:
   - Preserve untouched callers if interface changes remain fully backward-compatible.
   - Forbid bundling incidental formatting, opportunistic lint fixes, or speculative files.
@@ -53,14 +53,12 @@ Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 
 ## Execution Protocol
 
-**SUB-SKILL:** clarify, ssot, forge, to-tasks
-
 ### Phase 1: Ingestion & Blast Radius Tracing
 
-1. Ingest governing requirements, Decision Matrix, or architectural specifications. Reconcile with authoritative documentation (via `/ssot` when available).
+1. Ingest governing requirements, Decision Matrix, or architectural specifications. Reconcile with authoritative documentation (via `/ssot`).
 2. Inspect relevant codebase files, type contracts, schemas, and tests using non-mutating file tools.
 3. Trace dependency ripple: identify all callers, broken imports, and affected test suites.
-4. If target scope contains unresolved architectural tensions or ambiguous requirements: halt turn immediately and deliberate (via `/clarify` when available).
+4. If target scope contains unresolved architectural tensions or ambiguous requirements: halt turn immediately and deliberate (via `/clarify`).
 
 ### Phase 2: Changeset Construction
 

@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # to-tasks — Task Decomposition & Slicing Engine
 
-
 ## Operating Invariants
 
 - **Task Scope Discipline**: Generate and publish strictly task definitions and tracking metadata using repo-relative POSIX paths; forbid codebase mutations, host-absolute paths, or `file:///` URIs.
@@ -75,8 +74,6 @@ Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ````
 
 ## Execution Protocol
-
-**SUB-SKILL:** forge, zenforge-init
 
 ### Phase 1: Ingestion & Slice Decomposition
 

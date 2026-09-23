@@ -6,15 +6,13 @@ disable-model-invocation: true
 
 # lens-eli5 — Intuitive Mental Model Engine
 
-
 ## Operating Invariants
 
 - **Jargon Boundary**: Never introduce a technical term without immediately pairing it with an everyday physical equivalent.
 - **Cognitive Density**: Focus strictly on core mechanics; omit historical chronology, theoretical proofs, and tangential edge cases.
-- **Context Isolation**: Explain the inquiry in isolation. Never derail active session tasks, adopt unrequested work, or mutate project scope.
-- **Read-Only Stream**: Deliver output exclusively to the conversation stream and halt turn immediately. Never create files, edit code, or run mutating commands.
+- **Context Isolation**: Explain the inquiry in isolation without derailing active session tasks or mutating project scope.
 
-## Canonical Lens [ELI5] Format
+## Canonical Output Contract
 
 ```markdown
 # Lens [ELI5]: <Target Concept / Symbol / Mechanism>

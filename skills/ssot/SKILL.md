@@ -5,7 +5,6 @@ description: "Audit documentation authority, reconcile conflicting specification
 
 # ssot — Single Source of Truth & Documentation Custodian
 
-
 ## Operating Invariants
 
 - **Authority Grounding**: Maintain exactly one authoritative owner per rule, contract, or concept; forbid duplicate or competing authorities across documents. Treat folder paths and file metadata as evidence, not proof of authority.
@@ -24,8 +23,6 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
 - `[DELETE]`: Pruning source duplicates once consolidated into canonical owner, or removing obsolete documentation with zero independent value.
 
 ## Execution Protocol
-
-**SUB-SKILL:** clarify
 
 ### Phase 1: Discover & Authority Audit
 

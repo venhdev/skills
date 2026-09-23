@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # harness-audit — Test Suite & Harness Quality Inspector
 
-
 ## Domain Rubric
 
 ### 1. The Audit Hierarchy
@@ -35,7 +34,7 @@ Before executing audit passes, agents MUST read and ground themselves in:
 - `CRITICAL`: Harness anchor absent, foundation missing (no virtual clock/ephemeral storage), or flakiness smells detected (clock leaks, sleeps).
 - **Dual-Citation Rule**: Every defect must cite both the offending code pointer (`file:///path/to/test#L<N>`) and the violated invariant/remediation.
 
-## Canonical Audit Report Format
+## Canonical Output Contract
 
 ```markdown
 # Harness Audit Report: <Target Scope>
@@ -50,13 +49,13 @@ Before executing audit passes, agents MUST read and ground themselves in:
 ## 2. Infrastructure & Anchor Gaps
 *(If clean: 'Harness anchor verified; foundational hermetic primitives active.')*
 - **[<Anchor / Primitive>] <Gap Title>**: <Deficit description>
-  - Impact: <Why this causes flakiness or maintenance debt>
-  - Recommendation: <Architecture fix or seed anchor pointer>
+   - Impact: <Why this causes flakiness or maintenance debt>
+   - Recommendation: <Architecture fix or seed anchor pointer>
 
 ## 3. Findings & Invariant Blind Spots
 - **[<Smell / Dimension>] <Title>**: <Defect description>
-  - Offending Code: [<file>#L<N>](file:///path/to/test#L<N>)
-  - Remediation: <Exact architectural correction required>
+   - Offending Code: [<file>#L<N>](file:///path/to/test#L<N>)
+   - Remediation: <Exact architectural correction required>
 
 ## 4. Remediation Changeset (Staged for /forge)
 *(If defects or missing infrastructure are identified, stage a ready-to-run Changeset)*
@@ -78,9 +77,7 @@ Summary: <N> files affected (<C> created, <U> updated).
 - `/simplify` ── Test suite is verified and robust; proceed to safe code refactoring.
 ```
 
-## Delegation & Synthesis Protocol
-
-**SUB-SKILL:** forge, perimeter, simplify, zenforge-init
+## Execution Protocol
 
 1. **Grounding & Scope Intake**:
    - Inspect `.agents/harness-anchor.md` if present.
@@ -89,6 +86,7 @@ Summary: <N> files affected (<C> created, <U> updated).
    - *In-Turn Execution* (1–5 test files or localized suite): Inspect test suite against Audit Hierarchy directly in-turn.
    - *Subagent Fan-Out* (broad multi-package test suites): Launch 1–3 `research` subagents partitioned by directory, seeding with anchor and reference paths.
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
-   - Deduplicate findings into the **Canonical Audit Report Format**.
+   - Deduplicate findings into the Canonical Output Contract.
    - If deficits exist, draft the Remediation Changeset directly in the report for `/forge`.
-   - Present completed report into conversation stream and halt turn immediately. Never mutate files.
+   - Present completed report into conversation stream and halt turn immediately.
+

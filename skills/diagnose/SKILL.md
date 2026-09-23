@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # diagnose — Root-Cause Isolation & Diagnostic Engine
 
-
 ## Operating Invariants
 
 - **Defect Scope Discipline**: Focus exclusively on isolating and resolving the specific reported defect; forbid unsolicited refactoring, styling, or feature alterations outside the defect's blast radius.
@@ -46,7 +45,6 @@ disable-model-invocation: true
   `"If <Cause X>, then <Intervention Y> causes <Observed Result Z>."`
 
 ## Execution Protocol
-
 
 ### Phase 1: Feedback Loop Construction & Minimization
 

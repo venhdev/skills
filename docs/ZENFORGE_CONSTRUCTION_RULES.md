@@ -47,7 +47,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
   - *Archetype B (Cartography, Scout & Review)* (e.g., `recon`, `scout`, `assay`, `clarify`): Read-only codebase inspection, external research, or mutation critique via subagent fan-out/in.
   - *Archetype C (Stateful & Mutating Workflows)* (e.g., `changeset`, `forge`, `simplify`): Filesystem modifications, state transitions, and test runs governed by explicit turn-halt gates and circuit breakers.
 - **Turn-Bounded Execution**: Combine Discovery, Staging, and Authorization Gate into a single turn whenever feasible to eliminate artificial conversational bureaucracy. Halt turn immediately at the authorization gate.
-- **Universal Mention Convention**: Reference supporting sub-skills conditionally in templates and prose (`(via /<name> when available)`). Never treat sub-skills as hard blocking dependencies.
+- **Universal Mention Convention**: Reference supporting sub-skills conditionally in templates and prose (`(via /<name>)`). Never treat sub-skills as hard blocking dependencies.
 
 ## 5. Invocation Gating & 3-Tier Economics
 

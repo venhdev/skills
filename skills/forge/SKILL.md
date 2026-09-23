@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # forge — Implementation & Verification Engine
 
-
 ## Operating Invariants
 
 - **Scope Discipline**: Confine modifications strictly to target acceptance criteria, approved changeset, and direct mechanical cascades (imports, signatures, tests); forbid adjacent refactoring, cosmetic churn, or scope creep.
@@ -34,14 +33,12 @@ Execute filesystem modifications in strict dependency order:
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, clarify
-
 ### Phase 1: Readiness Audit & Scope Staging
 
 1. Ingest input (ticket, spec, changeset, or user prompt).
 2. Evaluate readiness before mutating workspace:
-   - If requirements contain unresolved trade-offs: halt turn and deliberate (via `/clarify` when available).
-   - If scope lacks an approved changeset: stage target files and halt turn for approval (via `/changeset` when available).
+   - If requirements contain unresolved trade-offs: halt turn and deliberate (via `/clarify`).
+   - If scope lacks an approved changeset: stage target files and halt turn for approval (via `/changeset`).
    - If acceptance criteria and changeset are pre-authorized: proceed directly to Phase 2.
 
 ### Phase 2: Construction & Test-Driven Verification

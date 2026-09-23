@@ -5,15 +5,6 @@ description: "Resolve architectural ambiguities, edge cases, and system trade-of
 
 # clarify — Architectural Deliberation Engine
 
-
-## Operating Invariants
-
-- **Zero Filesystem Mutations**: Maintain zero filesystem mutations; forbid editing files, drafting code diffs, or executing mutating commands.
-- **Architectural Scope Discipline**: Confine inquiry strictly to high-impact architectural decisions, failure modes, and system invariants; forbid syntax bikeshedding, micro-optimizations, or tangential scope expansion.
-- **Strict Turn-Halt Interview**: Formulate strictly one question per turn and halt turn immediately to await user response; forbid multi-question lists or cascading without user answers.
-- **Deliberation Budget**: Limit inquiries to a maximum of 3 to 5 questions; forbid open-ended interrogation loops. Short-circuit immediately to synthesis when no architectural ambiguities remain.
-- **Contradiction Circuit Breaker**: If proposed requirements conflict with established SSOT specifications or ADRs, halt immediately, cite the contradiction with file pointers, and resolve before proceeding; forbid executing against contradictory specifications.
-
 ## Domain Rubric
 
 ### 1. Deliberation Dimensions
@@ -26,11 +17,16 @@ Evaluate proposals against 5 core architectural dimensions:
 - **System Boundaries**: Service responsibilities, dependency blast radius, and external integrations.
 - **Non-Functional Guardrails**: Latency, throughput limits, scalability constraints, and security.
 
-### 2. Traversal & Anti-Bikeshedding Guardrails
+### 2. Traversal & Deliberation Guardrails
 
-- **Root-First Traversal**: Identify and resolve the highest-impact architectural branching point before exploring dependent details.
-- **Dynamic Branch Pruning**: Update the decision tree immediately upon receiving user input; eliminate branches rendered obsolete by settled answers.
-- **Guardrail (When NOT to Ask)**: If a decision is an idiomatic implementation detail with no observable cross-module impact or system trade-off, adopt the standard convention without prompting the user.
+- **Scope Discipline**: Confine inquiry strictly to high-impact architectural decisions, failure modes, and system invariants; forbid syntax bikeshedding or micro-optimizations.
+- **Orthogonal Batching vs. Causal Sequencing**:
+  - *Orthogonal (Independent)*: Batch 1–5 independent questions in a single turn to eliminate conversational round-trip latency.
+  - *Causal (Branching)*: Isolate branching decisions into strictly one question per turn when downstream options depend directly on the chosen path.
+- **Mandatory Recommendation & Fast-Path**: Pair every question with an authoritative technical recommendation and rationale. Support batch fast-path approval (e.g., "accept recommendations" or "approved except Q<N>: [Option]").
+- **Root-First Traversal & Pruning**: Resolve highest-impact branching points first; prune obsolete dependent questions immediately upon user response.
+- **Autonomous Convergence**: Continue probing until high-impact tensions converge or user prompts to conclude; forbid arbitrary question caps.
+- **Convention Pruning**: Adopt standard idioms without prompting when choices have zero cross-module impact.
 
 ### 3. Canonical Question Payload Format
 
@@ -45,38 +41,50 @@ Bottleneck: <Single-sentence technical tension or edge-case risk>
 Recommendation: [Option] because <Single-sentence technical rationale>
 ```
 
-### 4. Canonical Decision Matrix Format
+## Canonical Output Contract
 
 ```markdown
-# Architectural Decision Matrix: <Feature / Scope Name>
+# Architectural Decision Dossier: <Scope / System Slug>
 
-| Ref | Architectural Dimension | Chosen Decision | Rationale & Trade-off | Invariants & Guardrails |
-| :--- | :--- | :--- | :--- | :--- |
-| Q1 | <Dimension> | <Selected Option> | <Core Benefit & Accepted Cost> | <Technical Invariant> |
+## 1. Scope & Core Constraints
+- **Target Boundary**: <Primary subsystem, domain, or integration boundary>
+- **Core Dilemma**: <Primary architectural tension or trade-off resolved>
+- **Convergence**: <Settled questions: Q1..QN>
+
+## 2. Settled Decisions
+
+### [Q1] <Architectural Dimension> ── <Chosen Option>
+- **Bottleneck**: <Operational tension, failure risk, or contract ambiguity addressed>
+- **Rationale & Trade-off**: <Core benefit gained> vs. <accepted systemic cost/complexity>
+- **Enforced Invariant**: <Concrete non-negotiable rule, contract constraint, or boundary guardrail>
+
+### [Q2] <Architectural Dimension> ── <Chosen Option>
+- **Bottleneck**: <Operational tension, failure risk, or contract ambiguity addressed>
+- **Rationale & Trade-off**: <Core benefit gained> vs. <accepted systemic cost/complexity>
+- **Enforced Invariant**: <Concrete non-negotiable rule, contract constraint, or boundary guardrail>
+
+## 3. Blast Radius & Downstream Routing
+- **Impacted Subsystems**: `<Component A>`, `<Component B>`
+- **Banned Anti-Patterns**: <Explicitly forbidden workarounds or failure-prone designs>
+- **Next Step**: Route to `/changeset` for blast-radius planning and execution staging.
 ```
 
 ## Execution Protocol
 
-**SUB-SKILL:** changeset, ssot
-
 ### Phase 1: Surface & Gap Ingestion
 
-1. Inspect the user proposal, referenced specifications, and authoritative contracts using non-mutating capabilities (inspection tools, discovery scripts, or delegated exploratory subagents).
-2. Ground inspection in authoritative repository documentation or architectural schemas. If documentation boundaries or canonical SSOTs require auditing, leverage sub-skill `ssot` when available.
-3. Identify latent assumptions, failure modes, data contracts, and backward compatibility risks against Deliberation Dimensions.
-4. **Clean-Pass Short-Circuit**: If the scope contains zero architectural ambiguities, proceed immediately to Phase 3.
-5. Otherwise, select the primary architectural dimension and proceed to Phase 2.
+1. Inspect proposal and authoritative contracts (via `/ssot`).
+2. If requirements conflict with established specifications or ADRs: halt immediately, cite contradiction pointers, and deliberate resolution.
+3. If zero architectural ambiguities exist, short-circuit directly to Phase 3; otherwise proceed to Phase 2.
 
-### Phase 2: Sequential Deliberation Interview
+### Phase 2: Deliberation Interview
 
-1. Select the single most impactful unresolved architectural dilemma using Root-First Traversal.
-2. Formulate strictly **one** question per turn labeled sequentially (`Q1`, `Q2`, ...) adhering to the Canonical Question Payload Format.
-3. Halt turn immediately after asking. Wait for user response.
-4. Ingest user answer, apply Dynamic Branch Pruning, and evaluate remaining ambiguities.
-5. Repeat Phase 2 until all critical vectors are settled (maximum 3 to 5 questions), then proceed to Phase 3.
+1. Partition unresolved dilemmas: batch orthogonal questions (max 5) or sequence causal branching decisions (1 per turn), each adhering to Canonical Question Payload Format with recommendation.
+2. Present payload and halt turn immediately to await user response.
+3. Ingest response (supporting fast-path approval), prune settled branches, and evaluate remaining ambiguities.
+4. Repeat until critical architectural vectors converge or user prompts to proceed, then advance to Phase 3.
 
-### Phase 3: Decision Matrix Synthesis
+### Phase 3: Decision Dossier Synthesis
 
-1. Compile all settled decisions into the Canonical Decision Matrix Format.
-2. **Terminal Delivery Gate**: Deliver the completed `Decision Matrix` and halt turn immediately. Forbid proposing file mutations, generating diffs, or transitioning to implementation within this turn.
-3. **Pipeline Transition**: Guide user to proceed to blast-radius planning via `/changeset`.
+1. Compile settled decisions into the Canonical Output Contract.
+2. Deliver the completed `Architectural Decision Dossier` and halt turn immediately. Route downstream to `/changeset`.

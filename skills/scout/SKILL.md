@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # scout — Real-System Best Practices & Production Archetype Engine
 
-
 ## Domain Rubric
 
 ### 1. Source Authority Hierarchy
@@ -24,7 +23,7 @@ Triangulate technical inquiries against authoritative production evidence:
 - **Inclusion Budget**: Synthesize from 3 to 5 premier, high-signal sources.
 - **Short-Circuit Stop**: Terminate search as soon as the canonical pattern and known failure modes are triangulated with primary evidence.
 
-## Canonical Scout Report Format
+## Canonical Output Contract
 
 ```markdown
 # Scout Report: <Topic / Inquiry>
@@ -50,16 +49,15 @@ Triangulate technical inquiries against authoritative production evidence:
 - `/changeset` ── Archetype is selected and baseline approach is ready for change planning.
 ```
 
-## Delegation & Synthesis Protocol
-
-**SUB-SKILL:** clarify, changeset
+## Execution Protocol
 
 1. **Query Triangulation & Dispatch**:
    - Formulate 2 to 3 targeted search queries crossing: canonical standards/RFCs, high-scale engineering cases, and failure postmortems.
    - Launch a `research` subagent (Role: `Real-System Research Scout`) supplying:
      - The triangulated queries and Search Budget (max 8 queries, 10 fetched pages).
-     - The **Canonical Scout Report Format** above as the required output contract.
+     - The **Canonical Output Contract** above as the required output contract.
    - Mandate the subagent to inspect full page bodies via URL tools before synthesizing; cite strictly verified URLs and never synthesize from search snippets alone.
 
 2. **Synthesis & Halt**:
-   - Emit the completed Canonical Scout Report into the conversation stream and halt turn immediately. Never create, modify, or delete repository files.
+   - Emit the completed report into the conversation stream and halt turn immediately.
+

@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # simplify — Code Clarity & Refactoring Engine
 
-
 ## Operating Invariants
 
 - **Behavioral Invariance**: Preserve 100% of existing functionality, test outcomes, error handling, and public API signatures; forbid altering program semantics or breaking contracts.
@@ -59,7 +58,6 @@ Evaluate target code against 8 mutually exclusive structural dimensions:
    - Guardrail: Keep universally self-evident literals (`0`, `1`, `""`, `-1`) inline; never export private constants without explicit architectural justification.
 
 ## Execution Protocol
-
 
 ### Phase 1: Inspect & Clean-Pass Check
 

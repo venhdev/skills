@@ -18,7 +18,7 @@ disable-model-invocation: true
 
 - Focus strictly on architectural transitions and module seams; forbid cataloging trivial leaf utilities, transient test fixtures, or dumping raw directory listings.
 
-## Canonical Codebase Cartography Format
+## Canonical Output Contract
 
 ```markdown
 # Codebase Cartography: <Subsystem / Target Scope>
@@ -44,9 +44,7 @@ disable-model-invocation: true
 - `/clarify` ── Discovered architectural tensions, trade-offs, or multiple viable implementation paths.
 ```
 
-## Delegation & Synthesis Protocol
-
-**SUB-SKILL:** changeset, clarify
+## Execution Protocol
 
 ### Phase 1: Macro Anchor Grounding
 
@@ -58,9 +56,10 @@ disable-model-invocation: true
 
 1. Evaluate target scope scale:
    - *In-Turn Execution* (1–5 files or single cohesive module): Trace call flows against discovered anchors directly in-turn to eliminate subagent latency and token overhead.
-   - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Cartography Scout (<Layer>)`). Seed each with target boundary, discovered anchors, and Canonical Cartography Format.
+   - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Cartography Scout (<Layer>)`). Seed each with target boundary, discovered anchors, and Canonical Output Contract.
 
 ### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
 
-1. Reconcile subagent findings into Canonical Codebase Cartography Format.
-2. Present the completed cartography into the conversation stream and halt turn immediately. Never propose code diffs, write mutations, or create files on disk.
+1. Reconcile findings into the Canonical Output Contract.
+2. Present the completed cartography into the conversation stream and halt turn immediately.
+

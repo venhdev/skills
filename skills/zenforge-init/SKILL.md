@@ -6,7 +6,6 @@ disable-model-invocation: true
 
 # zenforge-init — Repository Scaffolding Engine
 
-
 ## Operating Invariants
 
 - **Pre-Mutation Gate**: Stage strictly missing assets via Changeset and halt turn for human approval; never overwrite valid existing configurations.
@@ -26,7 +25,6 @@ Propose **Harness Anchor** using template [`references/harness-anchor.md`](./ref
 - **SSOT Discovery**: Scan for existing testing guides (`test/AGENTS.md`, `tests/AGENTS.md`, `docs/**/testing*.md`, `<subsystem>/test/AGENTS.md`). Record all discovered SSOT paths as relative paths under Governing Testing SSOTs without transcribing content, preventing stale copies and routing agents directly to authoritative sources.
 - **Hermetic Primitives Discovery**: Scan test helper directories (`test/helpers/`, `test/fixtures/`) to register existing foundation helpers in the Hermetic Primitives Registry.
 
-
 ### 3. Git Privacy Configuration (`.gitignore`)
 
 - `.agents/scratch/`: Private scratchpad (immutable).
@@ -41,7 +39,7 @@ Propose **Harness Anchor** using template [`references/harness-anchor.md`](./ref
 | :--- | :--- | :--- |
 | **Tasks & Execution** | Defined in `.agents/task-tracker.md` | Decomposed task units and progress tracking |
 | **Testing Governance** | Defined in `.agents/harness-anchor.md` | Test harness infrastructure and invariant testing |
-| **Documentation Governance** | `docs/` | Governed via `/ssot` (when available) |
+| **Documentation Governance** | `docs/` | Governed via `/ssot` |
 ```
 
 ### 5. Agent Constitution Hook (`AGENTS.md` or `CLAUDE.md`)
@@ -51,13 +49,11 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 ```markdown
 ## Agent Workflow
 - **Task Tracker**: Governed by `.agents/task-tracker.md`.
-- **Harness Anchor**: Governed by `.agents/harness-anchor.md` (via `/harness-audit` when available).
-- **Documentation**: Governed by `docs/README.md` (via `/ssot` when available).
+- **Harness Anchor**: Governed by `.agents/harness-anchor.md` (via `/harness-audit`).
+- **Documentation**: Governed by `docs/README.md` (via `/ssot`).
 ```
 
 ## Execution Protocol
-
-**SUB-SKILL:** clarify, harness-audit, ssot
 
 ### Phase 1: Read-Only Discovery
 

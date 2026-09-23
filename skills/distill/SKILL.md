@@ -6,10 +6,8 @@ disable-model-invocation: true
 
 # distill — Intent Deconstruction & Problem Framing Engine
 
-
 ## Operating Invariants
 
-- **Read-Only Stream**: Deliver analysis exclusively within the conversation stream and halt turn immediately. Never create, modify, or delete workspace files or propose code diffs.
 - **Root-First Isolation**: Separate the underlying operational objective ($X$) from the requested tool or mechanism ($Y$); challenge premature technical commitments.
 - **Context Preservation**: Frame problem boundaries in isolation without derailing active session context or mutating project scope.
 
@@ -29,7 +27,7 @@ disable-model-invocation: true
 - **Operational Capacity**: Maintenance bandwidth, infrastructure costs, and cognitive complexity.
 - **User & Environmental Reality**: Access patterns, failure tolerance, and real-world client constraints.
 
-## Canonical Framing Dossier Format
+## Canonical Output Contract
 
 ```markdown
 # Framing Dossier: <Topic / Problem Slug>
@@ -56,8 +54,6 @@ disable-model-invocation: true
 ```
 
 ## Execution Protocol
-
-**SUB-SKILL:** scout, clarify, changeset
 
 1. Ingest the user inquiry, proposed solution, or problem statement.
 2. Evaluate against Diagnostic Categories and Latent Assumption Vectors.

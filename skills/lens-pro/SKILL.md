@@ -6,15 +6,14 @@ disable-model-invocation: true
 
 # lens-pro — Professional Engineering Deconstruction Engine
 
-
 ## Operating Invariants
 
 - **Mechanical Precision**: Define mechanisms strictly using formal Computer Science and Systems Engineering primitives (state machines, memory models, concurrency locks, I/O boundaries); forbid colloquial metaphors, juvenile simplifications, or hand-waving abstractions.
 - **Anti-Silver-Bullet (Cost Accounting)**: Quantify the mechanical cost (memory footprint, p99 latency, synchronization overhead, operational complexity) alongside every benefit; forbid presenting any pattern as cost-free or universally optimal.
 - **Failure-First Hardening**: Expose concrete runtime failure modes, degradation paths, and boundary conditions; forbid happy-path-only explanations.
-- **Context Isolation & Read-Only Stream**: Deliver analysis exclusively within the conversation stream and halt turn immediately; forbid file mutations or derailing active session tasks.
+- **Context Isolation**: Deliver analysis strictly within the active inquiry scope without derailing ongoing session tasks or mutating project scope.
 
-## Canonical Lens [Pro] Format
+## Canonical Output Contract
 
 ````markdown
 # Lens [Pro]: <Target Concept / Pattern / Mechanism>

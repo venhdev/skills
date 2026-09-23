@@ -5,15 +5,15 @@ Issues and specs for this repo live as GitLab issues. Use the [`glab`](https://g
 ## Conventions
 
 - **Create an issue**: `glab issue create --title "..." --description "..."`. Use a heredoc for multi-line descriptions. Pass `--description -` to open an editor.
-- **Read an issue**: `glab issue view <number> --comments`. Use `-F json` for machine-readable output.
-- **List issues**: `glab issue list -F json` with appropriate `--label` filters.
+- **Read an issue**: `glab issue view <number> --comments -F json`. Pass `--repo <owner>/<repo>` if run outside clone root or across multiple remotes.
+- **List issues**: `glab issue list -F json` with appropriate `--label` and `--state` filters.
 - **Comment on an issue**: `glab issue note <number> --message "..."`. GitLab calls comments "notes".
 - **Apply / remove labels**: `glab issue update <number> --label "..."` / `--unlabel "..."`. Multiple labels can be comma-separated or by repeating the flag.
 - **Close**: `glab issue close <number>`. `glab issue close` does not accept a closing comment, so post the explanation first with `glab issue note <number> --message "..."`, then close.
-- **Merge requests**: GitLab calls PRs "merge requests". Use `glab mr create`, `glab mr view`, `glab mr note`, etc., the same shape as `gh pr ...` with `mr` in place of `pr` and `note`/`--message` in place of `comment`/`--body`.
+- **Merge requests**: GitLab calls PRs "merge requests". Use `glab mr create`, `glab mr view <number> -F json`, `glab mr note`, etc., the same shape as `gh pr ...` with `mr` in place of `pr` and `note`/`--message` in place of `comment`/`--body`.
 - **Number space**: Unlike GitHub, GitLab numbers issues and MRs separately, so `#42` refers specifically to issue `#42` (MRs are referenced as `!42`).
 
-Infer the repo from `git remote -v`; `glab` does this automatically when run inside a clone.
+Infer the repo from `git remote -v`; `glab` does this automatically when run inside a clone, or pass `--repo <owner>/<repo>` explicitly.
 
 ## When a skill says "publish to the issue tracker"
 
@@ -21,7 +21,7 @@ Create a GitLab issue via `glab issue create`.
 
 ## When a skill says "fetch the relevant ticket"
 
-Run `glab issue view <number> --comments`.
+Run `glab issue view <number> --comments -F json` (with `--repo <owner>/<repo>` when explicit).
 
 ## Task Decomposition & Execution Operations
 
