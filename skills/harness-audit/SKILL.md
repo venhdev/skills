@@ -73,8 +73,6 @@ Summary: <N> files affected (<C> created, <U> updated).
 ## 5. Pipeline Routing
 - `/zenforge-init` ── Harness anchor (.agents/harness-anchor.md) is missing; bootstrap project agent governance.
 - `/forge` ── Authorize and execute the Remediation Changeset in a single unified turn.
-- `/perimeter` ── Architectural boundaries, raw API bypasses, or missing constraint declarations observed; route to /perimeter.
-- `/simplify` ── Test suite is verified and robust; proceed to safe code refactoring.
 ```
 
 ## Execution Protocol

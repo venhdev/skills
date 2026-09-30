@@ -48,9 +48,9 @@ Inspect mutation artifacts against 4 structural dimensions:
   - Remediation: <Exact minimal correction needed>
 
 ## 3. Pipeline Routing
-- `/forge` ── Target is PASS; proceed to implementation or commit handoff.
-- `/changeset` ── Blast radius bloat or structural defects require re-planning.
-- `/clarify` ── Contract drift or ungrounded architectural tensions detected.
+- `/forge` ── Target is an unapplied diff, changeset, or task breakdown.
+- `/changeset` ── Scope or structural defects; re-stage the Changeset Tree.
+- `/clarify` ── Contract drift or ungrounded tensions.
 ```
 
 ## Execution Protocol
