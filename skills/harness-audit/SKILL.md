@@ -1,6 +1,6 @@
 ---
 name: harness-audit
-description: "Audit test suites for infrastructure deficits, flakiness smells, and invariant blind spots, staging remediation changesets for /forge."
+description: "Audit test suites and harness infrastructure for flakiness smells, hermetic deficits, and invariant blind spots."
 disable-model-invocation: true
 ---
 
@@ -57,7 +57,7 @@ Before executing audit passes, agents MUST read and ground themselves in:
    - Offending Code: [<file>#L<N>](file:///path/to/test#L<N>)
    - Remediation: <Exact architectural correction required>
 
-## 4. Remediation Changeset (Staged for /forge)
+## 4. Remediation Changeset
 *(If defects or missing infrastructure are identified, stage a ready-to-run Changeset)*
 
 # Changeset: Remediate Test Harness (<Target Scope>)
@@ -71,8 +71,9 @@ Before executing audit passes, agents MUST read and ground themselves in:
 Summary: <N> files affected (<C> created, <U> updated).
 
 ## 5. Pipeline Routing
-- `/zenforge-init` ── Harness anchor (.agents/harness-anchor.md) is missing; bootstrap project agent governance.
-- `/forge` ── Authorize and execute the Remediation Changeset in a single unified turn.
+- `/clarify` ── Missing foundational hermetic primitives requiring architectural trade-off deliberation.
+- `/changeset` ── Staged remediations ready for dependency ripple tracing and blast-radius planning.
+- `/forge` ── Isolated or localized test smell remediation pre-approved for immediate TDD execution.
 ```
 
 ## Execution Protocol
@@ -85,6 +86,6 @@ Summary: <N> files affected (<C> created, <U> updated).
    - *Subagent Fan-Out* (broad multi-package test suites): Launch 1–3 `research` subagents partitioned by directory, seeding with anchor and reference paths.
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
    - Deduplicate findings into the Canonical Output Contract.
-   - If deficits exist, draft the Remediation Changeset directly in the report for `/forge`.
+   - If deficits exist, draft the Remediation Changeset directly in the report.
    - Present completed report into conversation stream and halt turn immediately.
 
