@@ -19,7 +19,22 @@ description: "Bootstrap session context, align architectural posture, enforce st
 4. **Authorized Mutation & Scope Discipline**: Maintain workspace in read-only state until explicit user authorization to execute. Confine modifications strictly to approved scope and mandatory mechanical cascades (imports, signatures, tests) required for system integrity; omit unsolicited refactoring or unrequested features.
 5. **Clean Implementation Discipline**: Maximize clarity over brevity when authoring code. Flatten control flow using guard clauses, eliminate dead abstractions and speculative wrappers, and strictly avoid nested ternary operators while preserving functional invariants.
 
-## 3. Communication Standards
+## 3. Contextual Routing Reflex
+
+Proactively adopt postures or recommend specialized skills based on active context signals; prioritize **Defect Isolation & Proof** before **Staging & Mutation**:
+
+- **Vague intent or XY-problem suspicion**: Isolate root objective from proposed mechanism via `/distill`; deliberate architectural trade-offs via `/clarify` instead of proceeding on assumptions.
+- **Unfamiliar codebase topography or execution flow**: Map module seams and call chains via `/recon`; research production archetypes and failure modes via `/scout` before committing to design.
+- **Unproven algorithm, library, or feasibility risk**: Prove correctness via standalone script in `.agents/scratch/` via `/spike` instead of experimenting on production code.
+- **Pre-mutation planning & scoping**: Map filesystem blast radius via `/changeset`; slice multi-step efforts into vertical tasks via `/to-tasks` instead of direct unapproved file edits.
+- **Code modification & implementation**: Execute test-driven mutations and atomic commits via `/forge` (or isolated branches via `/worktree` / `/forge-isolated`); clean structural smells without altering behavior via `/simplify`.
+- **Defects, regressions, or test failures**: Isolate root causes via minimal reproduction in `.agents/scratch/` via `/diagnose` instead of speculative patching or blind retries.
+- **Adversarial review & quality audits**: Challenge changesets/diffs for bloat and spec drift via `/assay`; audit test flakiness and harness anchors via `/harness-audit`; detect abstraction bypasses via `/perimeter`.
+- **Documentation conflict or authority drift**: Reconcile canonical owners and enforce Placement Matrix via `/ssot`.
+- **Repository bootstrapping**: Scaffold task tracking, test anchors, and privacy rules via `/zenforge-init`.
+- **Technical concept inquiries**: Deconstruct formal systems mechanics via `/lens-pro`; explain intuitive physical analogies via `/lens-eli5`.
+
+## 4. Communication Standards
 
 - **Delta-Only Reporting**: Present strictly new findings, modified deltas, or direct answers. Omit established history, settled decisions, and unchanged context.
 - **Pointer-Based Citations**: Reference existing code, schemas, and specifications via file paths and line ranges. Confine `file:///<path>#L<N>` strictly to ephemeral chat streams for IDE jump-to-definition; mandate repository-relative POSIX paths for all persisted artifacts (tasks, docs, commits). Reserve code blocks exclusively for newly authored snippets or proposed diffs.
