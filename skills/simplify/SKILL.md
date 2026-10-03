@@ -9,7 +9,7 @@ disable-model-invocation: true
 ## Operating Invariants
 
 - **Behavioral Invariance**: Preserve 100% of existing functionality, test outcomes, error handling, and public API signatures; forbid altering program semantics or breaking contracts.
-- **Scope Discipline**: Confine refactoring strictly to targeted files or functions; forbid unsolicited churn in untouched surrounding code.
+- **Scope Discipline**: Confine refactoring strictly to targeted files or functions; forbid cross-file extractions, class decomposition, or architectural redesign outside the target file.
 - **Pre-Mutation Gate**: Stage changes exclusively via Changeset summary and halt turn immediately; forbid writing mutations to disk without affirmative human authorization.
 - **Verification Circuit Breaker**: Stop execution immediately upon verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
 
