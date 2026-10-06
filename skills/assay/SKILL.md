@@ -63,13 +63,11 @@ Inspect mutation artifacts against 4 structural dimensions:
 ### Phase 2: Scale-Adaptive Adversarial Review
 
 1. Evaluate mutation scope scale:
-   - *In-Turn Review* (localized diff, 1–5 files, or single task card): Audit mutations directly in-turn against review dimensions.
-   - *Subagent Fan-Out* (multi-package changesets or broad PR diffs): Launch 2–3 `research` subagents (Role: `Mutation Reviewer (<Slice>)`). Seed each with target diff slice, discovered contracts, and Canonical Output Contract.
-2. Seed each subagent with:
-   - Its allocated diff slice and target file pointers.
-   - Discovered governing contracts and invariant baselines.
-   - The Dual-Citation Rule and Canonical Output Contract as the mandatory output contract.
-3. Assign subagent role: `Mutation & Architecture Reviewer (<Target Slice/Subsystem>)`.
+   - *In-Turn Review* (localized diff of < 10 files, or single task card): Audit mutations directly in-turn against review dimensions.
+   - *Subagent Fan-Out* (multi-package changesets or broad PR diffs): Launch 2–3 `research` subagents (Role: `Mutation Reviewer (<Target Slice>)`). Seed each with:
+     - Allocated diff slice and target file pointers.
+     - Discovered governing contracts and invariant baselines.
+     - The Dual-Citation Rule and the Canonical Output Contract.
 
 ### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
 

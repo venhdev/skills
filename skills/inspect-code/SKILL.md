@@ -104,7 +104,7 @@ disable-model-invocation: true
 ### Phase 2: Scale-Adaptive Inspection
 
 1. Evaluate target scope scale:
-   - *In-Turn Execution* (≤ 5 files or single cohesive module): Audit code directly in-turn against rubric dimensions.
+   - *In-Turn Execution* (< 10 files or single cohesive module): Audit code directly in-turn against rubric dimensions.
    - *Subagent Fan-Out* (multi-package subsystems or broad repositories): Launch 2–3 `research` subagents (Role: `Structural Inspector (<Slice>)`).
 2. Context Seeding Contract for Subagents:
    - Seed each subagent with target slice coordinates, discovered structural anchors, Domain Rubric dimensions, and the Canonical Output Contract.

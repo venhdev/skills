@@ -55,7 +55,7 @@ disable-model-invocation: true
 ### Phase 2: Scale-Adaptive Cartography
 
 1. Evaluate target scope scale:
-   - *In-Turn Execution* (1–5 files or single cohesive module): Trace call flows against discovered anchors directly in-turn to eliminate subagent latency and token overhead.
+   - *In-Turn Execution* (< 10 files or single cohesive module): Trace call flows against discovered anchors directly in-turn to eliminate subagent latency and token overhead.
    - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Cartography Scout (<Layer>)`). Seed each with target boundary, discovered anchors, and Canonical Output Contract.
 
 ### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)

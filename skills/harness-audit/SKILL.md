@@ -82,7 +82,7 @@ Summary: <N> files affected (<C> created, <U> updated).
    - Inspect `.agents/harness-anchor.md` if present.
    - Read `references/test-smells.md` and `references/invariant-dimensions.md`.
 2. **Scale-Adaptive Audit Dispatch**:
-   - *In-Turn Execution* (1–5 test files or localized suite): Inspect test suite against Audit Hierarchy directly in-turn.
+   - *In-Turn Execution* (< 10 test files or localized suite): Inspect test suite against Audit Hierarchy directly in-turn.
    - *Subagent Fan-Out* (broad multi-package test suites): Launch 1–3 `research` subagents partitioned by directory, seeding with anchor and reference paths.
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
    - Deduplicate findings into the Canonical Output Contract.

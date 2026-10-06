@@ -64,7 +64,7 @@ Qualify candidate constraints strictly against 3 conditions:
 ### Phase 2: Scale-Adaptive Boundary Audit
 
 1. Evaluate target scope scale:
-   - *In-Turn Execution* (1–5 files or localized module): Audit call sites against discovered anchors directly in-turn.
+   - *In-Turn Execution* (< 10 files or localized module): Audit call sites against discovered anchors directly in-turn.
    - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Perimeter Reviewer (<Slice>)`). Seed each with:
      - Target slice directory.
      - Discovered architectural anchors from Phase 1.
