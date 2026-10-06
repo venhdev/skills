@@ -10,12 +10,12 @@ disable-model-invocation: true
 
 ### 1. Framing Axes
 
-Establish direction before searching. Answer these four axes; forbid implementation selection until all are fixed:
+Establish direction before searching. An axis with no bearing on the work resolves to `N/A` with a one-line reason rather than an invented constraint. Scoping out two or more axes signals this is not an architecture decision — route to `/distill` or `/clarify`. Forbid implementation selection until every axis is answered or scoped out:
 
-- **Problem Boundary**: The operational outcome, its observable success signal, and the requested mechanism isolated from it.
-- **Hard Constraints**: Non-negotiables (scale, latency, compliance, budget, timeline) that eliminate whole approach families.
-- **Frozen Surface**: Contractually or reputationally frozen surfaces versus surfaces open to change.
-- **Reversibility Class**: One-way door (schema, public contract) versus two-way door (internal, revertible).
+- **Problem Boundary**: The operational outcome and the observable signal that declares it met, isolated from the requested mechanism.
+- **Hard Constraints**: Non-negotiables that eliminate whole approach families — time, money, compliance, data safety, platform, or skill absent from the team.
+- **Frozen Surface**: Surfaces that must survive unchanged, whether by contract, by data already written, or by someone else's reliance.
+- **Reversibility Class**: One-way door (acting forecloses the undo) versus two-way (revertible at no external cost).
 
 ### 2. Framing Discipline
 
