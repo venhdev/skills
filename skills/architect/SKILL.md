@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ### 1. Framing Axes
 
-Establish direction before searching. An axis with no bearing on the work resolves to `N/A` with a one-line reason rather than an invented constraint. Scoping out two or more axes signals this is not an architecture decision — route to `/distill` or `/clarify`. Forbid implementation selection until every axis is answered or scoped out:
+Establish direction before searching. An axis with no bearing on the work resolves to `N/A` with a one-line reason rather than an invented constraint. Scoping out two or more axes signals this is not an architecture decision — route to (via /distill) or (via /clarify). Forbid implementation selection until every axis is answered or scoped out:
 
 - **Problem Boundary**: The operational outcome and the observable signal that declares it met, isolated from the requested mechanism.
 - **Hard Constraints**: Non-negotiables that eliminate whole approach families — time, money, compliance, data safety, platform, or skill absent from the team.
@@ -49,7 +49,7 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 - **Constraint Fitness**: Zero Hard Constraint violations; any violation disqualifies the candidate regardless of merit.
 - **Precedent Backing**: Attested in production systems at disclosed scale, with known failure modes named.
 - **Reversibility**: At equal merit prefer the two-way door; at equal reversibility prefer the narrower Frozen Surface.
-- **Evidence Strength**: Every load-bearing claim carries a code pointer, verified citation, or measured result. Tag unsourced statements `ASSUMPTION` and untested viability `UNPROVEN`; report both in Open Gaps rather than asserting either.
+- **Evidence Strength**: Every load-bearing claim carries a code pointer, verified citation, or measured result. Resolve discoverable codebase facts directly against source files; forbid deferring local repository facts as Open Gaps. Confine Open Gaps to external unknowns or unmeasured runtime risks.
 
 ### 4. Anti-No-Op Guardrails
 
@@ -85,7 +85,7 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 
 ## 5. Next Step
 - `/spike` ── settle UNPROVEN viability empirically before committing.
-- `/changeset` ── selection accepted; map filesystem impact.
+- `/changeset` ── selection accepted; map filesystem impact. Explicitly bind all findings and implementation-phase gaps into target acceptance criteria.
 - No handoff ── on `DO-NOT-BUILD`, file the dossier with its justification and end.
 ```
 
@@ -94,21 +94,21 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 ### Phase 1: Framing Interview & Turn-Halt Gate
 
 1. Convert every engineering detail the requester supplied into its underlying business consequence; separate outcome from mechanism.
-2. Evaluate the four Framing Axes and present only the unanswered ones in Framing Payload Format, each carrying a default. Batch independent axes in one turn and isolate causal branches via `/clarify` interview mechanics where a later answer depends on an earlier one.
+2. Evaluate the four Framing Axes and present only the unanswered ones in Framing Payload Format, each carrying a default. Batch independent axes in one turn and isolate causal branches (via /clarify) where a later answer depends on an earlier one.
 3. Halt turn immediately. Absorb batch approvals, prune branches settled by prior answers, and repeat until every axis is fixed or the requester directs convergence. Lock the frame from their responses without a separate confirmation turn.
 
 ### Phase 2: Evidence Fan-Out
 
-1. Derive search targets from the unresolved unknowns in the locked frame rather than from the criteria themselves: a criterion scores the harvest, it never names a search topic.
+1. Derive search targets from unresolved unknowns in the locked frame rather than from criteria. Inspect repository files directly to exhaust static codebase facts before declaring gaps.
 2. Scope-adaptive dispatch:
    - *In-Turn Harvest* (single domain, narrow constraints): gather evidence directly to eliminate subagent latency.
    - *Subagent Fan-Out* (multi-layer, cross-domain, or exceeding single-turn budget): launch 2–3 concurrent `research` subagents, one per cluster.
 3. Seed each subagent per the Context Seeding Contract, binding its Output Contract to one row of the §2 Evidence Base table.
-4. Delegate source authority and search budgets to `/scout`; harvest in-turn only what that budget already covers.
+4. Delegate source authority and search budgets conditionally (via /scout); harvest in-turn only what that budget already covers.
 
 ### Phase 3: Convergence Synthesis & Turn-Halt Gate
 
 1. Score candidates on all five Convergence Criteria; enforce the disqualifying power of Constraint Fitness.
-2. Apply the tie-break chain and the Anti-No-Op Guardrails to produce one approach, or `DO-NOT-BUILD` when none survives.
+2. Apply the tie-break chain and the Anti-No-Op Guardrails to produce one approach, or `DO-NOT-BUILD` when none survives. Carry all implementation findings directly into §5 Next Step acceptance criteria for `(via /changeset)`.
 3. Run the Adversarial Self-Review; revise the selection when the counter-case wins on a Convergence Criterion.
 4. Present the completed `Approach Convergence` dossier and halt turn immediately for human decision. Never modify workspace files, author code, or begin implementation within this turn.
