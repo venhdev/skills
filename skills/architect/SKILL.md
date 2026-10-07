@@ -19,15 +19,14 @@ Establish direction before searching. An axis with no bearing on the work resolv
 
 ### 2. Framing Discipline
 
-- **Inference Before Inquiry**: Derive each technical constraint from the stated business consequence first, then offer the derivation as a default for confirmation.
+- **Inference Before Inquiry**: Phrase axis questions around business consequences rather than technical metrics (throughput, latency, delivery semantics). Infer technical constraints from consequence and provide as default for confirmation:
 
   ```text
   Bad:  "Expected throughput? What p99 latency budget?"
   Good: "When an order fails, what actually happens — lost revenue, or just slower processing?"
-        (Derive the durability requirement from the answer, then offer it as the default.)
+        (Derive durability requirement from answer, then offer as default.)
   ```
 
-- **User-Answerable Framing**: Phrase every axis question in terms the requester can answer from experience, attaching the inferred assumption inside the question so they correct the premise instead of supplying a metric. Replace any request for throughput, latency percentiles, replication factors, or delivery semantics with a question about the consequence behind it.
 - **Zero-Ambiguity Fast Path**: When every axis is already fixed by the inquiry, lock the frame directly.
 - **Framing Payload Format**:
 
@@ -54,8 +53,7 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 ### 4. Anti-No-Op Guardrails
 
 - **Single Convergence, or None**: Emit one approach, or `DO-NOT-BUILD` when no candidate clears Problem Closure and Constraint Fitness. Replace hedging ("it depends", "Option A or B") with one ranked pick; break ties by two-way door, then narrower Frozen Surface, then duller precedent.
-- **Adversarial Self-Review**: State the strongest sourced case that the selection is wrong, plus the criterion that would flip it. A verdict without a credible counter-case is unreviewed, not validated.
-- **Falsification Triggers**: Name the observable condition that would overturn the verdict, making it testable rather than rhetorical.
+- **Adversarial Self-Review & Falsification**: State the strongest sourced case that the selection is wrong, paired with the observable condition that would flip the verdict to an alternative. A verdict without a credible counter-case is unreviewed, not validated.
 
 ## Canonical Output Contract
 
@@ -78,14 +76,14 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 - **Why It Wins**: <Criterion-by-criterion justification against the strongest alternative>
 - **Accepted Cost**: <Sacrifice knowingly taken on>
 - **Counter-Case**: <Strongest sourced argument the selection is wrong> ── flips to <alternative> when <observable condition>
-- **Open Gaps**: <ASSUMPTION and UNPROVEN claims, and what would settle them>
+- **Open Gaps**: <External unknowns or unmeasured runtime risks, and what settles them | 'None'>
 
 ## 4. Rejected Paths
 - **<Candidate>**: Eliminated by <Criterion> ── <specific disqualifying evidence>
 
 ## 5. Next Step
-- `/spike` ── settle UNPROVEN viability empirically before committing.
-- `/changeset` ── selection accepted; map filesystem impact. Explicitly bind all findings and implementation-phase gaps into target acceptance criteria.
+- `(via /spike)` ── settle UNPROVEN viability empirically before committing.
+- `(via /changeset)` ── selection accepted; map filesystem impact. Explicitly bind all findings and implementation-phase gaps into target acceptance criteria.
 - No handoff ── on `DO-NOT-BUILD`, file the dossier with its justification and end.
 ```
 
@@ -103,7 +101,7 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 2. Scope-adaptive dispatch:
    - *In-Turn Harvest* (single domain, narrow constraints): gather evidence directly to eliminate subagent latency.
    - *Subagent Fan-Out* (multi-layer, cross-domain, or exceeding single-turn budget): launch 2–3 concurrent `research` subagents, one per cluster.
-3. Seed each subagent per the Context Seeding Contract, binding its Output Contract to one row of the §2 Evidence Base table.
+3. Seed each subagent with target slice, discovered anchors, and §2 Evidence Base row schema.
 4. Delegate source authority and search budgets conditionally (via /scout); harvest in-turn only what that budget already covers.
 
 ### Phase 3: Convergence Synthesis & Turn-Halt Gate
