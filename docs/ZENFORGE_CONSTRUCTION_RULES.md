@@ -28,7 +28,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Single Responsibility**: Each skill must perform exactly one job and deliver one canonical artifact.
 - **Layout Derivation Heuristic**: Derive skill structure directly from operational posture instead of imposing a rigid 5-part template:
-  - *Mutating workspace or code?* ──> **Archetype C**: Mandates Invariants (Pre-mutation gate, breaker), Rubric, Staging contract, and Phased protocol.
+  - *Mutating workspace or code?* ──> **Archetype C**: Mandates Invariants (Pre-mutation gate, verification integrity), Rubric, Staging contract, and Phased protocol.
   - *Inspecting codebase or research (Read-only)?* ──> **Archetype B**: Mandates Rubric (dimensions, search budget), Report contract, and Subagent delegation protocol. Omit invariants and mutation gates.
   - *Single-shot transform or cognitive lens?* ──> **Archetype A**: Mandates Output contract. Invariants contextual (only for tone/depth rigor). Omit multi-phase protocol.
 - **Sequential Heading Flow**: When present, sections strictly follow: `Frontmatter` ──> `# title — mission` ──> `## Operating Invariants` ──> `## Domain Rubric` ──> `## Canonical Output Contract` ──> `## Execution Protocol`.
@@ -37,7 +37,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 | Section Heading | Archetype A (Utility / Lens) | Archetype B (Audit / Map) | Archetype C (Mutating Workflow) |
 |---|---|---|---|
 | `Frontmatter` | Mandatory | Mandatory | Mandatory |
-| `## Operating Invariants` | Contextual (Framing limits) | Omit (Tool read-only) | Mandatory (Gate, breaker) |
+| `## Operating Invariants` | Contextual (Framing limits) | Omit (Tool read-only) | Mandatory (Pre-mutation gate) |
 | `## Domain Rubric` | Contextual (Taxonomy) | Mandatory (Dimensions) | Mandatory (Smells, rules) |
 | `## Canonical Output Contract` | Mandatory (Dossier template) | Mandatory (Report format) | Mandatory (Staging tree) |
 | `## Execution Protocol` | Omit / Linear (1–3 steps) | Mandatory (Fan-out/in) | Mandatory (Phased + Turn-Halt) |
@@ -45,7 +45,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Operational Archetypes**:
   - *Archetype A (Utilities & Cognitive Lenses)* (e.g., `distill`, `lens-pro`, format converters): Single-shot input-to-output delivery without multi-phase ceremony.
   - *Archetype B (Cartography, Scout & Review)* (e.g., `recon`, `scout`, `assay`, `clarify`): Read-only codebase inspection, external research, or mutation critique via subagent fan-out/in.
-  - *Archetype C (Stateful & Mutating Workflows)* (e.g., `changeset`, `forge`, `simplify`): Filesystem modifications, state transitions, and test runs governed by explicit turn-halt gates and circuit breakers.
+  - *Archetype C (Stateful & Mutating Workflows)* (e.g., `changeset`, `forge`, `simplify`): Filesystem modifications, state transitions, and test runs governed by explicit turn-halt gates and verification integrity.
 - **Turn-Bounded Execution**: Combine Discovery, Staging, and Authorization Gate into a single turn whenever feasible to eliminate artificial conversational bureaucracy. Halt turn immediately at the authorization gate.
 - **Universal Mention Convention**: Reference supporting sub-skills conditionally in templates and prose (`(via /<name>)`). Never treat sub-skills as hard blocking dependencies.
 
@@ -63,7 +63,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 ## 7. Code Verification Integrity
 
 - **Test-Driven Baseline**: Follow failing baseline test → minimal green code → verification cascade (typecheck → lint → test).
-- **Code Circuit Breaker**: Confine Circuit Breakers strictly to post-mutation automated test and compiler regressions in code implementation skills (`forge`). If tests fail, halt immediately, report stderr, and prompt whether to debug or revert.
+- **Autonomous Verification Cascade**: Resolve compiler, linter, and test failures iteratively within approved scope until 100% green; forbid halting on expected iteration failures or executing silent lossy reversions.
 
 ## 8. Canonical Artifacts & Lean Turn-Halt Gate
 

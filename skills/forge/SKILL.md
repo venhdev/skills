@@ -11,8 +11,7 @@ disable-model-invocation: true
 - **Scope Discipline**: Confine modifications strictly to target acceptance criteria, approved changeset, and direct mechanical cascades (imports, signatures, tests); forbid adjacent refactoring, cosmetic churn, or scope creep.
 - **Pre-Mutation Gate**: Verify target scope, acceptance criteria, and baseline test status before mutating files; forbid creating or editing files on ambiguous or unapproved requirements.
 - **Specialist Boundary**: Keep implementation focused strictly on the target task; forbid unsolicited mid-stream execution of on-demand specialist skills (`simplify`, `ssot`, `to-tasks`, `diagnose`).
-- **Verification Integrity**: Deliver commit handoffs with repo-relative POSIX paths exclusively after 100% clean typecheck, lint, and test runs; forbid failing verification or host-absolute `file:///` URIs.
-- **Verification Circuit Breaker**: Stop execution immediately upon post-mutation verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
+- **Verification Integrity**: Deliver commit handoffs with repo-relative POSIX paths exclusively after 100% clean typecheck, lint, and test runs; forbid failing verification, silent lossy reversions, or host-absolute `file:///` URIs.
 
 ## Domain Rubric
 
@@ -44,9 +43,8 @@ Execute filesystem modifications in strict dependency order:
 ### Phase 2: Construction & Test-Driven Verification
 
 1. Execute file modifications in topological dependency order (`[CREATE]` → `[MOVE]` → `[UPDATE]` → `[DELETE]`).
-2. Follow Test-Driven Verification Standards: establish Red baseline, apply minimal Green code, and execute Verification Cascade.
-3. Apply Verification Circuit Breaker: If tests fail, stop execution immediately, report stderr with file citations, and prompt whether to debug or revert.
-4. Verify all ticket acceptance criteria are satisfied `[x]`.
+2. Follow Test-Driven Verification Standards: establish Red baseline, apply minimal Green code, and resolve failures across the Verification Cascade until 100% green.
+3. Verify all ticket acceptance criteria are satisfied `[x]`.
 
 ### Phase 3: Delivery & Git Commit Handoff
 

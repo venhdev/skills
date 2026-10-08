@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ### 1. Framing Axes
 
-Establish direction before searching. An axis with no bearing on the work resolves to `N/A` with a one-line reason rather than an invented constraint. Scoping out two or more axes signals this is not an architecture decision — route to (via /distill) or (via /clarify). Forbid implementation selection until every axis is answered or scoped out:
+Establish grounded direction before implementation. An axis with no bearing on the work resolves to `N/A` with a one-line reason rather than an invented constraint. Scoping out two or more axes signals this is not an architecture decision — route to (via /distill) or (via /clarify). Forbid implementation selection until every axis is answered or scoped out:
 
 - **Problem Boundary**: The operational outcome and the observable signal that declares it met, isolated from the requested mechanism.
 - **Hard Constraints**: Non-negotiables that eliminate whole approach families — time, money, compliance, data safety, platform, or skill absent from the team.
@@ -89,22 +89,18 @@ Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
 
 ## Execution Protocol
 
-### Phase 1: Framing Interview & Turn-Halt Gate
+### Phase 1: Grounded Framing & Evidence Loop
 
-1. Convert every engineering detail the requester supplied into its underlying business consequence; separate outcome from mechanism.
-2. Evaluate the four Framing Axes and present only the unanswered ones in Framing Payload Format, each carrying a default. Batch independent axes in one turn and isolate causal branches (via /clarify) where a later answer depends on an earlier one.
-3. Halt turn immediately. Absorb batch approvals, prune branches settled by prior answers, and repeat until every axis is fixed or the requester directs convergence. Lock the frame from their responses without a separate confirmation turn.
+1. Pre-scout architectural anchors: inspect codebase source files, schemas, and ADRs (via /ssot) alongside inquiry to ground technical defaults in system reality.
+2. Convert engineering details into business consequences; evaluate the four Framing Axes using pre-scouted facts.
+3. Present unanswered axes in Framing Payload Format, pairing each option with an evidence-grounded default. Batch independent axes in one turn and isolate causal branches (via /clarify).
+4. Halt turn immediately for human response.
+5. Adaptive Deliberation Loop:
+   - *Requirement Shift*: If user response alters foundational premises, invalidate settled axes and re-scout from scratch.
+   - *Branch Refinement*: Ingest answers, inspect newly exposed code paths, and iterate until all 4 axes are locked.
+   - *Scope-Adaptive Fan-Out*: Gather evidence in-turn per §3 Evidence Strength; launch 2–3 concurrent `research` subagents (seeded with target slice and §2 schema) strictly when scope exceeds single-turn budget.
 
-### Phase 2: Evidence Fan-Out
-
-1. Derive search targets from unresolved unknowns in the locked frame rather than from criteria. Inspect repository files directly to exhaust static codebase facts before declaring gaps.
-2. Scope-adaptive dispatch:
-   - *In-Turn Harvest* (single domain, narrow constraints): gather evidence directly to eliminate subagent latency.
-   - *Subagent Fan-Out* (multi-layer, cross-domain, or exceeding single-turn budget): launch 2–3 concurrent `research` subagents, one per cluster.
-3. Seed each subagent with target slice, discovered anchors, and §2 Evidence Base row schema.
-4. Delegate source authority and search budgets conditionally (via /scout); harvest in-turn only what that budget already covers.
-
-### Phase 3: Convergence Synthesis & Turn-Halt Gate
+### Phase 2: Convergence Synthesis & Turn-Halt Gate
 
 1. Score candidates on all five Convergence Criteria; enforce the disqualifying power of Constraint Fitness.
 2. Apply the tie-break chain and the Anti-No-Op Guardrails to produce one approach, or `DO-NOT-BUILD` when none survives. Carry all implementation findings directly into §5 Next Step acceptance criteria for `(via /changeset)`.
