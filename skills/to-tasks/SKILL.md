@@ -61,11 +61,14 @@ disable-model-invocation: true
 > Notice: Planned blast radius at decomposition time. Reconcile against current working tree before mutating files.
 
 ```text
-📁 <directory>/
-├── 📄 <file_1>
-│   └── [<ACTION>] <File mutation summary>.
-└── 📄 <file_2>
-    └── [<ACTION>] <Cascade update or test summary>.
+|-- <collapsed/subsystem/dir>/
+|   |-- <file_1>
+|   |   `-- [<ACTION>] <File mutation summary>.
+|   `-- <file_2>
+|       `-- [<ACTION>] <Cascade update or test summary>:
+|           * <Specific task contract detail or invariant>.
+|-- <deep/path/to/isolated_file_3>
+|   `-- [<ACTION>] <Direct leaf path without redundant folder node>.
 
 Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ```

@@ -35,18 +35,21 @@ Classify every planned file operation exclusively into one of 4 discrete actions
 ## Canonical Output Contract
 
 ```text
-# Changeset: <Feature / Scope Name>
+# Changeset: <Feature Name> [(<optional_scope_root>/)]
 
-📁 <subsystem_or_directory>/
-├── 📄 <filename_1>
-│   └── [<ACTION>] <Summary of change>.
-├── 📄 <filename_2>
-│   └── [<ACTION>] <Summary of change>:
-│       • <Specific change detail, contract modification, or invariant>.
-│       • <Specific change detail or cascade update>.
-└── 📁 <subsystem_2>/
-    └── 📄 <filename_3>
-        └── [<ACTION>] <Summary of change>.
+|-- <collapsed/subsystem/dir>/
+|   |-- <filename_1>
+|   |   `-- [<ACTION>] <Summary of change>.
+|   `-- <filename_2>
+|       `-- [<ACTION>] <Summary of change>:
+|           * <Specific change detail or invariant>.
+|           * <Multi-line detail with hanging indent aligned
+|             to text column to prevent tree wrapping breakage>.
+|-- <deep/isolated/path/to/filename_3>
+|   `-- [<ACTION>] <Direct leaf path without redundant folder node>.
+`-- <another_subsystem>/
+    `-- <filename_4>
+        `-- [<ACTION>] <Summary of change>.
 
 Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ```

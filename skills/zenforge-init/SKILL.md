@@ -83,21 +83,17 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
    ```text
    # Changeset: Repository Initialization
 
-   📁 .agents/
-   ├── 📄 task-tracker.md
-   │   └── [CREATE] Configure task tracking mode and execution protocols.
-   └── 📄 harness-anchor.md
-       └── [CREATE] Establish test SSOT routing and hermetic primitives registry.
-
-   📁 docs/
-   └── 📄 README.md
-       └── [<ACTION>] Establish documentation Placement Matrix.
-
-   📁 ./
-   ├── 📄 .gitignore
-   │   └── [<ACTION>] Add .agents/scratch/ and .agents/tasks/ privacy rules.
-   └── 📄 <AGENTS.md | CLAUDE.md>
-       └── [<ACTION>] Add agent workflow and documentation pointers.
+   |-- .agents/
+   |   |-- task-tracker.md
+   |   |   `-- [CREATE] Configure task tracking mode and execution protocols.
+   |   `-- harness-anchor.md
+   |       `-- [CREATE] Establish test SSOT routing and hermetic primitives registry.
+   |-- docs/README.md
+   |   `-- [<ACTION>] Establish documentation Placement Matrix.
+   |-- .gitignore
+   |   `-- [<ACTION>] Add .agents/scratch/ and .agents/tasks/ privacy rules.
+   `-- <AGENTS.md | CLAUDE.md>
+       `-- [<ACTION>] Add agent workflow and documentation pointers.
 
    Summary: <N> files affected (<C> created, <U> updated).
    ```

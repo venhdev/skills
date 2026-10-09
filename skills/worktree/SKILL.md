@@ -31,9 +31,8 @@ disable-model-invocation: true
 ```text
 # Changeset: Git Worktree <Action>
 
-📁 .agents/worktree/
-└── 📁 <branch>/
-    └── [<ACTION>] <Worktree operation summary>.
+`-- .agents/worktree/<branch>/
+    `-- [<ACTION>] <Worktree operation summary>.
 
 Summary: 1 worktree affected (<branch>).
 ```

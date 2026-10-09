@@ -76,10 +76,11 @@ Evaluate target code against 8 mutually exclusive structural dimensions:
    ```text
    # Changeset: Simplify <Target Scope>
 
-   📁 <subsystem_or_directory>/
-   └── 📄 <target_file>
-       └── [UPDATE] Simplify <component_or_function>:
-           • <Dimension applied from rubric>.
+   |-- <collapsed/subsystem_or_directory>/
+   |   `-- <target_file>
+   |       `-- [UPDATE] Simplify <component_or_function>:
+   |           * <Dimension applied from rubric>.
+   |           * <Multi-line refactoring detail with hanging indent>.
 
    Summary: 1 file affected (1 updated).
    ```

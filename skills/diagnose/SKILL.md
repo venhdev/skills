@@ -68,13 +68,17 @@ disable-model-invocation: true
    - **Verification Proof**: `<single command>` producing RED signal, confirmed by probe `<tag>`.
    - **Architectural Seam**: <Seam available for regression test | Architectural deficiency noted>
 
-   # Changeset: Fix <Defect Slug>
+   # Changeset: Fix <Defect Slug> [(<optional_scope_root>/)]
 
-   📁 <directory>/
-   ├── 📄 <test_file>
-   │   └── [<ACTION>] <Regression test asserting defect>.
-   └── 📄 <source_file>
-       └── [UPDATE] <Atomic bugfix resolving root cause>.
+   |-- <collapsed/test_directory>/
+   |   `-- <test_file>
+   |       `-- [<ACTION>] <Regression test asserting defect>.
+   |-- <collapsed/source_directory>/
+   |   `-- <source_file>
+   |       `-- [UPDATE] <Atomic bugfix resolving root cause>:
+   |           * <Specific fix detail preventing regression>.
+   `-- <deep/path/to/additional_file>
+       `-- [<ACTION>] <Direct cascade fix without redundant folder node>.
 
    Summary: <N> files affected (<C> created, <U> updated).
    ```

@@ -24,12 +24,13 @@ description: "Bootstrap session context, align architectural posture, enforce st
 Proactively adopt postures or recommend specialized skills based on active context signals; prioritize **Defect Isolation & Proof** before **Staging & Mutation**:
 
 - **Vague intent or XY-problem suspicion**: Isolate root objective from proposed mechanism via `/distill`; deliberate architectural trade-offs via `/clarify` instead of proceeding on assumptions.
+- **Open-ended design direction or competing approaches**: Lock framing axes and converge verified evidence into one approach (or `DO-NOT-BUILD`) via `/architect`.
 - **Unfamiliar codebase topography or execution flow**: Map module seams and call chains via `/recon`; research production archetypes and failure modes via `/scout` before committing to design.
 - **Unproven algorithm, library, or feasibility risk**: Prove correctness via standalone script in `.agents/scratch/` via `/spike` instead of experimenting on production code.
 - **Pre-mutation planning & scoping**: Map filesystem blast radius via `/changeset`; slice multi-step efforts into vertical tasks via `/to-tasks` instead of direct unapproved file edits.
-- **Code modification & implementation**: Execute test-driven mutations and atomic commits via `/forge` (or isolated branches via `/worktree` / `/forge-isolated`); clean structural smells without altering behavior via `/simplify`.
+- **Code modification & implementation**: Execute test-driven mutations and atomic commits via `/forge` (or isolated branches via `/worktree` / `/forge-isolated` / `/forge-isolated-subagent`); clean structural smells without altering behavior via `/simplify`.
 - **Defects, regressions, or test failures**: Isolate root causes via minimal reproduction in `.agents/scratch/` via `/diagnose` instead of speculative patching or blind retries.
-- **Adversarial review & quality audits**: Challenge changesets/diffs for bloat and spec drift via `/assay`; audit test flakiness and harness anchors via `/harness-audit`; detect abstraction bypasses via `/perimeter`.
+- **Adversarial review & quality audits**: Challenge changesets/diffs for bloat and spec drift via `/assay`; audit test flakiness and harness anchors via `/harness-audit`; detect abstraction bypasses via `/perimeter`; inspect source modules for structural debt and God classes via `/inspect-code`.
 - **Documentation conflict or authority drift**: Reconcile canonical owners and enforce Placement Matrix via `/ssot`.
 - **Repository bootstrapping**: Scaffold task tracking, test anchors, and privacy rules via `/zenforge-init`.
 - **Technical concept inquiries**: Deconstruct formal systems mechanics via `/lens-pro`; explain intuitive physical analogies via `/lens-eli5`.

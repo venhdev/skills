@@ -44,13 +44,16 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
 1. Stage planned modifications in Changeset format:
 
    ```text
-   # Changeset: SSOT Documentation Governance (<Target Scope>)
+   # Changeset: SSOT Documentation Governance (<Target Scope>) [(<optional_docs_root>/)]
 
-   📁 docs/<subsystem>/
-   ├── 📄 <document_1>.md
-   │   └── [<ACTION>] <Specification or canonical update>.
-   └── 📄 <document_2>.md
-       └── [<ACTION>] <Reconciliation or duplicate pruning>.
+   |-- docs/<collapsed_subsystem_dir>/
+   |   |-- <document_1>.md
+   |   |   `-- [<ACTION>] <Specification or canonical update>.
+   |   `-- <document_2>.md
+   |       `-- [<ACTION>] <Reconciliation or duplicate pruning>:
+   |           * <Specific document authority or section update>.
+   `-- docs/<deep/path/to/canonical_spec.md>
+       `-- [<ACTION>] <Direct leaf spec without redundant folder node>.
 
    Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
    ```

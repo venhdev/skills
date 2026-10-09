@@ -60,13 +60,16 @@ Before executing audit passes, agents MUST read and ground themselves in:
 ## 4. Remediation Changeset
 *(If defects or missing infrastructure are identified, stage a ready-to-run Changeset)*
 
-# Changeset: Remediate Test Harness (<Target Scope>)
+# Changeset: Remediate Test Harness (<Target Scope>) [(<optional_scope_root>/)]
 
-📁 <test_directory>/
-├── 📄 <helper_or_primitive_file>
-│   └── [<ACTION>] <Hermetic test primitive fix>.
-└── 📄 <test_suite_file>
-    └── [UPDATE] <Flakiness or invariant test fix>.
+|-- <collapsed/test_directory>/
+|   |-- <helper_or_primitive_file>
+|   |   `-- [<ACTION>] <Hermetic test primitive fix>.
+|   `-- <test_suite_file>
+|       `-- [UPDATE] <Flakiness or invariant test fix>:
+|           * <Specific remediation detail or invariant assertion>.
+`-- <deep/path/to/standalone_fixture>
+    `-- [<ACTION>] <Direct leaf fixture without redundant folder node>.
 
 Summary: <N> files affected (<C> created, <U> updated).
 
