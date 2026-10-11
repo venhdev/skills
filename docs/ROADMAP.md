@@ -9,6 +9,7 @@ Read-only inspection and auditing skills (Archetype B) evaluating codebase healt
 | Skill | Status | Target Scope | Core Semantic Focus |
 |---|---|---|---|
 | [`inspect-code`](file:///home/rirong/src/owner/my-skills/skills/inspect-code/SKILL.md) | **Active** | Code Quality & OOP | God classes, cross-file DRY violations, cognitive complexity, coupling bleed (Feature Envy). |
+| [`inspect-role-naming`](../skills/inspect-role-naming/SKILL.md) | **Active** | Role & Nomenclature | Role suffix fidelity, wire-domain casing isolation, framework primitive collisions, CQS booleans. |
 | `inspect-security` | Planned | Application Security | Semantic auth flaws (IDOR/BOLA), multi-tenant data leaks, cross-boundary taint sinks. |
 | `inspect-perf` | Planned | Performance & Resources | ORM N+1 query patterns, event-loop starvation, unbounded in-memory cache retention. |
 | `inspect-api` | Planned | API & Interface Hygiene | Missing pagination, missing idempotency keys on mutations, breaking contract drift. |

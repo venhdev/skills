@@ -17,3 +17,5 @@ __pycache__/
 # ZenForge Agent Privacy
 .agents/scratch/
 .agents/tasks/
+.agents/skills/
+skills-lock.json
