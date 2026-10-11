@@ -11,7 +11,7 @@ Read-only inspection and auditing skills (Archetype B) evaluating codebase healt
 | [`inspect-structure`](../skills/inspect-structure/SKILL.md) | **Active** | Code Structure & OOP | God classes, cross-file DRY violations, cognitive complexity, coupling bleed (Feature Envy). |
 | [`inspect-role-naming`](../skills/inspect-role-naming/SKILL.md) | **Active** | Role & Nomenclature | Role suffix fidelity, wire-domain casing isolation, framework primitive collisions, CQS booleans. |
 | [`inspect-perf`](../skills/inspect-perf/SKILL.md) | **Active** | Performance & Resources | ORM N+1 query patterns, event-loop starvation, unbounded in-memory cache retention, algorithmic hot-paths. |
-| `inspect-security` | Planned | Application Security | Semantic auth flaws (IDOR/BOLA), multi-tenant isolation leaks, check-then-act race conditions, cross-boundary taint sinks. |
+| [`inspect-security`](../skills/inspect-security/SKILL.md) | **Active** | Application Security | Semantic auth flaws (IDOR/BOLA), multi-tenant isolation leaks, check-then-act race conditions, cross-boundary taint sinks. |
 | `inspect-migration` | Planned | Database Migrations | Zero-downtime violations (Expand-Contract), exclusive table locks on deployment. |
 
 ---
