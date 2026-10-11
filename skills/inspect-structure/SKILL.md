@@ -1,10 +1,10 @@
 ---
-name: inspect-code
+name: inspect-structure
 description: "Audit source code modules for structural smells, God classes, and duplication anti-patterns before refactoring."
 disable-model-invocation: true
 ---
 
-# inspect-code — Code Quality & Structural Debt Inspector
+# inspect-structure — Code Quality & Structural Debt Inspector
 
 ## Domain Rubric
 
@@ -73,7 +73,7 @@ disable-model-invocation: true
 ## Canonical Output Contract
 
 ```markdown
-# Code Inspection Dossier: <Target Scope / Module>
+# Structural Inspection Dossier: <Target Scope / Module>
 
 ## 1. Executive Summary
 - **Target Inspected**: `<file_or_directory_path>`
