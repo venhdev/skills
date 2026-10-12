@@ -17,6 +17,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Qualitative Density**: Enforce brevity through explicit scope exclusions; forbid brittle numerical quotas (line counts, arbitrary step numbers).
 - **Tool-Aware Zero-Waste**: Forbid defensive rules, speculative circuit breakers, or retry instructions for behaviors that underlying tooling, permissions, or native error returns already handle.
 - **Zero Transitional Glue**: Attach templates and schemas directly beneath governing headings without conversational filler.
+- **Zero-Emoji & Token Economy**: Forbid decorative emojis across all skills, templates, and staging artifacts to conserve context tokens and eliminate visual noise.
 
 ## 3. Affirmative Framing & Paired Directives
 
@@ -68,6 +69,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 ## 8. Canonical Artifacts & Lean Turn-Halt Gate
 
 - **Canonical Completion Artifact**: Every skill must specify exactly one deterministic staging artifact (Changeset Tree, Decision Matrix, Task Staging Table). Forbid dumping raw, multi-page unified diffs or full file bodies into chat.
+- **ASCII Tree Staging Rigor**: Mandate ASCII tree representation inside ```text code fences for changeset staging; forbid markdown bullet lists (lacks structural hierarchy) and bare un-fenced ASCII pipes (triggers markdown table parsing collisions).
 - **Lean Turn-Halt Gate**: Phase authorization gates must pair the staging artifact presentation directly with an immediate turn-halt imperative and a negative mutation boundary. Forbid micro-enumerating obvious user review choices.
 
 ## 9. Test-Driven Skill Authoring

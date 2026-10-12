@@ -34,9 +34,11 @@ Classify every planned file operation exclusively into one of 4 discrete actions
 
 ## Canonical Output Contract
 
-```text
+````markdown
 # Changeset: <Feature Name> [(<optional_scope_root>/)]
+> Notice: Enclose the ASCII tree inside a ```text block to prevent Markdown table collisions.
 
+```text
 |-- <collapsed/subsystem/dir>/
 |   |-- <filename_1>
 |   |   `-- [<ACTION>] <Summary of change>.
@@ -53,6 +55,7 @@ Classify every planned file operation exclusively into one of 4 discrete actions
 
 Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ```
+````
 
 ## Execution Protocol
 

@@ -1,5 +1,7 @@
 # Changeset: <Feature Name> [(<optional_scope_root>/)]
+> Notice: Enclose the ASCII tree inside a ```text block to prevent Markdown table collisions.
 
+```text
 |-- <collapsed/subsystem/dir>/
 |   |-- <filename_1>
 |   |   `-- [<ACTION>] <Summary of change>.
@@ -15,3 +17,4 @@
         `-- [<ACTION>] <Summary of change>.
 
 Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
+```
