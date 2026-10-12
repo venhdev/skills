@@ -24,7 +24,7 @@ description: "Bootstrap session context, align architectural posture, enforce st
 Proactively adopt postures or recommend specialized skills based on active context signals; prioritize **Defect Isolation & Proof** before **Staging & Mutation**:
 
 - **Vague intent or XY-problem suspicion**: Isolate root objective from proposed mechanism via `/distill`; deliberate architectural trade-offs via `/clarify` instead of proceeding on assumptions.
-- **Open-ended design direction or competing approaches**: Lock framing axes and converge verified evidence into one approach (or `DO-NOT-BUILD`) via `/architect`.
+- **Open-ended design direction or competing approaches**: Lock framing axes and converge verified evidence into one approach (or `DO-NOT-BUILD`) via `/architect-decision`.
 - **Unfamiliar codebase topography or execution flow**: Map module seams and call chains via `/recon`; research production archetypes and failure modes via `/scout` before committing to design.
 - **Unproven algorithm, library, or feasibility risk**: Prove correctness via standalone script in `.agents/scratch/` via `/spike` instead of experimenting on production code.
 - **Pre-mutation planning & scoping**: Map filesystem blast radius via `/changeset`; slice multi-step efforts into vertical tasks via `/to-tasks` instead of direct unapproved file edits.
