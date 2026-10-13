@@ -57,25 +57,9 @@ Before executing audit passes, agents MUST read and ground themselves in:
    - Offending Code: [<file>#L<N>](file:///path/to/test#L<N>)
    - Remediation: <Exact architectural correction required>
 
-## 4. Remediation Changeset
-*(If defects or missing infrastructure are identified, stage a ready-to-run Changeset)*
-
-# Changeset: Remediate Test Harness (<Target Scope>) [(<optional_scope_root>/)]
-
-|-- <collapsed/test_directory>/
-|   |-- <helper_or_primitive_file>
-|   |   `-- [<ACTION>] <Hermetic test primitive fix>.
-|   `-- <test_suite_file>
-|       `-- [UPDATE] <Flakiness or invariant test fix>:
-|           * <Specific remediation detail or invariant assertion>.
-`-- <deep/path/to/standalone_fixture>
-    `-- [<ACTION>] <Direct leaf fixture without redundant folder node>.
-
-Summary: <N> files affected (<C> created, <U> updated).
-
-## 5. Pipeline Routing
+## 4. Pipeline Routing
 - `/clarify` ── Missing foundational hermetic primitives requiring architectural trade-off deliberation.
-- `/changeset` ── Staged remediations ready for dependency ripple tracing and blast-radius planning.
+- `/changeset` ── Discovered gaps or invariant blind spots ready for remediation planning.
 - `/forge` ── Isolated or localized test smell remediation pre-approved for immediate TDD execution.
 ```
 
@@ -89,6 +73,5 @@ Summary: <N> files affected (<C> created, <U> updated).
    - *Subagent Fan-Out* (broad multi-package test suites): Launch 1–3 `research` subagents partitioned by directory, seeding with anchor and reference paths.
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
    - Deduplicate findings into the Canonical Output Contract.
-   - If deficits exist, draft the Remediation Changeset directly in the report.
    - Present completed report into conversation stream and halt turn immediately.
 

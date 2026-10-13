@@ -45,7 +45,7 @@ Qualify candidate constraints strictly against 3 conditions:
   - Whitelist: `<Exempt wrapper files or 'None'>`
   - Recommended Tier: `<Script Guard | Arch Unit Test | AST Linter>`
 
-## 3. Disqualified Invariants (Pruned)
+## 3. Disqualified Invariants (Pruned) *(omit if no candidate patterns pruned)*
 - **[PRUNED] <Candidate Pattern>**: <Reason for rejection, e.g., No existing codebase primitive / Trivial style issue>
 
 ## 4. Pipeline Routing
@@ -73,6 +73,6 @@ Qualify candidate constraints strictly against 3 conditions:
 
 ### Phase 3: Codification & Turn-Halt Gate (Fan-in)
 
-1. Reconcile findings into the Canonical Output Contract, moving ungrounded rules to Section 3 (Pruned).
+1. Reconcile findings into the Canonical Output Contract, moving ungrounded rules to Section 3 (Pruned; omit Section 3 if none).
 2. If boundary ownership or whitelist exemptions contain unresolved trade-offs: halt and deliberate (via `/clarify`).
 3. Emit the report into the conversation stream and halt turn immediately.

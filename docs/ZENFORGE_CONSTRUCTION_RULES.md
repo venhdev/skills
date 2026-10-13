@@ -15,6 +15,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Observable Behavioral Delta**: Every directive must measurably constrain output distribution. Ruthlessly prune conversational filler, preambles, persona roleplay, and generic advice modern LLMs follow by default.
 - **Qualitative Density**: Enforce brevity through explicit scope exclusions; forbid brittle numerical quotas (line counts, arbitrary step numbers).
+- **Conditional Section Omission**: Explicitly mark non-universal or negative-candidate sections in output contracts as omissible (`*(omit if ...)*`, e.g., `*(omit if no candidate patterns pruned)*`); forbid forcing synthetic filler, boilerplate placeholders, or hallucinated entries to satisfy an empty contract section.
 - **Tool-Aware Zero-Waste**: Forbid defensive rules, speculative circuit breakers, or retry instructions for behaviors that underlying tooling, permissions, or native error returns already handle.
 - **Zero Transitional Glue**: Attach templates and schemas directly beneath governing headings without conversational filler.
 - **Zero-Emoji & Token Economy**: Forbid decorative emojis across all skills, templates, and staging artifacts to conserve context tokens and eliminate visual noise.
