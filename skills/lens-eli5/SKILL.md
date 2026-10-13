@@ -25,9 +25,7 @@ disable-model-invocation: true
 - **With It (The Fix)**: <What becomes predictable, simple, or safe>
 
 ## 3. How It Works
-1. **<Step 1 Name>**: <First mechanical phase in plain language>
-2. **<Step 2 Name>**: <Internal operation or state transition>
-3. **<Step 3 Name>**: <Observable output or resolution>
+1. **<Step N Name>**: <Mechanical phase in plain language — repeat steps as needed>
 
 ## 4. The Mental Trap
 - **Common Misconception**: <What beginners wrongly assume>

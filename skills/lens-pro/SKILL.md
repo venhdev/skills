@@ -28,18 +28,15 @@ disable-model-invocation: true
 2. **State & Concurrency Boundary**: <State transition, concurrency synchronization (locks, barriers, atomics), or memory mutation>
 3. **Settlement & Reclamation**: <State commit, I/O flush, error boundary propagation, or resource reclamation>
 
-## 3. Engineering Trade-offs
-*(Format flexibly via paired vectors, comparison matrix, or Mermaid diagram [flowchart, sequenceDiagram, stateDiagram, xychart] to best capture the mechanical tension)*
+## 3. Trade-offs & Adoption
+*(Use paired vectors, comparison matrix, or Mermaid diagram [flowchart, sequenceDiagram, stateDiagram, xychart] when state transitions or data flow topologies clarify non-obvious trade-offs)*
 
 - **Gain**: <Primary performance, reliability, or scaling advantage achieved>
 - **Cost / Sacrifice**: <Direct engineering cost: p99 latency jitter, memory overhead, concurrency contention, or operational complexity>
-*(Embed Mermaid diagram or visual chart when state transitions or data flow topologies clarify non-obvious trade-offs)*
-
-## 4. Production Failure Modes & Mitigations
-- **<Failure Mode 1, e.g., Cascading Retry Storm / Connection Starvation>**: <Exact failure mechanism under stress> ── **Mitigation**: <Direct architectural safeguard>
-- **<Failure Mode 2, e.g., Head-of-Line Blocking / Silent Memory Drift>**: <Exact failure mechanism under stress> ── **Mitigation**: <Direct architectural safeguard>
-
-## 5. Adoption Heuristics
 - **Adopt When**: <Specific operational scale, concurrency threshold, or technical constraint requiring this pattern>
 - **Avoid When**: <Simpler baseline suffices; premature optimization trap>
+
+## 4. Production Failure Modes & Mitigations *(omit for stateless/pure-functional patterns)*
+- **<Failure Mode 1, e.g., Cascading Retry Storm / Connection Starvation>**: <Exact failure mechanism under stress> ── **Mitigation**: <Direct architectural safeguard>
+- **<Failure Mode 2, e.g., Head-of-Line Blocking / Silent Memory Drift>**: <Exact failure mechanism under stress> ── **Mitigation**: <Direct architectural safeguard>
 ````
