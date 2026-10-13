@@ -1,5 +1,4 @@
 # Changeset: <Feature Name> [(<optional_scope_root>/)]
-> Notice: Enclose the ASCII tree inside a ```text block to prevent Markdown table collisions.
 
 ```text
 |-- <collapsed/subsystem/dir>/

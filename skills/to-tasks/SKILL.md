@@ -72,9 +72,9 @@ disable-model-invocation: true
 
 Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ```
+````
 
 *(Note: Restrict embedded code snippets exclusively to binding schemas, interface contracts, or state machine transitions; forbid pasting volatile implementation code).*
-````
 
 ## Execution Protocol
 

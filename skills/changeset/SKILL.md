@@ -34,9 +34,10 @@ Classify every planned file operation exclusively into one of 4 discrete actions
 
 ## Canonical Output Contract
 
+Enclose the ASCII tree strictly inside a ```text code fence to prevent Markdown table collisions; forbid raw un-fenced ASCII pipes or embedding meta-directives in output.
+
 ````markdown
 # Changeset: <Feature Name> [(<optional_scope_root>/)]
-> Notice: Enclose the ASCII tree inside a ```text block to prevent Markdown table collisions.
 
 ```text
 |-- <collapsed/subsystem/dir>/

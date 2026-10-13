@@ -28,22 +28,18 @@ Qualify candidate constraints strictly against 3 conditions:
 # Perimeter Report: <Target Subsystem / Scope>
 
 ## 1. Executive Verdict
-- **Verdict**: <HARDENED | PARTIAL | UNPROTECTED>
-- **Scope Inspected**: <Directory, Subsystem, or Package>
-- **Active Boundaries Detected**: <Count of qualified boundaries>
-- **Summary**: <Single-sentence technical judgment on architectural boundary integrity>
+- **Target Inspected**: `<directory_or_package>`
+- **Verdict**: <HARDENED | PARTIAL | UNPROTECTED> (<N> active boundaries)
+- **Primary Risk**: <Single-sentence technical judgment on highest boundary exposure>
 
 ## 2. Qualified Boundary Declarations
 *(If HARDENED: 'All architectural boundaries are enforced by active test suites; zero raw bypasses detected.')*
 
-### Boundary: <Constraint Name, e.g., Banned Direct Network Client>
-- **Risk / Failure Mode**: <Concrete failure risk>
+### Boundary: <Constraint Name, e.g., Direct Network Client Bypass>
 - **Offending Evidence**: [<file>#L<N>](file:///path/to/file#L<N>) ── <Bypass snippet or call site>
-- **Codified Rule**:
-  - Banned: `<Forbidden raw API, symbol, or import pattern>`
-  - Required: `<Sanctioned internal primitive or approved route>`
-  - Whitelist: `<Exempt wrapper files or 'None'>`
-  - Recommended Tier: `<Script Guard | Arch Unit Test | AST Linter>`
+- **Failure Risk**: <Concrete risk: memory leak / auth bypass / architectural drift>
+- **Rule**: Required: `<Sanctioned Primitive>` ── Banned: `<Forbidden Raw API>`
+- **Enforcement**: Tier: `<Arch Unit Test | AST Linter | Script Guard>` | Whitelist: `<Exempt files | 'None'>`
 
 ## 3. Disqualified Invariants (Pruned) *(omit if no candidate patterns pruned)*
 - **[PRUNED] <Candidate Pattern>**: <Reason for rejection, e.g., No existing codebase primitive / Trivial style issue>

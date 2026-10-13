@@ -1,0 +1,91 @@
+name: Publish package to pub.dev
+
+on:
+  push:
+    tags:
+      - '*-v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate tagged package
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.target.outputs.package }}
+      working_directory: ${{ steps.target.outputs.working_directory }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          # To pin version via .fvmrc if present:
+          # flutter-version-file: .fvmrc
+        # If pure Dart workspace without Flutter:
+        # uses: dart-lang/setup-dart@v1
+        # with:
+        #   sdk: stable
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Resolve and validate tag target
+        id: target
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          package="${RELEASE_TAG%-v*}"
+          version="${RELEASE_TAG#"$package-v"}"
+
+          # Locate member manifest dynamically across workspace
+          manifest=$(find . -name pubspec.yaml -not -path "*/.*" | while read -r f; do
+            if grep -q "^name:[[:space:]]*$package\$" "$f"; then
+              echo "$f"
+              break
+            fi
+          done)
+
+          if [ -z "$manifest" ]; then
+            echo "::error::Could not find pubspec.yaml for package $package"
+            exit 1
+          fi
+
+          manifest_dir="$(dirname "$manifest")"
+          manifest_version="$(sed -n 's/^version:[[:space:]]*//p' "$manifest" | head -n 1 | tr -d "'\"")"
+
+          if [[ "$manifest_version" != "$version" ]]; then
+            echo "Tag $RELEASE_TAG does not match $manifest version ($manifest_version)"
+            exit 1
+          fi
+
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "working_directory=$manifest_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Check package formatting
+        working-directory: ${{ steps.target.outputs.working_directory }}
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze package
+        working-directory: ${{ steps.target.outputs.working_directory }}
+        run: flutter analyze --fatal-infos
+
+      - name: Test package
+        working-directory: ${{ steps.target.outputs.working_directory }}
+        run: |
+          if [ -d "test" ]; then
+            flutter test
+          fi
+
+  publish:
+    name: Publish to pub.dev
+    needs: validate
+    permissions:
+      contents: read
+      id-token: write
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      working-directory: ${{ needs.validate.outputs.working_directory }}
