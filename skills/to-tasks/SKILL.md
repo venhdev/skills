@@ -1,114 +1,64 @@
 ---
 name: to-tasks
-description: "Decompose approved specifications, architectural plans, or changesets into dependency-sequenced vertical slice tasks before implementation."
+description: "Record settled changesets as trackable tasks, split work when useful, and publish to the configured tracker for later implementation."
 disable-model-invocation: true
 ---
 
-# to-tasks — Task Decomposition & Slicing Engine
+# to-tasks — Task Recording & Conditional Decomposition
 
 ## Operating Invariants
 
-- **Task Scope Discipline**: Generate and publish strictly task definitions and tracking metadata using repo-relative POSIX paths; forbid codebase mutations, host-absolute paths, or `file:///` URIs.
-- **Tracker Mutex**: Publish strictly to the tracker defined in `.agents/task-tracker.md`; never publish to both local and remote unless explicitly requested.
-- **Vertical Slicing Discipline**: Deliver end-to-end vertical capability per task; forbid horizontal layer-only separation except wide refactors.
-- **Pre-Mutation Gate**: Stage proposed tasks in high-density summary format and halt turn immediately; forbid writing task files to disk or remote trackers without affirmative human approval.
+- **Recording Scope**: Publish task definitions and tracking metadata only; keep production code untouched and retain the supplied direction.
+- **Tracker Selection**: Use the configured tracker exclusively; default to local Markdown when setup is absent, without publishing to multiple trackers.
+- **Authorization Boundary**: Stage concrete tasks and destinations before writing files or remote issues. Honor existing publication authorization; task publication never authorizes implementation.
 
 ## Domain Rubric
 
-### 1. Vertical Slice Criteria
+### Input & Task Size
 
-- **Narrow & Complete**: Cut end-to-end across schema, logic, and interface layers for a single capability.
-- **Independently Verifiable**: Each task must pass automated verification in isolation.
-- **Context-Sized**: Bound task scope so implementation and verification complete within a single fresh context.
-- **Prefactor First**: When existing architecture resists new capabilities, dedicate Task 01 to preparatory refactoring.
-- **Wide Refactor (Expand-Contract)**: For sweeping changes crossing many call sites:
-  1. *Expand*: Add new interface alongside the old.
-  2. *Migrate*: Shift callers over in dependency-bounded batches.
-  3. *Contract*: Remove obsolete interface once all callers migrate.
+Receive a settled changeset, outcome, acceptance criteria, constraints, and supporting proof/references. Record small work as one task. Split medium/large work only when independently verifiable slices, dependencies, or separate execution sessions make tracking useful; task count is not a goal.
 
-### 2. Dependency & Task States
+Each split task delivers a complete vertical capability and owns its corresponding changeset. Keep dependencies acyclic. Use prerequisite refactoring only when needed; for wide migrations, preserve expand/migrate/contract ordering rather than arbitrary horizontal layers.
 
-- **`Blocked by`**: Declare explicit predecessor task IDs (`None` designates the starting frontier).
-- **Task States**:
-  - `ready`: Default initial state for all tasks. Actionable when unblocked per Dynamic Frontier Rule.
-  - `in-progress`: Claimed by an agent or developer during active implementation.
-  - `done`: Implementation complete, all acceptance criteria verified `[x]`.
-- **Dynamic Frontier Rule**: A task is unblocked and eligible for `/forge` strictly when its `Status` is `ready` AND (`Blocked by: None` OR every task listed in `Blocked by` has `Status: done`). Never write a static "blocked" status to disk.
+### Tracker & Persistence
 
-### 3. Namespace & Storage Partitioning
+Read `.agents/task-tracker.md` before staging to identify the destination and its native operations. If absent, stage local tasks under `.agents/tasks/<feature-slug>/` and creation of `.agents/task-tracker.md` by copying [references/issue-tracker-local.md](references/issue-tracker-local.md); write that setup only within publication authorization. Existing remote setup wins over the default; unavailable remote access is a blocker, not permission to switch trackers silently.
 
-- **Local Markdown Partitioning**: Tasks are partitioned per feature in `.agents/tasks/<feature-slug>/<NN>-<slug>.md`.
-  - `<feature-slug>` is automatically derived by the agent from the spec name, feature title, or branch context.
-  - Tasks are numbered sequentially starting from `01` in dependency order.
-- **Remote Trackers**: Tasks are published as issues to the remote repository defined in `.agents/task-tracker.md`, using native issue dependencies or header `Blocked by: #<n>` links.
+Use repo-relative POSIX paths in stored tasks. Local tasks use `<NN>-<slug>.md` in dependency order; remote tasks use native dependencies or explicit `Blocked by` IDs. Re-read the published tasks to verify content, identifiers, and dependencies before completion.
 
-### 4. Canonical Task Template
+### State & Task Lifecycle
 
-````markdown
-# <NN>: <Task Title>
+- `STAGED`: Task definitions, count, dependencies, and destination are reviewable; publication is pending.
+- `DONE`: Tasks have been published and their existence/content verified; implementation remains pending.
+- `UNRESOLVED`: Input, tracker access, or publication prevents reliable recording; report any partial publication and its identifiers.
 
-**Status**: ready
-**Blocked by**: None | <NN> (<Title>)
+Stored implementation tasks retain `ready`, `in-progress`, and `done`. Eligibility requires `ready` and all predecessors `done`; blocking is derived, not a persisted lifecycle state. Publishing a task leaves it `ready`, even when this skill reports `DONE`.
 
-## What to Build
-<Clear description of end-to-end behavior delivered from user/system perspective>
+## Canonical Output Contract
 
-## Acceptance Criteria
-- [ ] <Verifiable criterion 1>
-- [ ] <Verifiable criterion 2>
+```markdown
+# Task Recording: <Feature> · <STAGED | DONE | UNRESOLVED>
 
-## Embedded Changeset
-> Notice: Planned blast radius at decomposition time. Reconcile against current working tree before mutating files.
+Tracker: <Configured destination or local default.>
 
-```text
-|-- <collapsed/subsystem/dir>/
-|   |-- <file_1>
-|   |   `-- [<ACTION>] <File mutation summary>.
-|   `-- <file_2>
-|       `-- [<ACTION>] <Cascade update or test summary>:
-|           * <Specific task contract detail or invariant>.
-|-- <deep/path/to/isolated_file_3>
-|   `-- [<ACTION>] <Direct leaf path without redundant folder node>.
+| Task | Scope / Acceptance | Blocked by | Destination |
+| :--- | :--- | :--- | :--- |
+| <ID> | <Complete deliverable and criterion> | <IDs or None> | <Path or issue link> |
 
-Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
+<Why splitting is useful; omit when one task suffices.>
+Gap: <Blocker or partial publication; omit if none.>
 ```
-````
 
-*(Note: Restrict embedded code snippets exclusively to binding schemas, interface contracts, or state machine transitions; forbid pasting volatile implementation code).*
+Read [references/task-template.md](references/task-template.md) when preparing task bodies; embed each task's changeset and preserve evidence/constraints for later execution.
+
+### Routing
+
+- The input changeset has unresolved requirements → (via /clarify).
+- The input direction is stale or needs redesign → (via /architect-decision).
+- The caller requests implementation of an eligible, separately authorized task → (via /forge).
 
 ## Execution Protocol
 
-### Phase 1: Ingestion & Slice Decomposition
-
-1. Ingest requirements from input context (conversation, specifications under `docs/` or governed via `/ssot`, tickets, or staged changesets).
-2. Derive `<feature-slug>` from context or specification.
-3. Decompose requirements into sequential tracer-bullet vertical slices with acyclic blocking edges (`Blocked by`).
-4. Partition the global Changeset into per-task Embedded Changesets, sequencing by dependency edges.
-
-### Phase 2: Staging & Authorization Gate
-
-1. Present the task breakdown and derived `<feature-slug>` in Lean Delivery summary format:
-
-   ```text
-   # Tasks Staging: <feature-slug>
-
-   | Task ID | Title | Blocked by | Frontier Gate | Key Deliverable |
-   | :--- | :--- | :--- | :--- | :--- |
-   | **01** | <Title 1> | None | `immediate` | <One-line capability> |
-   | **02** | <Title 2> | 01 | `waiting on 01` | <One-line capability> |
-   ```
-
-2. Halt turn immediately for user confirmation; forbid writing files or publishing tasks without approval.
-
-### Phase 3: Tracker Resolution & Publication
-
-1. Read `.agents/task-tracker.md`. If absent:
-   - If `/zenforge-init` is available: prompt user to choose `[1] Full Init (run /zenforge-init)` or `[2] Quick Setup (seed local markdown tracker)`. Halt turn for response.
-   - If `/zenforge-init` is unavailable: automatically bootstrap `.agents/task-tracker.md` from `references/issue-tracker-local.md` and proceed to the next step.
-2. Publish tasks to the designated tracker:
-   - `local-markdown`: Write `.agents/tasks/<feature-slug>/<NN>-<slug>.md` in dependency order.
-   - `github`: Publish issues via `gh issue create` and link dependencies.
-   - `gitlab`: Publish issues via `glab issue create` and link dependencies.
-3. Report the active frontier (first `ready` task) and hand off to `/forge`:
-   - `local-markdown`: `/forge .agents/tasks/<feature-slug>/01-<slug>.md`
-   - `github` | `gitlab`: `/forge #<ID>`
+1. Reconcile the input changeset with current context. If direction is stale or unresolved, report the gap rather than inventing tasks.
+2. Resolve the tracker, retain one task or partition useful slices, and present `STAGED`. Halt before publication unless the concrete task scope and destination are already authorized.
+3. Publish through the configured operations, verify the stored records, and report `DONE` or `UNRESOLVED`. Publication completes the recording request; keep implementation separately authorized.

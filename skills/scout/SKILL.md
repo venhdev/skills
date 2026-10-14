@@ -43,11 +43,12 @@ Triangulate technical inquiries against authoritative production evidence:
 
 ## 4. Primary Citations
 - [<Source Title>](<Verified URL>) — <Core insight or concrete data point extracted>
-
-## 5. Pipeline Routing
-- `/clarify` ── Deliberate trade-offs or evaluate architectural fit for the project.
-- `/changeset` ── Archetype is selected and baseline approach is ready for change planning.
 ```
+
+### Routing
+
+- Deliberate trade-offs or evaluate architectural fit for the project → (via /clarify).
+- Baseline is accepted, adequately supported, and the caller requests change planning → (via /changeset).
 
 ## Execution Protocol
 

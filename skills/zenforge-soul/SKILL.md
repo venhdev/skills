@@ -15,25 +15,38 @@ description: "Bootstrap session context, align architectural posture, enforce st
 
 1. **Define Once in SSOT, Link Everywhere Else**: Every business rule, contract, and schema belongs to a single authoritative owner. Reference via links or imports; never duplicate or redefine across files.
 2. **Mandatory SSOT Grounding**: Ground every proposal and code change in authoritative evidence. Locate, inspect, and reconcile with governing specifications, schemas, or code contracts before acting; establish baseline contracts first when none exist.
-3. **Pipelined Phasing & Turn Halt**: Deconstruct complex requests into ordered, independent phases. Execute strictly one phase per turn, deliver its verified completion artifact, and halt immediately without cascading downstream.
-4. **Authorized Mutation & Scope Discipline**: Maintain workspace in read-only state until explicit user authorization to execute. Confine modifications strictly to approved scope and mandatory mechanical cascades (imports, signatures, tests) required for system integrity; omit unsolicited refactoring or unrequested features.
+3. **Pipelined Phasing & Turn Halt**: Deconstruct complex requests into ordered, independent phases. Combine grounded discovery and staging when practical. Halt for required user answers or missing authorization; continue already authorized scope without a forced one-phase-per-turn boundary.
+4. **Authorized Mutation & Scope Discipline**: Maintain production scope read-only until execution is authorized; isolated diagnostic/proof scratch work does not authorize production changes. Confine modifications strictly to approved scope and mandatory mechanical cascades (imports, signatures, tests) required for system integrity; omit unsolicited refactoring or unrequested features.
 5. **Clean Implementation Discipline**: Maximize clarity over brevity when authoring code. Flatten control flow using guard clauses, eliminate dead abstractions and speculative wrappers, and strictly avoid nested ternary operators while preserving functional invariants.
 
-## 3. Contextual Routing Reflex
+### Routing
 
-Proactively adopt postures or recommend specialized skills based on active context signals; prioritize **Defect Isolation & Proof** before **Staging & Mutation**:
-
-- **Vague intent or XY-problem suspicion**: Isolate root objective from proposed mechanism via `/distill`; deliberate architectural trade-offs via `/clarify` instead of proceeding on assumptions.
-- **Open-ended design direction or competing approaches**: Lock framing axes and converge verified evidence into one approach (or `DO-NOT-BUILD`) via `/architect-decision`.
-- **Unfamiliar codebase topography or execution flow**: Map module seams and call chains via `/recon`; research production archetypes and failure modes via `/scout` before committing to design.
-- **Unproven algorithm, library, or feasibility risk**: Prove correctness via standalone script in `.agents/scratch/` via `/spike` instead of experimenting on production code.
-- **Pre-mutation planning & scoping**: Map filesystem blast radius via `/changeset`; slice multi-step efforts into vertical tasks via `/to-tasks` instead of direct unapproved file edits.
-- **Code modification & implementation**: Execute test-driven mutations and atomic commits via `/forge` (or isolated branches via `/worktree` / `/forge-isolated` / `/forge-isolated-subagent`); clean structural smells without altering behavior via `/simplify`.
-- **Defects, regressions, or test failures**: Isolate root causes via minimal reproduction in `.agents/scratch/` via `/diagnose` instead of speculative patching or blind retries.
-- **Adversarial review & quality audits**: Challenge changesets/diffs for bloat and spec drift via `/assay`; audit test flakiness and harness anchors via `/harness-audit`; detect abstraction bypasses via `/perimeter`; inspect source modules for structural debt and God classes via `/inspect-structure`; audit role-responsibility alignment and nomenclature drift via `/inspect-role-naming`; audit semantic performance bottlenecks, N+1 queries, and resource retention via `/inspect-perf`; audit application threat exposure, auth flaws, and security taint sinks via `/inspect-security`.
-- **Documentation conflict or authority drift**: Reconcile canonical owners and enforce Placement Matrix via `/ssot`.
-- **Repository bootstrapping**: Scaffold task tracking, test anchors, and privacy rules via `/zenforge-init`.
-- **Technical concept inquiries**: Deconstruct formal systems mechanics via `/lens-pro`; explain intuitive physical analogies via `/lens-eli5`.
+- Raw requirements or uncertain X–Y intent → (via /distill).
+- Unresolved requirements, semantics, or trade-offs → (via /clarify).
+- Open design direction or competing approaches → (via /architect-decision).
+- Unknown codebase seams or execution flow → (via /recon).
+- Missing production precedent or failure-mode context → (via /scout).
+- A supplied candidate needs proof within its original direction → (via /spike).
+- A defect needs confirmed or inferred root-cause findings → (via /diagnose).
+- A settled solution needs file-impact and cascade planning → (via /changeset).
+- A changeset needs tracking or useful decomposition → (via /to-tasks).
+- A supported changeset is authorized for implementation → (via /forge).
+- Code needs behavior-preserving simplification audit and staging → (via /simplify-audit).
+- A changeset, task breakdown, or implementation needs review → (via /assay).
+- Test infrastructure needs flakiness or coverage review → (via /harness-audit).
+- Existing abstraction boundaries need bypass inspection → (via /perimeter).
+- Code needs structural debt inspection → (via /inspect-structure).
+- Identifiers need architectural role inspection → (via /inspect-role-naming).
+- Code needs performance or resource-risk inspection → (via /inspect-perf).
+- Code needs threat or authorization-risk inspection → (via /inspect-security).
+- Documentation authority needs reconciliation → (via /ssot).
+- Repository tracking, harness, or privacy setup is missing → (via /zenforge-init).
+- Worktree creation, listing, or removal is requested → (via /worktree).
+- Authorized implementation needs an isolated workspace → (via /forge-isolated).
+- Authorized implementation needs a delegated isolated worker → (via /forge-isolated-subagent).
+- Release readiness verification is requested → (via /ci-pub).
+- A concept needs an intuitive explanation → (via /lens-eli5).
+- A mechanism needs precise engineering explanation → (via /lens-pro).
 
 ## 4. Communication Standards
 

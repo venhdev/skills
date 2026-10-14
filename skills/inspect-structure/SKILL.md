@@ -88,11 +88,12 @@ disable-model-invocation: true
 - **Remedy**: <Exact architectural decomposition or extraction path>
 
 *(Repeat for each distinct structural finding; emit 'No structural code smells observed across rubric dimensions' if clean)*
-
-## 3. Pipeline Routing
-- `/changeset` ── Multi-file structural refactoring, God class decomposition, or shared abstraction extraction.
-- `/diagnose` ── Suspected runtime functional bugs or test failures.
 ```
+
+### Routing
+
+- Multi-file structural refactoring, God class decomposition, or shared abstraction extraction → (via /changeset).
+- Suspected runtime functional bugs or test failures → (via /diagnose).
 
 ## Execution Protocol
 

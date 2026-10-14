@@ -28,5 +28,5 @@ Following the architectural distillation of the suite (enforcing *ZenForge Const
 
 ## 3. Core Invariants
 
-- **Archetype B Exclusivity**: Audit and catalog only; forbid modifying files on disk. Route remediation to [`/simplify`](../skills/simplify/SKILL.md) (micro-level) or [`/changeset`](../skills/changeset/SKILL.md) (macro-level).
+- **Archetype B Exclusivity**: Audit and catalog only; forbid modifying files on disk. Route remediation to [`/simplify-audit`](../skills/simplify-audit/SKILL.md) (behavior-preserving simplification audit/staging) or [`/changeset`](../skills/changeset/SKILL.md) (macro-level).
 - **Semantic Over Mechanical**: Target multi-file reasoning and architectural cohesion; leave AST formatting, type checking, and regex scanning to native CLI tooling.

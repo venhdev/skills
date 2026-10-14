@@ -1,82 +1,63 @@
 ---
 name: changeset
-description: "Map exact filesystem modifications and trace dependency blast radiuses for approved features or architectural decisions before code mutation."
+description: "Map affected files and dependency cascades for a settled solution into a reviewable changeset before implementation or task tracking."
 disable-model-invocation: true
 ---
 
-# changeset — Codebase Blast Radius & Change Planning Engine
-
-
-## Operating Invariants
-
-- **Read-Only Discipline**: Maintain zero filesystem mutations and inspect existing contracts; forbid creating, editing, or deleting files on disk.
-- **Scope Discipline**: Confine planned changes strictly to approved scope and mandatory dependency cascades (imports, signatures, tests); forbid unsolicited refactoring, formatting churn, or adjacent cleanup.
-- **Pre-Mutation Gate**: Deliver the Changeset Tree and halt turn immediately; forbid executing file edits, writing diffs, or invoking mutating tools within this turn.
+# changeset — File Impact & Cascade Planning
 
 ## Domain Rubric
 
-### 1. Four Atomic Actions
+### Input & Boundary
 
-Classify every planned file operation exclusively into one of 4 discrete actions:
+Receive a settled direction or solution with outcome, constraints, and available evidence. Ground it against the current checkout and governing contracts; keep planning read-only and preserve the supplied direction.
 
-- `[CREATE]`: New files (modules, tests, schemas, configurations).
-- `[MOVE]`: Relocating or renaming existing files.
-- `[UPDATE]`: Modifying existing logic, signatures, or cascade dependencies.
-- `[DELETE]`: Removing deprecated, obsolete, or superseded files.
+Trace direct and indirect callers, implementations, imports, schemas, and tests. Inspect only the target and load-bearing cascades; exclude cosmetic churn, speculative files, and unaffected backward-compatible callers. Stop if the input plan is stale or contradictory rather than silently redesigning it.
 
-### 2. Blast Radius & Guardrails
+### File Actions
 
-- **Cascade & Ripple Tracing**: Trace direct and indirect callers, interface implementations, and tests affected by contract changes. Reconcile against authoritative specifications (via `/ssot`).
-- **Guardrails (When NOT to Touch)**:
-  - Preserve untouched callers if interface changes remain fully backward-compatible.
-  - Forbid bundling incidental formatting, opportunistic lint fixes, or speculative files.
-  - Forbid phantom or speculative file operations lacking approved requirements.
+- `[CREATE]`: New file required by the solution.
+- `[MOVE]`: Relocation or rename, including affected references.
+- `[UPDATE]`: Existing logic, contract, test, or necessary cascade.
+- `[DELETE]`: Obsolete file whose removal is required by the solution.
+
+### State
+
+- `STAGED`: The Changeset Tree identifies concrete operations and necessary cascades for the settled direction.
+- `UNRESOLVED`: Missing, stale, or conflicting direction prevents a reliable changeset; cite the blocker and decision required.
 
 ## Canonical Output Contract
 
-Enclose the ASCII tree strictly inside a ```text code fence to prevent Markdown table collisions; forbid raw un-fenced ASCII pipes or embedding meta-directives in output.
-
 ````markdown
-# Changeset: <Feature Name> [(<optional_scope_root>/)]
+# Changeset: <Scope> · STAGED
+
+Basis: <Settled solution and supporting proof/reference.>
+Acceptance: <Observable criteria and constraints to carry downstream.>
 
 ```text
-|-- <collapsed/subsystem/dir>/
-|   |-- <filename_1>
-|   |   `-- [<ACTION>] <Summary of change>.
-|   `-- <filename_2>
-|       `-- [<ACTION>] <Summary of change>:
-|           * <Specific change detail or invariant>.
-|           * <Multi-line detail with hanging indent aligned
-|             to text column to prevent tree wrapping breakage>.
-|-- <deep/isolated/path/to/filename_3>
-|   `-- [<ACTION>] <Direct leaf path without redundant folder node>.
-`-- <another_subsystem>/
-    `-- <filename_4>
-        `-- [<ACTION>] <Summary of change>.
+|-- <subsystem>/
+|   |-- <file>
+|   |   `-- [UPDATE] <Load-bearing change and invariant>.
+|   `-- <new-file>
+|       `-- [CREATE] <Required component or regression check>.
+`-- <deep/path/to/caller>
+    `-- [UPDATE] <Necessary cascade>.
 
 Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
 ```
 ````
 
+For `UNRESOLVED`, replace the tree with a concise blocker, evidence, and required redesign decision; omit invented file operations.
+
+### Routing
+
+- An outdated plan exposes unresolved requirements → (via /clarify).
+- An outdated plan requires a new design direction → (via /architect-decision).
+- The supported changeset is authorized for implementation → (via /forge).
+- The caller wants tracking or useful task decomposition → (via /to-tasks).
+
 ## Execution Protocol
 
-### Phase 1: Ingestion & Blast Radius Tracing
-
-1. Ingest governing requirements, Decision Matrix, or architectural specifications. Reconcile with authoritative documentation (via `/ssot`).
-2. Inspect relevant codebase files, type contracts, schemas, and tests using non-mutating file tools.
-3. Trace dependency ripple: identify all callers, broken imports, and affected test suites.
-4. If target scope contains unresolved architectural tensions or ambiguous requirements: halt turn immediately and deliberate (via `/clarify`).
-
-### Phase 2: Changeset Construction
-
-1. Map each identified file strictly to one of the 4 Atomic Actions (`[CREATE]`, `[MOVE]`, `[UPDATE]`, `[DELETE]`).
-2. Enforce Blast Radius Guardrails: exclude backward-compatible callers and cosmetic churn.
-3. State concise technical summaries per file, using indented bullet points for multi-part contract modifications.
-4. Append the mandatory blast radius summary line (`Summary: <N> files affected (...)`).
-
-### Phase 3: Authorization Gate
-
-1. Present the completed Changeset Tree into the conversation stream and halt turn immediately. Never modify workspace files, write code diffs, or execute mutating commands without affirmative user authorization.
-2. Upon affirmative approval:
-   - For direct implementation: route to `/forge`.
-   - For multi-task decomposition: route to `/to-tasks`.
+1. Inspect the supplied direction and current code/contracts. Stop on an outdated plan or foundational contradiction and report `UNRESOLVED` with the required redesign decision.
+2. Build the tree with file actions, direct cascades, acceptance criteria, and evidence provenance. Collapse redundant directories while preserving file hierarchy.
+3. Present `STAGED` and halt without filesystem mutations. An embedded changeset produced elsewhere uses the same handoff obligations without requiring this skill.

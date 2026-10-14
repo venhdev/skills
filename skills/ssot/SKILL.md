@@ -8,10 +8,9 @@ description: "Audit documentation authority, reconcile conflicting specification
 ## Operating Invariants
 
 - **Authority Grounding**: Maintain exactly one authoritative owner per rule, contract, or concept; forbid duplicate or competing authorities across documents. Treat folder paths and file metadata as evidence, not proof of authority.
-- **Read-Only Inspection Discipline**: Stop and report authoritative files, sections, and findings immediately when the request is purely search, navigation, or auditing; forbid unsolicited edits.
+- **Read-Only Inspection Discipline**: Inspect and report authoritative files, sections, and findings for search, navigation, or audit-only requests; keep documentation unchanged in those modes.
 - **Scope Discipline**: Touch, move, or prune exclusively approved documentation files using repo-relative POSIX links; forbid codebase mutations, host-absolute paths, or `file:///` URIs.
-- **Pre-Mutation Gate**: Stage changes exclusively in Changeset format (`[CREATE]`, `[UPDATE]`, `[MOVE]`, `[DELETE]`) and halt turn immediately; forbid mutating documentation files on disk without affirmative human authorization.
-- **Verification Circuit Breaker**: Stop execution immediately upon broken markdown link or anchor verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent progression.
+- **Pre-Mutation Gate**: Stage documentation changes in Changeset format (`[CREATE]`, `[UPDATE]`, `[MOVE]`, `[DELETE]`); halt before edits when the concrete scope lacks authorization, and honor authorization already provided.
 
 ## Domain Rubric
 
@@ -59,11 +58,11 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
    ```
 
 2. Present strictly the high-density Changeset summary and technical rationale. Forbid dumping raw document diffs into chat.
-3. Halt turn immediately for human authorization; forbid modifying workspace files on disk without explicit approval.
+3. If the staged scope lacks authorization, halt before modifying documentation. Continue to application when that concrete scope is already authorized.
 
 ### Phase 3: Application & Link Verification
 
 1. Upon receiving approval, apply mutations to disk (complete `[CREATE]` and `[MOVE]` before `[DELETE]`).
-2. Advance `updated: YYYY-MM-DD` in frontmatter of touched documents.
+2. Advance `updated: YYYY-MM-DD` only for meaningful content or lifecycle changes, following the effective documentation contract.
 3. Verify markdown link resolution and anchor validity.
-4. If verification fails, stop, report the error output, and ask the user whether to revert or keep debugging.
+4. Correct link and anchor failures within authorized scope and re-verify. If resolution requires a new authority decision, expanded scope, or unavailable verification, report `UNRESOLVED` with evidence and retained edits; keep redesign outside the original scope.

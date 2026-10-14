@@ -63,11 +63,17 @@ Recommendation: [Option] because <Single-sentence technical rationale>
 - **Rationale & Trade-off**: <Core benefit gained> vs. <accepted systemic cost/complexity>
 - **Enforced Invariant**: <Concrete non-negotiable rule, contract constraint, or boundary guardrail>
 
-## 3. Blast Radius & Downstream Routing
+## 3. Blast Radius
+- **Open Decisions**: <Unresolved questions and their impact if the caller concludes deliberation early; omit when none>
 - **Impacted Subsystems**: `<Component A>`, `<Component B>`
 - **Banned Anti-Patterns**: <Explicitly forbidden workarounds or failure-prone designs>
-- **Next Step**: Route to `/changeset` for blast-radius planning and execution staging.
 ```
+
+### Routing
+
+- Settled decisions establish a supported direction for file-impact planning → (via /changeset).
+- A supplied candidate and direction need empirical proof → (via /spike).
+- Remaining choices require an architectural direction decision → (via /architect-decision).
 
 ## Execution Protocol
 
@@ -87,4 +93,4 @@ Recommendation: [Option] because <Single-sentence technical rationale>
 ### Phase 3: Decision Dossier Synthesis
 
 1. Compile settled decisions into the Canonical Output Contract.
-2. Deliver the completed `Architectural Decision Dossier` and halt turn immediately. Route downstream to `/changeset`.
+2. Deliver the completed `Architectural Decision Dossier` and halt turn immediately.

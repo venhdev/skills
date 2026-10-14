@@ -1,60 +1,100 @@
 ---
 name: distill
-description: "Deconstruct raw intent, expose XY problems, and isolate latent assumptions to establish unambiguous problem boundaries before architectural design."
+description: "Ground and confirm independent user intents, then assess outcome needs and mechanism fit before architectural design."
 disable-model-invocation: true
 ---
 
-# distill — Intent Deconstruction & Problem Framing Engine
-
-## Operating Invariants
-
-- **Root-First Isolation**: Separate the underlying operational objective ($X$) from the requested tool or mechanism ($Y$); challenge premature technical commitments.
-- **Context Preservation**: Frame problem boundaries in isolation without derailing active session context or mutating project scope.
+# distill — Grounded Intent Inquiry
 
 ## Domain Rubric
 
-### 1. Diagnostic Categories
+### Intent Boundaries
 
-- `Aligned`: Mechanism $Y$ directly and proportionally resolves Objective $X$ with minimal overhead.
-- `Overkill`: Mechanism $Y$ resolves Objective $X$ but introduces disproportionate accidental complexity.
-- `Misaligned`: Mechanism $Y$ treats superficial symptoms without resolving the root cause of Objective $X$.
-- `Premature`: Mechanism $Y$ optimizes for unverified future requirements without empirical justification.
+- Separate desired outcome **X** from requested mechanism **Y**. Extract independently assessable intents with stable IDs (`I1`, `I2`, ...); shared goals or mechanisms are valid.
+- Preserve explicit requests and label inferred intent as inferred. An outcome without a mechanism is valid; keep its solution open rather than inventing technologies.
+- Ground proposals with targeted authoritative docs and relevant code. Inspect enough to identify context and boundaries; reserve suitability evaluation for confirmed intent.
+- User confirmation establishes intended meaning, not runtime proof or implementation authorization. Preserve confirmed context across turns; revisions invalidate only affected intents and their dependent claims.
+- Keep inquiry read-only: inspect and report; leave design, workspace mutation, and experiments to separately invoked workflows.
 
-### 2. Latent Assumption Vectors
+### Post-Confirmation Evaluation
 
-- **Scale & Volume**: Traffic, data volume, and concurrency expectations.
-- **Consistency & Latency**: Synchronization models, eventual consistency tolerances, and real-time demands.
-- **Operational Capacity**: Maintenance bandwidth, infrastructure costs, and cognitive complexity.
-- **User & Environmental Reality**: Access patterns, failure tolerance, and real-world client constraints.
+Assess each confirmed intent against:
+
+- **Need & Success**: Actual problem, desired outcome, and observable success criteria.
+- **Existing Capability**: What the system already supports and the remaining delta.
+- **Constraints & Cost**: Scale, consistency, latency, operational capacity, maintenance, and user/environmental limits that affect the outcome.
+- **Relation Fit**: Whether Y, when present, addresses X proportionally within the stated scope.
+- **Evidence & Gaps**: Load-bearing code, contract, verified source, or measured evidence; distinguish supported claims from assumptions and runtime unknowns.
+- **Cross-Intent Dependencies**: Shared constraints, ordering, conflicts, and evidence whose failure changes another intent.
+
+Use this taxonomy internally; translate findings into rationale rather than exposing rubric labels:
+
+- `Aligned`: Y resolves X proportionally within known constraints.
+- `Overkill`: Y resolves X with avoidable cost or complexity disproportionate to the need.
+- `Misaligned`: Y addresses a symptom or different outcome while leaving X unmet.
+- `Premature`: The case for Y depends on unverified future requirements.
+
+### Evidence States
+
+- `CONFIRMED`: Available evidence supports the need and, when present, the mechanism within stated scope. Without Y, confirm the outcome while leaving the solution open.
+- `INFERRED`: A plausible conclusion relies on an identified assumption or proof still needed.
+- `REJECTED`: Evidence establishes a bounded reason the need or proposed mechanism fails; state the scope and conditions of rejection.
+- `UNRESOLVED`: A material ambiguity or evidence gap prevents a supported conclusion.
+
+Assign evidence states only after meaning is confirmed; awaiting user confirmation remains a pending proposal, not an `UNRESOLVED` assessment. State evidence boundaries explicitly: absence of proof identifies a gap, never a fabricated proof or an automatic rejection of a feature.
+
+### Search Budget & Delegation
+
+- Start with narrow docs/code searches and stop when enough evidence supports framing or identifies a load-bearing gap. Route broad mapping or production research (via /recon or /scout) rather than expanding inquiry indefinitely.
+- Inspect localized scope directly. When broad inquiry is required within scope, pre-scout anchors and delegate disjoint slices with exact boundaries, discovered anchors, relevant rubric, and the sub-report contract: intent IDs, evidence pointers, supported claims, gaps, and dependencies. Reconcile reports before concluding.
 
 ## Canonical Output Contract
 
+Use one Framing Dossier across the confirmation exchange and final evaluation.
+
+### Intent Proposal & Confirmation
+
 ```markdown
-# Framing Dossier: <Topic / Problem Slug>
+# Framing Dossier: <Topic>
 
-## 1. Intent Deconstruction (XY Analysis)
-- **Root Objective (X)**: <Core outcome or problem requiring resolution>
-- **Proposed Mechanism (Y)**: <Initial approach, requested tool, or suggested architecture>
-- **Diagnostic**: <Aligned | Overkill | Misaligned | Premature>
-- **Diagnostic Rationale**: <Single-sentence technical explanation of fit or tension>
+**I1 — <X via Y, or X if Y is absent>**
+Source: <Explicit request or inferred interpretation, with its source>
+Meaning: <Desired outcome, requested mechanism if present, and relevant scope>
 
-## 2. Latent Assumptions & Risks
-| Vector | Unstated Assumption | Empirical Reality / Edge Case | Invalidation Impact |
-| :--- | :--- | :--- | :--- |
-| <Scale / State / Ops> | <Implicit premise> | <What must be proven or verified> | <Risk if assumption is false> |
+<Initially repeat for each independent intent using stable IDs; on revision, include only affected intents awaiting confirmation.>
 
-## 3. Scope Boundaries
-- **In-Scope**: <Minimal essential problem surface necessary to achieve Objective X>
-- **Out-of-Scope**: <Premature generalizations, secondary features, or accidental complexity>
-
-## 4. Pipeline Routing
-- `/scout <inferred_topic>` ── Real-world production archetypes, scale metrics, or failure modes for Objective X are unknown.
-- `/clarify` ── Objective X requires multi-turn deliberation across architectural trade-offs.
-- `/changeset` ── Problem boundaries and baseline approach for Objective X are unambiguous.
+Is this what you mean?
 ```
+
+Localize the short confirmation question to the caller. Present proposal and confirmation together, then halt immediately; evaluate suitability only after intent confirmation.
+
+### Final Evaluation
+
+```markdown
+# Framing Dossier: <Topic>
+
+**I1 — <X via Y, or X if Y is absent> · CONFIRMED/INFERRED/REJECTED/UNRESOLVED**
+<Short-to-medium rationale: evidence, scope/conditions, practical trade-off, and load-bearing gap where relevant.>
+
+<Repeat for each intent whose meaning is confirmed; choose one evidence state per intent.>
+
+Dependencies: <Cross-intent effects and affected IDs. Omit when none.>
+```
+
+### Routing
+
+- An intent depends on unknown repository capabilities → (via /recon).
+- An intent needs production precedent or failure-mode evidence → (via /scout).
+- A symptom or latency problem needs causal investigation → (via /diagnose).
+- A confirmed intent has unresolved requirements or trade-offs → (via /clarify).
+- An outcome needs a solution or a direction decision → (via /architect-decision).
+- A supplied candidate needs empirical proof → (via /spike).
+- A supported direction is settled and accepted for file-impact planning → (via /changeset).
 
 ## Execution Protocol
 
-1. Ingest the user inquiry, proposed solution, or problem statement.
-2. Evaluate against Diagnostic Categories and Latent Assumption Vectors.
-3. Present the completed Framing Dossier into the conversation stream and halt turn immediately.
+1. Ingest the request and confirmed session context; inspect targeted docs/code to propose independent intents and their sources.
+2. Present the proposal and short confirmation question in one turn; halt before suitability evaluation.
+3. Incorporate confirmation or corrections. Re-propose only affected intents; retain unchanged confirmations and halt for any revised meaning.
+4. Evaluate confirmed intents using the rubric and grounded evidence. Keep unconfirmed meanings pending without suitability claims.
+5. Present the final dossier with per-intent evidence states and any necessary routes, then halt. Further user clarification may reopen only affected conclusions.

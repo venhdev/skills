@@ -1,102 +1,109 @@
 ---
 name: architect-decision
-description: "Narrow open-ended problems into locked design direction, then converge verified evidence into a definitive decision or explicit no-build verdict."
+description: "Frame design constraints and converge architectural evidence into a supported direction, provisional candidate, bounded rejection, or unresolved decision."
 disable-model-invocation: true
 ---
 
-# architect-decision — Design Direction Framing & Architectural Decision Engine
+# architect-decision — Design Direction & Architectural Decision
 
 ## Domain Rubric
 
-### 1. Framing Axes
+### Framing Axes
 
-Establish grounded direction before implementation. An axis with no bearing on the work resolves to `N/A` with a one-line reason rather than an invented constraint. Resolve all axes before selecting the implementation:
+Establish grounded direction before implementation. Resolve irrelevant axes to `N/A` with a reason; resolve material axes before settling the choice:
 
-- **Problem Boundary**: The operational outcome and the observable signal that declares it met, isolated from the requested mechanism.
-- **Hard Constraints**: Non-negotiables that eliminate whole approach families — time, money, compliance, data safety, platform, or skill absent from the team.
-- **Frozen Surface**: Surfaces that must survive unchanged, whether by contract, by data already written, or by someone else's reliance.
-- **Reversibility Class**: One-way door (acting forecloses the undo) versus two-way (revertible at no external cost).
+- **Problem Boundary**: Operational outcome and observable success criteria, separate from the requested mechanism.
+- **Hard Constraints**: Non-negotiables eliminating approach families: time, money, compliance, data safety, platform, or team capacity.
+- **Frozen Surface**: Contracts, persisted data, APIs, and relied-on behavior that must survive unchanged.
+- **Reversibility Class**: One-way doors foreclose undo; two-way doors permit reversal without external cost. Identify concrete rollback exposure.
 
-### 2. Framing Discipline
+### Framing Discipline
 
-- **Inference Before Inquiry**: Phrase axis questions around business consequences rather than technical metrics (throughput, latency, delivery semantics). Infer technical constraints from consequence and provide as default for confirmation:
+- **Inference Before Inquiry**: Ask about business consequences, infer technical constraints from evidence, and offer grounded defaults for confirmation.
 
   ```text
   Bad:  "Expected throughput? What p99 latency budget?"
-  Good: "When an order fails, what actually happens — lost revenue, or just slower processing?"
-        (Derive durability requirement from answer, then offer as default.)
+  Good: "When an order fails, does it lose revenue or delay processing?"
+        (Derive the durability requirement and offer it as a default.)
   ```
 
-- **Zero-Ambiguity Fast Path**: When every axis is already fixed by the inquiry, lock the frame directly.
-- **Framing Payload Format**:
+- **Zero-Ambiguity Fast Path**: Lock axes already fixed by the request and evidence; ask only about unresolved choices.
+- **Framing Payload**:
 
   ```text
   ### Axis<N>: <Framing Axis>
-  Bottleneck: <Single unresolved tension that shapes the design space>
-
-  • [A] <Option> ── Trade-off: <advantage> vs. <disadvantage>
-  • [B] <Option> ── Trade-off: <advantage> vs. <disadvantage>
-
-  Default: [Option] because <single-sentence rationale>
+  Bottleneck: <Unresolved tension shaping the design space>
+  [A] <Option> — Trade-off: <advantage> vs. <disadvantage>
+  [B] <Option> — Trade-off: <advantage> vs. <disadvantage>
+  Default: [Option] because <grounded rationale>
   ```
 
-### 3. Convergence Criteria
+### Convergence Criteria
 
-Score every candidate against all five; emit one approach or `DO-NOT-BUILD`:
+Score candidates against all five:
 
-- **Problem Closure**: Resolves the framed outcome rather than relocating it downstream.
-- **Constraint Fitness**: Zero Hard Constraint violations; any violation disqualifies the candidate regardless of merit.
-- **Precedent Backing**: Attested in production systems at disclosed scale, with known failure modes named.
-- **Reversibility**: Quantify rollback exposure; prefer two-way doors over irreversible commitments.
-- **Evidence Strength**: Every load-bearing claim carries a code pointer, verified citation, or measured result. Resolve discoverable codebase facts directly against source files; forbid deferring local repository facts as Open Gaps. Confine Open Gaps to external unknowns or unmeasured runtime risks.
+- **Problem Closure**: Resolve the framed outcome rather than relocate it downstream.
+- **Constraint Fitness**: Disqualify candidates violating a hard constraint regardless of other merits.
+- **Precedent Backing**: Assess actual production precedent at disclosed scale and named failure modes; distinguish production evidence from examples or claims.
+- **Reversibility**: Quantify rollback exposure and prefer two-way doors when other criteria hold.
+- **Evidence Strength**: Support load-bearing claims with code pointers, verified citations, or measured results. Resolve discoverable repository facts directly; reserve open gaps for external unknowns and unmeasured runtime risks.
 
-### 4. Anti-No-Op Guardrails
+### Convergence & Evidence States
 
-- **Single Convergence, or None**: Emit one approach, or `DO-NOT-BUILD` when no candidate clears Problem Closure and Constraint Fitness. Replace hedging ("it depends", "Option A or B") with one ranked pick; break ties by two-way door, then narrower Frozen Surface, then duller precedent.
-- **Adversarial Self-Review & Falsification**: State the strongest sourced case that the selection is wrong, paired with the observable condition that would flip the verdict to an alternative. A verdict without a credible counter-case is unreviewed, not validated.
+- **One Direction, When Supported**: Choose one approach when evidence permits; break ties by reversibility, narrower frozen surface, then simpler established precedent. Keep a provisional candidate or unresolved decision when proof is missing.
+- **Adversarial Review**: State the strongest sourced counter-case and the observable condition that would change the conclusion. Revise when the counter-case wins a convergence criterion.
+- `CONFIRMED`: Enough evidence supports the architectural choice within stated conditions; this state neither declares implementation GREEN nor authorizes mutation.
+- `INFERRED`: A provisional candidate is supported by reasoning but depends on named assumptions or proof.
+- `REJECTED`: Evidence supports a bounded no-build conclusion because viable candidates fail outcome or constraints; name its conditions and justification.
+- `UNRESOLVED`: Material uncertainty prevents selecting a supported direction or candidate.
+
+Use missing proof to identify evidence work; reserve rejection for supported failure, not uncertainty alone.
+
+### Search Budget & Delegation
+
+- Pre-scout source, schemas, and governing decisions; inspect localized scope directly and stop once load-bearing claims are supported or gaps identified.
+- Delegate only when multiple layers or packages exceed focused inspection capacity. Seed disjoint slices with exact boundaries, discovered anchors, framing axes, candidates, rubric, and the sub-report contract: evidence pointers, criterion findings, counter-evidence, and gaps. Reconcile the reports against the locked frame.
 
 ## Canonical Output Contract
 
 ```markdown
-# Architectural Decision: <Problem Slug> [STATUS: SELECTED | DO-NOT-BUILD]
+# Architectural Decision: <Problem Slug>
 
-## 1. Decision & Boundaries
+## Decision & Boundaries
+- **State**: <CONFIRMED | INFERRED | REJECTED | UNRESOLVED>
+- **Conclusion**: <Supported direction, provisional candidate, justified bounded no-build, or what prevents selection>
 - **Outcome**: <Operational outcome and observable success criteria>
-- **Verdict**: <Single chosen approach as a concrete path, or DO-NOT-BUILD with justification>
-- **Boundaries**: Hard constraints: `<constraints>` | Frozen surface: `<paths/APIs not touched>` | Reversibility: `<One-way | Two-way>`
+- **Conditions**: <Evidence and scope under which the conclusion holds>
+- **Boundaries**: Hard constraints: <constraints> | Frozen surface: <contracts/paths/APIs> | Reversibility: <class and exposure>
 
-## 2. Solution Mechanics
-*(Format flexibly to capture the core mechanism without filler; forbid speculative prose)*
-- **Trade-off Matrix (if selecting between competing options)**: Minimal comparison table (<Option> | <Trade-off> | <Disqualification / Selection Rationale>).
-- **Micro-Spec (if new structural design / flow)**: State transitions, interface boundary, or concise Mermaid diagram.
-- **Disqualification Vector (if DO-NOT-BUILD)**: Fatal constraint violation or non-viable risk.
+## Solution Mechanics
+<Use a minimal comparison, interface boundary, state flow, or diagram when it explains a candidate. For rejection, state the disqualifying constraint or demonstrated failure. Omit if no candidate or rejection mechanism can be supported.>
 
-## 3. Cost & Falsification
-- **Accepted Cost**: <Concrete trade-off or complexity knowingly taken on>
-- **Counter-Case (Falsification)**: <Strongest sourced argument selection is wrong> ── flips to <alternative> when <observable condition>
-- **Open Gaps**: <External unknowns or unmeasured runtime risks, and what settles them | 'None'>
+## Cost & Falsification
+- **Accepted Cost**: <Concrete trade-off; omit if no direction or candidate exists>
+- **Counter-Case**: <Strongest sourced challenge> — changes conclusion when <observable condition>; omit if no defensible sourced counter-case exists, and record any decision-affecting review limitation under Open Gaps instead of inventing evidence
+- **Open Gaps**: <External unknowns or runtime risks and what settles them; omit when none>
 ```
+
+Separate state from its conditions and substantive conclusion; present one deterministic decision dossier, not a fixed routing menu.
+
+### Routing
+
+- A candidate needs viability proof; carry the problem, success criteria, candidate, and direction constraints → (via /spike).
+- A supported direction is settled and accepted; carry evidence, boundaries, and acceptance criteria → (via /changeset).
 
 ## Execution Protocol
 
-### Phase 1: Grounded Framing & Evidence Loop
+### Phase 1: Grounded Framing & Evidence
 
-1. Pre-scout architectural anchors: inspect codebase source files, schemas, and ADRs alongside inquiry to ground technical defaults in system reality.
-2. Convert engineering details into business consequences; evaluate the four Framing Axes using pre-scouted facts.
-3. Present unanswered axes in Framing Payload Format, pairing each option with an evidence-grounded default. Batch independent axes in one turn.
-4. Halt turn immediately for human response.
-5. Adaptive Deliberation Loop:
-   - *Requirement Shift*: If user response alters foundational premises, invalidate settled axes and re-scout from scratch.
-   - *Branch Refinement*: Ingest answers, inspect newly exposed code paths, and iterate until all 4 axes are locked.
-   - *Scope-Adaptive Fan-Out*: Gather evidence in-turn per §3 Evidence Strength; launch 2–3 concurrent `research` subagents (seeded with target slice, framing axes, and candidate approaches) strictly when scope exceeds single-turn budget.
+1. Pre-scout architectural anchors and evaluate framing axes against the request and source evidence.
+2. Present unresolved axes with grounded defaults; batch independent axes and halt for the user's response. Take the fast path when already settled.
+3. Ingest answers and inspect newly exposed paths. Invalidate only axes and claims affected by requirement shifts; preserve unchanged context.
+4. Gather criterion evidence within the search budget, using grounded delegation only when necessary.
 
-### Phase 2: Convergence Synthesis & Turn-Halt Gate
+### Phase 2: Convergence & Delivery
 
-1. Score candidates on all five Convergence Criteria; enforce the disqualifying power of Constraint Fitness.
-2. Apply the tie-break chain and the Anti-No-Op Guardrails to produce one approach, or `DO-NOT-BUILD` when none survives.
-3. Run the Adversarial Self-Review; revise the selection when the counter-case wins on a Convergence Criterion.
-4. Present the completed `Architectural Decision` dossier, indicate the downstream route, and halt turn immediately for human decision:
-   - `(via /spike)` ── settle UNPROVEN viability empirically before committing.
-   - `(via /changeset)` ── selection accepted; map filesystem impact. Carry all findings and boundary constraints into target acceptance criteria.
-   - No handoff ── on `DO-NOT-BUILD`, file the dossier with its justification and end.
-   Never modify workspace files, author code, or begin implementation within this turn.
+1. Score candidates, apply hard constraints and tie-breaks, then run adversarial review.
+2. Select the evidence state and substantive conclusion; scope conditions and gaps independently from the state.
+3. Deliver the dossier with context-appropriate routing and halt for the user's decision. Keep this workflow read-only; leave code, experiments, and workspace mutation to separately invoked workflows.
+   - End without a handoff when the bounded no-build conclusion needs no further action.

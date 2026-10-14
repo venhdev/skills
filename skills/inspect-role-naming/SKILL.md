@@ -37,11 +37,12 @@ disable-model-invocation: true
 - **Action**: <[RENAME] New Identifier OR [REFACTOR] Minimal Separation Path>
 
 *(Emit 'No load-bearing role or naming defects observed' if clean)*
-
-## 3. Pipeline Routing
-- `/simplify` ── Localized symbol renames or minor boolean cleanup within a single file.
-- `/changeset` ── Multi-file symbol migrations or structural role extractions.
 ```
+
+### Routing
+
+- Localized symbol renames or minor boolean cleanup within a single file → (via /simplify-audit).
+- Multi-file symbol migrations or structural role extractions → (via /changeset).
 
 ## Execution Protocol
 

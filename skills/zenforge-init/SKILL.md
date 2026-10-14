@@ -53,6 +53,12 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 - **Documentation**: Governed by `docs/README.md` (via `/ssot`).
 ```
 
+### Routing
+
+- The caller requests design deliberation after setup → (via /clarify).
+- The caller requests harness health inspection → (via /harness-audit).
+- The caller requests documentation authority review → (via /ssot).
+
 ## Execution Protocol
 
 ### Phase 1: Read-Only Discovery
@@ -68,10 +74,6 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
    ```text
    Repository ecosystem is already initialized and up-to-date.
 
-   Pipeline Next Steps:
-   - /clarify        ── Deliberate architecture or feature trade-offs.
-   - /harness-audit  ── Audit test suite and harness infrastructure health.
-   - /ssot           ── Audit and organize documentation authority.
    ```
 
    Halt turn immediately without staging redundant mutations.
@@ -104,4 +106,4 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 ### Phase 3: Atomic Application & Handoff
 
 1. Upon receiving approval, write staged files to disk.
-2. Report setup complete and suggest next step: `/clarify`, `/harness-audit`, or `/ssot`.
+2. Report setup complete and any caller-relevant follow-up gaps.

@@ -15,6 +15,8 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Observable Behavioral Delta**: Every directive must measurably constrain output distribution. Ruthlessly prune conversational filler, preambles, persona roleplay, and generic advice modern LLMs follow by default.
 - **Qualitative Density**: Enforce brevity through explicit scope exclusions; forbid brittle numerical quotas (line counts, arbitrary step numbers).
+- **Decision-Sufficient Reports**: Keep conclusions short to medium according to complexity; include the evidence, conditions, trade-offs, or gaps the caller needs to decide rather than enforcing one-sentence output.
+- **Selective Tables**: Use tables only for useful comparisons or mappings, with at most four columns; use blocks or prose when extra columns would obscure the decision.
 - **Conditional Section Omission**: Explicitly mark non-universal or negative-candidate sections in output contracts as omissible (`*(omit if ...)*`, e.g., `*(omit if no candidate patterns pruned)*`); forbid forcing synthetic filler, boilerplate placeholders, or hallucinated entries to satisfy an empty contract section.
 - **Tool-Aware Zero-Waste**: Forbid defensive rules, speculative circuit breakers, or retry instructions for behaviors that underlying tooling, permissions, or native error returns already handle.
 - **Zero Transitional Glue**: Attach templates and schemas directly beneath governing headings without conversational filler.
@@ -30,8 +32,8 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Single Responsibility**: Each skill must perform exactly one job and deliver one canonical artifact.
 - **Layout Derivation Heuristic**: Derive skill structure directly from operational posture instead of imposing a rigid 5-part template:
-  - *Mutating workspace or code?* ──> **Archetype C**: Mandates Invariants (Pre-mutation gate, verification integrity), Rubric, Staging contract, and Phased protocol.
-  - *Inspecting codebase or research (Read-only)?* ──> **Archetype B**: Mandates Rubric (dimensions, search budget), Report contract, and Subagent delegation protocol. Omit invariants and mutation gates.
+  - *Writing code, tracker records, or isolated scratch experiments?* ──> **Archetype C**: Mandates action boundaries, verification integrity, Rubric, an execution/proof report, and Phased protocol. Add staging and an authorization gate when the permitted action requires them; report-only scratch skills do not stage production fixes.
+  - *Inspecting, framing through inquiry, or planning (Read-only)?* ──> **Archetype B**: Mandates Rubric (dimensions, grounding boundary), Report contract, and scope-adaptive execution. Add question/confirmation gates only when the job requires them; omit production mutation phases.
   - *Single-shot transform or cognitive lens?* ──> **Archetype A**: Mandates Output contract. Invariants contextual (only for tone/depth rigor). Omit multi-phase protocol.
 - **Sequential Heading Flow**: When present, sections strictly follow: `Frontmatter` ──> `# title — mission` ──> `## Operating Invariants` ──> `## Domain Rubric` ──> `## Canonical Output Contract` ──> `## Execution Protocol`.
 - **Contextual Anatomy Matrix**:
@@ -39,16 +41,16 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 | Section Heading | Archetype A (Utility / Lens) | Archetype B (Audit / Map) | Archetype C (Mutating Workflow) |
 |---|---|---|---|
 | `Frontmatter` | Mandatory | Mandatory | Mandatory |
-| `## Operating Invariants` | Contextual (Framing limits) | Omit (Tool read-only) | Mandatory (Pre-mutation gate) |
-| `## Domain Rubric` | Contextual (Taxonomy) | Mandatory (Dimensions) | Mandatory (Smells, rules) |
-| `## Canonical Output Contract` | Mandatory (Dossier template) | Mandatory (Report format) | Mandatory (Staging tree) |
-| `## Execution Protocol` | Omit / Linear (1–3 steps) | Mandatory (Fan-out/in) | Mandatory (Phased + Turn-Halt) |
+| `## Operating Invariants` | Contextual (Framing limits) | Omit (Tool read-only) | Mandatory (Action and proof boundaries) |
+| `## Domain Rubric` | Contextual (Taxonomy) | Mandatory (Dimensions, grounding) | Mandatory (Smells, rules) |
+| `## Canonical Output Contract` | Mandatory (Dossier template) | Mandatory (Report or conditional staging) | Mandatory (Execution report) |
+| `## Execution Protocol` | Omit / Linear | Mandatory (Inquiry, inspection, or planning) | Mandatory (Authorized execution + verification) |
 
 - **Operational Archetypes**:
-  - *Archetype A (Utilities & Cognitive Lenses)* (e.g., `distill`, `lens-pro`, format converters): Single-shot input-to-output delivery without multi-phase ceremony.
-  - *Archetype B (Cartography, Scout & Review)* (e.g., `recon`, `scout`, `assay`, `clarify`): Read-only codebase inspection, external research, or mutation critique via subagent fan-out/in.
-  - *Archetype C (Stateful & Mutating Workflows)* (e.g., `changeset`, `forge`, `simplify`): Filesystem modifications, state transitions, and test runs governed by explicit turn-halt gates and verification integrity.
-- **Turn-Bounded Execution**: Combine Discovery, Staging, and Authorization Gate into a single turn whenever feasible to eliminate artificial conversational bureaucracy. Halt turn immediately at the authorization gate.
+  - *Archetype A (Utilities & Cognitive Lenses)* (e.g., `lens-pro`, format converters): Single-shot input-to-output delivery without multi-phase ceremony.
+  - *Archetype B (Inquiry, Cartography, Audit & Planning)* (e.g., `distill`, `recon`, `scout`, `assay`, `clarify`, `changeset`, `simplify-audit`): Read-only grounding and a report or staged plan; delegate only broad inspection slices. An embedded changeset is an internal artifact, not a mandatory invocation of another skill.
+  - *Archetype C (Stateful & Mutating Workflows)* (e.g., `forge`, `to-tasks`): Authorized filesystem/tracker modifications or isolated scratch experimentation (e.g., `diagnose`, `spike`), with explicit boundaries and verification. Scratch permission never implies permission to patch production.
+- **Turn-Bounded Execution**: Combine Discovery, Staging, and Authorization Gate whenever feasible. Halt for required answers or missing authorization; continue authorized scope without re-asking or imposing one phase per turn.
 - **Universal Mention Convention**: Reference supporting sub-skills conditionally in templates and prose (`(via /<name>)`). Never treat sub-skills as hard blocking dependencies.
 
 ## 5. Invocation Gating & 3-Tier Economics
@@ -60,23 +62,25 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 ## 6. SSOT & Markdown Integrity
 
 - **Define Once in SSOT**: Every invariant, contract, or format must belong to exactly one authoritative location. Forbid duplicating invariants inside phase steps.
-- **Pure GFM Standard**: Use standard GFM code fences (`text`, `markdown`, `bash`). Use 3-backticks baseline; restrict 4-backtick fences strictly to templates encapsulating nested code blocks.
+- **Local Execution Criteria**: Keep each skill's input requirements, state criteria, and handoff payload self-contained. Apply the authoring semantics in this document without making an installed skill depend on repository-wide documentation; local criteria specialize the shared meaning rather than redefine it.
+- **Pure GFM Standard**: Use standard GFM code fences (`text`, `markdown`, `bash`) and `mermaid` for connection/state diagrams. Use 3-backticks baseline; restrict 4-backtick fences strictly to templates encapsulating nested code blocks.
 
 ## 7. Code Verification Integrity
 
-- **Test-Driven Baseline**: Follow failing baseline test → minimal green code → verification cascade (typecheck → lint → test).
-- **Autonomous Verification Cascade**: Resolve compiler, linter, and test failures iteratively within approved scope until 100% green; forbid halting on expected iteration failures or executing silent lossy reversions.
+- **Test-Driven Baseline**: For a bugfix, establish the original failing assertion before minimal green code; for a feature, verify agreed acceptance criteria. Use applicable typecheck, lint, and test checks; prefer meaningful existing verification for behavior-preserving changes over shallow new tests.
+- **Autonomous Verification Cascade**: Correct ordinary compiler, linter, and test failures within authorized scope until required checks pass. Stop mutations and report `UNRESOLVED` when success requires redesign, substantial scope expansion, or unavailable required verification; preserve evidence and partial edits rather than silently reverting or weakening assertions.
 
 ## 8. Canonical Artifacts & Lean Turn-Halt Gate
 
-- **Canonical Completion Artifact**: Every skill must specify exactly one deterministic staging artifact (Changeset Tree, Decision Matrix, Task Staging Table). Forbid dumping raw, multi-page unified diffs or full file bodies into chat.
+- **Canonical Completion Artifact**: Specify one deterministic artifact appropriate to the job (report, decision, Changeset Tree, or Task Staging Table), with conditional sections for clean, unresolved, or staged outcomes. Keep full file bodies and raw multi-page diffs out of chat.
 - **ASCII Tree Staging Rigor**: Mandate ASCII tree representation inside ```text code fences for changeset staging; forbid markdown bullet lists (lacks structural hierarchy) and bare un-fenced ASCII pipes (triggers markdown table parsing collisions).
-- **Lean Turn-Halt Gate**: Phase authorization gates must pair the staging artifact presentation directly with an immediate turn-halt imperative and a negative mutation boundary. Forbid micro-enumerating obvious user review choices.
+- **Lean Turn-Halt Gate**: Pair a staged artifact needing authorization with an immediate halt and a mutation boundary. Honor authorization already provided for that concrete scope; omit review-choice menus and redundant approval turns.
 
 ## 9. Test-Driven Skill Authoring
 
 - **Empirical Baseline Failures**: Author and modify skills strictly against observed agent failure traces without the rule.
 - **Preserve Domain Intelligence**: Prune conversational ceremony ruthlessly, but strictly preserve domain-specific guardrails, query strategies, and safety budgets that prevent real-world failure modes.
+- **Behavioral Validation**: Check independent invocation and handoff scenarios against observed failure modes. Structural validators supplement scenario review; they do not establish that a skill follows its contract.
 
 ## 10. Subagent Delegation & Orchestration Architecture
 
@@ -92,3 +96,29 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
   - *In-Turn Execution*: If the target scope is localized (e.g., 1–5 files, single cohesive module), the Main Agent executes the audit directly in-turn to eliminate subagent spawning latency and token overhead.
   - *Subagent Fan-Out*: Launch 2–3 concurrent subagents strictly when the codebase spans multiple architectural layers, cross-package subsystems, or exceeds single-turn inspection budgets.
 
+## 11. Input, State & Routing
+
+- **Independent Invocation**: Define minimum input and what the skill can discover itself. Accept equivalent evidence/artifacts from the caller; never require a ceremonial upstream skill run.
+- **Bounded Responsibility**: State the completion target, permitted actions, and stop conditions. Carry the caller's direction and constraints; route a necessary redesign instead of solving a different problem.
+
+### Conclusion States
+
+Use one `State` for the identified conclusion target; pair it with a decision-sufficient conclusion and evidence. Keep conditions and scope as facts, not a second `Fit` or `Result` enum.
+
+| State | Meaning |
+| :--- | :--- |
+| `CONFIRMED` | Evidence supports the skill's target conclusion within the stated scope. |
+| `INFERRED` | Evidence supports a reasoned conclusion whose material claims remain unverified. |
+| `REJECTED` | Evidence rules out the candidate or proposal being evaluated; name the rejected scope. |
+| `UNRESOLVED` | Input, conflict, access, or evidence prevents a defensible conclusion. |
+
+- **Proof Boundaries**: RED establishes a symptom, not a cause; scratch GREEN establishes tested behavior, not an unverified production fix. Intent confirmation establishes the caller's meaning, not feasibility or mutation permission. Architecture confirmation establishes a supported choice, not implementation GREEN.
+- **Specialized States**: Use a separate family only when the conclusion states cannot express the job's result. Planning uses `STAGED / UNRESOLVED`; implementation uses `STAGED / IN_PROGRESS / DONE / UNRESOLVED`; simplify audit uses `PASS / STAGED / UNRESOLVED`. Keep established review verdicts and task/document lifecycles until their contracts are explicitly revised.
+- **Completion Scope**: Tie `DONE` to the authorized endpoint. Published tasks can be `ready`; verified implementation can remain uncommitted; release readiness can remain unpublished. Dispatching a worker does not prove its work complete.
+
+### Routing
+
+- **Contextual Guidance**: Write routing under `### Routing` as `<Context / gap> → (via /<skill>)`. Let the agent choose relevant handoffs from the actual outcome; keep routing guidance outside output templates and omit forced routing placeholders or numerical limits. A connection map is not a required pipeline.
+- **Payload Continuity**: Carry problem/outcome, candidate or settled direction, constraints, acceptance criteria, proof/references and their conditions, current checkout scope, and applicable authorization. Preserve identifiers for distinct intents and task dependencies when relevant.
+- **Gate Fidelity**: Keep confirmation, evidence, decision, publication approval, and implementation authorization distinct. A positive state or review verdict never grants permission for an external action.
+- **Evidence Freshness**: Reconcile handoff evidence with current code and environment. Revalidate only affected claims when assumptions change; keep unaffected findings rather than discarding the entire context.

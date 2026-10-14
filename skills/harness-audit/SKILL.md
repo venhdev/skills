@@ -56,12 +56,14 @@ Before executing audit passes, agents MUST read and ground themselves in:
 - **[<Smell / Dimension>] <Title>**: <Defect description>
    - Offending Code: [<file>#L<N>](file:///path/to/test#L<N>)
    - Remediation: <Exact architectural correction required>
-
-## 4. Pipeline Routing
-- `/clarify` ── Missing foundational hermetic primitives requiring architectural trade-off deliberation.
-- `/changeset` ── Discovered gaps or invariant blind spots ready for remediation planning.
-- `/forge` ── Isolated or localized test smell remediation pre-approved for immediate TDD execution.
 ```
+
+### Routing
+
+- Missing harness anchor requires setup → (via /zenforge-init).
+- Missing foundational hermetic primitives requiring architectural trade-off deliberation → (via /clarify).
+- Discovered gaps or invariant blind spots ready for remediation planning → (via /changeset).
+- A supported changeset authorizes localized test remediation and its acceptance criteria/verification → (via /forge).
 
 ## Execution Protocol
 
@@ -74,4 +76,3 @@ Before executing audit passes, agents MUST read and ground themselves in:
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
    - Deduplicate findings into the Canonical Output Contract.
    - Present completed report into conversation stream and halt turn immediately.
-

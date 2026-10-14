@@ -38,11 +38,12 @@ disable-model-invocation: true
 ## 3. Invariants & Gotchas
 - **Invariants (Must Preserve)**: <Core rules, transaction boundaries, or state lifecycles that cannot be broken>
 - **Gotchas (Watch Out)**: <Hidden side-effects, spec drift, or surprising couplings; state 'None observed' if clean>
-
-## 4. Pipeline Routing
-- `/changeset` ── Execution paths and mutation boundaries are clear; proceed to change planning.
-- `/clarify` ── Discovered architectural tensions, trade-offs, or multiple viable implementation paths.
 ```
+
+### Routing
+
+- Caller requests a change whose direction is settled and execution paths/mutation boundaries are clear → (via /changeset).
+- Discovered architectural tensions, trade-offs, or multiple viable implementation paths → (via /clarify).
 
 ## Execution Protocol
 

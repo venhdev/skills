@@ -43,11 +43,13 @@ Qualify candidate constraints strictly against 3 conditions:
 
 ## 3. Disqualified Invariants (Pruned) *(omit if no candidate patterns pruned)*
 - **[PRUNED] <Candidate Pattern>**: <Reason for rejection, e.g., No existing codebase primitive / Trivial style issue>
-
-## 4. Pipeline Routing
-- `/forge` ── Authorize and implement automated architecture tests for qualified boundaries.
-- `/clarify` ── Boundary ownership, whitelist exceptions, or architectural trade-offs require human deliberation.
 ```
+
+### Routing
+
+- Qualified boundaries need a concrete implementation plan → (via /changeset).
+- Boundary tests have an evidence-backed changeset and authorized execution scope → (via /forge).
+- Boundary ownership, whitelist exceptions, or architectural trade-offs require human deliberation → (via /clarify).
 
 ## Execution Protocol
 

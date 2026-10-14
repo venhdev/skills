@@ -1,95 +1,78 @@
 ---
 name: diagnose
-description: "Isolate root causes of complex bugs, test failures, and regressions using tight feedback loops and minimal reproductions before proposing fixes."
+description: "Isolate root causes from defect descriptions, errors, logs, or reproductions through discriminating investigation and minimal feedback loops."
 disable-model-invocation: true
 ---
 
-# diagnose — Root-Cause Isolation & Diagnostic Engine
+# diagnose — Root-Cause Isolation
 
 ## Operating Invariants
 
-- **Defect Scope Discipline**: Focus exclusively on isolating and resolving the specific reported defect; forbid unsolicited refactoring, styling, or feature alterations outside the defect's blast radius.
-- **Pre-Mutation Gate**: Isolate root causes and present verified findings in Lean Delivery format; forbid modifying codebase implementation files or permanent tests without affirmative human authorization.
-- **Isolated Scratchpad**: Write all temporary reproduction scripts, throwaway harnesses, and fixture traces strictly inside `.agents/scratch/`; forbid creating temporary test files in repository root or source directories.
-- **Clean Room Tagging**: Tag all temporary diagnostic logging and probes with an isolated unique prefix (`[DEBUG-<hex>]`); forbid leaving debug probes in working tree upon completion.
-- **Tight Signal Requirement**: Assert the exact user symptom with a single deterministic command executing in seconds; forbid proposing code patches based solely on code inspection.
-- **Redaction Guardrail**: Replace all secrets, tokens, API keys, credentials, and sensitive environment payloads with `<REDACTED>`; forbid leaking unredacted credentials or sensitive environment payloads in logs, harnesses, or output streams.
-- **Verification Circuit Breaker**: Stop execution immediately upon post-mutation verification failure, report stderr with file citations, and prompt user whether to revert or keep debugging; forbid silent lossy reversions or unguided retry loops.
+- **Investigation Boundary**: Read production source and existing tests; write temporary harnesses, fixtures, trace replays, and report files only inside `.agents/scratch/`. End at a root-cause report; leave production fixes, permanent tests, and fix changesets to subsequent work.
+- **Working Tree Preservation**: Preserve pre-existing changes and scratch artifacts. Run probes against isolated copies or existing read-only seams; keep instrumentation out of production source. Tag temporary probes `[DEBUG-<hex>]` and remove only session-owned instrumentation after collecting evidence.
+- **Sensitive Evidence**: Replace secrets, credentials, tokens, and sensitive payload values with `<REDACTED>` before capturing logs, constructing fixtures, or presenting evidence.
 
 ## Domain Rubric
 
-### 1. Diagnostic Guardrails (When NOT to Touch)
+### Intake and Causal Evidence
 
-- **No Speculative Harnesses**: If the failure is an unambiguous syntax error, typo, or deterministic trace with verified root cause, bypass throwaway harnesses and proceed directly to Phase 3 (Fast-Path Triage).
-- **No Unanchored Scratch Files**: Confine all temporary test scripts, mock harnesses, and curl scripts strictly to `.agents/scratch/` (e.g. `.agents/scratch/repro.<ext>`). Never touch or pollute the host codebase with disposable test files.
-- **No Theory Without Signal**: Forbid formulating hypotheses or inspecting implementation logic until a reproducible command fails RED.
-- **No Shallow Tests**: If no natural architectural seam exists, report the architectural deficiency plainly rather than authoring shallow mocks that yield false confidence.
+- Accept a defect description, error, log, stack trace, or reproduction. Identify expected behavior, observed behavior, relevant environment, and the execution seam; distinguish missing evidence from contradicted evidence.
+- Begin investigation with available evidence even when an executable RED is unavailable. Treat a failing assertion as symptom evidence; establish cause through a discriminating probe, a conclusive execution trace, or a verified causal chain.
+- Separate trigger and context from the mechanism that produces the failure. For each defensible hypothesis, state a prediction: `If <cause>, then <controlled probe> changes <observation>.`
+- Test competing explanations when evidence permits; vary one causal factor at a time and record results that support or falsify each candidate. Prefer direct traces for obvious syntax errors or deterministic failures over unnecessary harnesses.
 
-### 2. Feedback Loop Hierarchy (Tightest to Loosest)
+### Reproduction and Feedback Loops
 
-1. *Automated Test*: Unit, integration, or e2e test exercising the failure at the call site.
-2. *Direct Invocation*: CLI or HTTP curl command against running process with diffed output.
-3. *Isolated Harness*: Minimal throwaway script in `.agents/scratch/` exercising the faulty function in isolation with mocked external I/O.
-4. *Trace Replay*: Replaying saved network payload, event log, or HAR file from `.agents/scratch/`.
-5. *Bisection Harness*: Automated check command passed to `git bisect run`.
-6. *Human-In-The-Loop*: Interactive terminal script copied to `.agents/scratch/hitl-loop.sh` and executed.
+Choose the tightest loop faithful to the symptom and available runtime:
 
-### 3. Flaky & Non-Deterministic Strategies
+| Seam | Investigation method |
+|---|---|
+| Existing test | Run the focused assertion at the failing call site |
+| Running process | Invoke the CLI or HTTP path and compare expected/actual output |
+| Isolated callable | Build a minimal scratch harness; disclose substituted I/O |
+| Captured event | Replay sanitized payloads, logs, or HAR data in scratch |
+| Historical regression | Compare revisions in an isolated scratch checkout |
+| Interactive-only trigger | Adapt [the local loop template](scripts/hitl-loop.template.sh) in scratch; capture redacted responses |
 
-- Elevate reproduction rate: loop execution $N$ times, inject concurrency, narrow timing windows, or pin random seeds until the failure rate is actionable.
+- Minimize inputs, configuration, and steps while preserving the exact symptom; retain every factor needed for fidelity, including relevant integration behavior.
+- For intermittent failures, control seeds, clocks, event ordering, or concurrency where feasible. Report attempts, failures, and intervention results; use bounded repetitions rather than treating one lucky pass as proof.
+- Preserve real architectural seams. If mocks omit the suspected mechanism or no faithful seam is available, document that proof gap and continue evidence-based investigation within scope.
 
-### 4. Falsifiable Hypothesis Rubric
+### Conclusion States
 
-- Formulate 3–5 ranked hypotheses before probing.
-- State an explicit testable prediction for each:
-  `"If <Cause X>, then <Intervention Y> causes <Observed Result Z>."`
+- `CONFIRMED`: Evidence verifies the causal mechanism, including the link from that mechanism to the reported symptom.
+- `INFERRED`: Evidence supports a specific causal hypothesis, but a stated gap prevents confirmation.
+- `REJECTED`: Discriminating evidence falsifies the investigated causal claim in the stated scope; identify the claim rather than implying the defect is disproven.
+- `UNRESOLVED`: Available evidence supports no defensible cause, or an input, environment, or access blocker prevents a meaningful conclusion.
+
+## Canonical Output Contract
+
+Produce one compact report. Include commands, relevant observations, and source locations sufficient to reproduce or inspect the reasoning; keep raw logs in sanitized scratch artifacts when needed.
+
+```markdown
+# Root-Cause Report: <defect>
+
+State: <CONFIRMED | INFERRED | REJECTED | UNRESOLVED>
+Conclusion: <causal mechanism, supported hypothesis, rejected claim, or unresolved question>
+Scope: <symptom, runtime/environment, and inspected seam>
+Evidence: <commands or trace references; observed results; discriminating causal link>
+Conditions and proof limits: <assumptions, substitutions, missing evidence, and applicability limits>
+
+## Competing explanations *(omit if none were investigated)*
+<claim -> probe/prediction -> observation -> supported or falsified>
+
+## Reproduction *(omit if no executable or interactive loop was established)*
+<scratch path or existing command; required setup; assertion and observed symptom>
+```
+
+### Routing
+
+- An existing candidate and direction need solution proof → (via /spike).
+- Root-cause findings need a solution direction → (via /architect-decision).
 
 ## Execution Protocol
 
-### Phase 1: Feedback Loop Construction & Minimization
-
-1. Construct the tightest viable command asserting the user's exact reported symptom (using existing tests, direct invocation, or an isolated harness in `.agents/scratch/`).
-2. Execute the command to verify that it turns RED (fails).
-3. Minimise inputs, config, and steps until every remaining element is load-bearing (removing any element makes the test turn green).
-
-### Phase 2: Hypothesis Formulation & Probing
-
-1. Formulate 3–5 ranked falsifiable hypotheses according to the rubric.
-2. Probe hypotheses one variable at a time using debugger inspection or tagged logs (`[DEBUG-<hex>]`).
-3. Isolate the confirmed root cause and verify that removing the trigger resolves the red signal.
-
-### Phase 3: Diagnostic Staging & Pre-Mutation Gate
-
-1. Present the diagnosis in Lean Delivery format:
-
-   ```text
-   ### Root-Cause Diagnosis
-   - **Confirmed Cause**: <Exact mechanism and offending symbol/file>
-   - **Verification Proof**: `<single command>` producing RED signal, confirmed by probe `<tag>`.
-   - **Architectural Seam**: <Seam available for regression test | Architectural deficiency noted>
-
-   # Changeset: Fix <Defect Slug> [(<optional_scope_root>/)]
-
-   |-- <collapsed/test_directory>/
-   |   `-- <test_file>
-   |       `-- [<ACTION>] <Regression test asserting defect>.
-   |-- <collapsed/source_directory>/
-   |   `-- <source_file>
-   |       `-- [UPDATE] <Atomic bugfix resolving root cause>:
-   |           * <Specific fix detail preventing regression>.
-   `-- <deep/path/to/additional_file>
-       `-- [<ACTION>] <Direct cascade fix without redundant folder node>.
-
-   Summary: <N> files affected (<C> created, <U> updated).
-   ```
-
-2. Halt turn immediately for human authorization; forbid modifying codebase source files or executing fixes without affirmative approval.
-
-### Phase 4: Atomic Fix, Verification & Cleanup
-
-1. Upon receiving approval, author the regression test at the confirmed seam (verify RED).
-2. Apply the atomic fix to codebase files (verify GREEN).
-3. Apply the Circuit Breaker: If the fix fails to verify GREEN, stop execution immediately, report stderr, and ask the user whether to revert or keep debugging.
-4. Re-run the Phase 1 feedback loop against the original scenario.
-5. Remove all temporary `[DEBUG-<hex>]` instrumentation, and delete temporary artifacts in `.agents/scratch/` (verify clean tree via `grep` and `git status`).
-6. Report verified resolution and provide git commit message documenting the confirmed root cause and hypothesis.
+1. Ground the symptom in supplied evidence and inspect the relevant call chain. Record the narrow causal question and available verification seam.
+2. Establish and minimize a faithful RED loop when possible. When execution is unavailable, continue through traces and source evidence while recording the missing proof.
+3. Probe ranked hypotheses until a cause is confirmed, supported with an explicit gap, falsified, or unresolved. Stop an investigation branch when further probes require unavailable input/access or merely repeat the same signal.
+4. Present the root-cause report with its state and proof limits. Preserve useful sanitized reproduction artifacts, remove session-owned instrumentation, and verify production files remain unchanged.

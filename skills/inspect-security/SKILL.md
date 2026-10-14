@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 ### 2. Decision Bifurcation: [LOCAL-FIX] vs. [ARCHITECTURAL-REFACTOR]
 
-- `[LOCAL-FIX]` (Localized In-Function Patch): Parameterizing raw ORM queries, replacing `Math.random()` with CSPRNG, adding constant-time `timingSafeEqual` with pre-hashing, strict DTO schema whitelisting, wrapping streams in `io.LimitReader`, or pinning JWT algorithms. Route remediation to `/simplify`.
+- `[LOCAL-FIX]` (Localized In-Function Patch): Parameterizing raw ORM queries, replacing `Math.random()` with CSPRNG, adding constant-time `timingSafeEqual` with pre-hashing, strict DTO schema whitelisting, wrapping streams in `io.LimitReader`, or pinning JWT algorithms. Route behavior-changing remediation to `/changeset`; use `/forge` only with a supported, authorized changeset.
 - `[ARCHITECTURAL-REFACTOR]` (Systemic Structural Hardening): Introducing PostgreSQL Row-Level Security (RLS) for tenant isolation, deploying dedicated Egress Proxies (Smokescreen/Envoy) for SSRF mitigation, implementing Token Family refresh rotation with breach cascades, transitioning balance mutations to atomic conditional SQL / ledgers, or introducing distributed sliding-window rate limiting. Route remediation to `/changeset`.
 
 ## Canonical Output Contract
@@ -37,11 +37,12 @@ disable-model-invocation: true
 - **Action**: <[LOCAL-FIX] Local patch OR [ARCHITECTURAL-REFACTOR] Systemic architecture hardening>
 
 *(Emit 'No load-bearing security defects observed across rubric dimensions' if clean)*
-
-## 3. Pipeline Routing
-- `/simplify` ── Localized input parameterizations, cryptographic generator updates, or DTO whitelists within a single file.
-- `/changeset` ── Multi-file tenant isolation migrations, token family rotation engines, egress proxies, or distributed rate limiters.
 ```
+
+### Routing
+
+- A supported changeset already authorizes the security fix and required verification → (via /forge).
+- Local or systemic security patches requiring scope staging, including authorization, crypto, or data-contract changes → (via /changeset).
 
 ## Execution Protocol
 

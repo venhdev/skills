@@ -46,12 +46,13 @@ Inspect mutation artifacts against 4 structural dimensions:
   - Offending Code: [<file>#L<N>](file:///path/to/file#L<N>)
   - Violated Contract: [<spec_or_interface>#L<M>](file:///path/to/spec#L<M>)
   - Remediation: <Exact minimal correction needed>
-
-## 3. Pipeline Routing
-- `/forge` ── Target is an unapplied diff, changeset, or task breakdown.
-- `/changeset` ── Scope or structural defects; re-stage the Changeset Tree.
-- `/clarify` ── Contract drift or ungrounded tensions.
 ```
+
+### Routing
+
+- Verdict is PASS; the unapplied changeset/task is supported by evidence and execution scope is authorized → (via /forge).
+- Scope or structural defects; re-stage the Changeset Tree → (via /changeset).
+- Contract drift or ungrounded tensions → (via /clarify).
 
 ## Execution Protocol
 

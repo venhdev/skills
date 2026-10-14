@@ -1,59 +1,68 @@
 ---
 name: forge
-description: "Implement approved specifications, vertical slice tasks, or changesets through test-driven verification, delivering clean Git commits."
+description: "Implement authorized changesets backed by proof or official references, verify acceptance criteria, and report completion with a concise commit message."
 disable-model-invocation: true
 ---
 
-# forge — Implementation & Verification Engine
+# forge — Changeset Implementation & Verification
 
 ## Operating Invariants
 
-- **Scope Discipline**: Confine modifications strictly to target acceptance criteria, approved changeset, and direct mechanical cascades (imports, signatures, tests); forbid adjacent refactoring, cosmetic churn, or scope creep.
-- **Pre-Mutation Gate**: Verify target scope, acceptance criteria, and baseline test status before mutating files; forbid creating or editing files on ambiguous or unapproved requirements.
-- **Specialist Boundary**: Keep implementation focused strictly on the target task; forbid unsolicited mid-stream execution of on-demand specialist skills (`simplify`, `ssot`, `to-tasks`, `diagnose`).
-- **Verification Integrity**: Deliver commit handoffs with repo-relative POSIX paths exclusively after 100% clean typecheck, lint, and test runs; forbid failing verification, silent lossy reversions, or host-absolute `file:///` URIs.
+- **Authorized Scope**: Implement the authorized changeset and small necessary cascades; preserve unrelated work and exclude opportunistic refactoring or cleanup.
+- **Direction Fidelity**: Correct implementation errors within the agreed direction. Stop mutations when success requires significant changes to direction, contracts, risk, or blast radius; report the redesign gap rather than choosing a replacement design.
+- **Verification Integrity**: Require every acceptance criterion and required check to pass before `DONE`; preserve failing evidence and existing edits rather than silently reverting or weakening assertions.
+- **Delivery Boundary**: Report implementation and verification with a proposed commit message; keep committing, merging, and publishing outside this skill's completion scope.
 
 ## Domain Rubric
 
-### 1. Construction Sequencing (Topological Ordering)
+### Input & Readiness
 
-Execute filesystem modifications in strict dependency order:
+Receive an authorized Changeset Tree, acceptance criteria, constraints, and supporting solution proof or applicable official references. An embedded changeset from a task or audit is valid input; a prior `/changeset` invocation is not required.
 
-1. `[CREATE]`: New types, interfaces, schemas, and foundational modules.
-2. `[MOVE]`: Relocations and renames.
-3. `[UPDATE]`: Implementation logic, callers, and cascade updates.
-4. `[DELETE]`: Deprecated files and obsolete tests.
+Inspect the current checkout, callers, contracts, baseline checks, and supporting evidence. Official references must support the load-bearing mechanics in this environment; a generic documentation link is not proof of integration. Reconcile planned files without broadening the accepted direction.
 
-### 2. Test-Driven Verification Standards
+Determine required verification from project rules and acceptance criteria before edits. Disclose unrelated baseline failures; if a required check cannot pass without out-of-scope repair, report `UNRESOLVED`. Keep the required set intact rather than dropping a failing check to reach `DONE`.
 
-- **Red Baseline**: For bugfixes, confirm or author a failing test verifying the issue before modifying code. For features, confirm test harness covers target acceptance criteria.
-- **Green Implementation**: Apply minimal code necessary to pass the failing baseline.
-- **Verification Cascade**: Run verification in order: typecheck → linter → targeted tests → affected subsystem tests.
+### Construction & Verification
+
+- Order `[CREATE]`, `[MOVE]`, `[UPDATE]`, and `[DELETE]` by dependencies, keeping callers and interfaces consistent.
+- Establish the exact failing baseline for a bugfix; for a feature, cover the agreed acceptance criteria before implementation. Use meaningful existing checks for behavior-preserving changes rather than manufacturing shallow tests.
+- Apply minimal implementation, then run applicable typecheck, lint, targeted tests, and affected subsystem checks.
+- Continue fixing ordinary compiler, linter, and test failures within scope. Distinguish implementation mistakes from invalid design assumptions and unrelated baseline failures.
+- Treat import, signature, and caller updates as small cascades only when they preserve agreed behavior outside the target. New ownership, schema semantics, or substantial scope expansion requires redesign.
+- For tracked work, follow the configured task lifecycle: claim eligible work before edits and mark it complete only after required verification. Preserve dependency gates; task tracking is not a substitute for execution authorization.
+
+### State
+
+- `STAGED`: An existing changeset is ready, but execution authorization is still missing.
+- `IN_PROGRESS`: Implementation is underway with no blocker requiring redesign; this is a progress state, not a reason to stop ordinary correction.
+- `DONE`: Implementation, acceptance criteria, and all required verification pass for the authorized scope.
+- `UNRESOLVED`: A blocker prevents the expected result, including stale design or evidence, unavailable required verification, or a change that would exceed the agreed direction.
+
+## Canonical Output Contract
+
+```markdown
+# Implementation Report: <Scope> · <STAGED | IN_PROGRESS | DONE | UNRESOLVED>
+
+<Short-to-medium conclusion and material delta; repo-relative file pointers.>
+
+Verification: <Executed checks and results; identify blocked or baseline failures.>
+Remaining: <Blocker, redesign decision, or unfinished work; omit if none.>
+Checkout: <Partial edits retained when unresolved; omit if no partial edits.>
+
+Commit message: <Include only when DONE.>
+<type>(<scope>): <observable change>
+<Brief implementation detail and why it matters.>
+```
+
+### Routing
+
+- Unresolved requirements prevent the agreed result → (via /clarify).
+- The direction must change to achieve the outcome → (via /architect-decision).
+- The direction remains settled but file impact needs restaging → (via /changeset).
 
 ## Execution Protocol
 
-### Phase 1: Readiness Audit & Scope Staging
-
-1. Ingest input (ticket, spec, changeset, or user prompt).
-2. Evaluate readiness before mutating workspace:
-   - If requirements contain unresolved trade-offs: halt turn and deliberate (via `/clarify`).
-   - If scope lacks an approved changeset: stage target files and halt turn for approval (via `/changeset`).
-   - If acceptance criteria and changeset are pre-authorized: proceed directly to Phase 2.
-
-### Phase 2: Construction & Test-Driven Verification
-
-1. Execute file modifications in topological dependency order (`[CREATE]` → `[MOVE]` → `[UPDATE]` → `[DELETE]`).
-2. Follow Test-Driven Verification Standards: establish Red baseline, apply minimal Green code, and resolve failures across the Verification Cascade until 100% green.
-3. Verify all ticket acceptance criteria are satisfied `[x]`.
-
-### Phase 3: Delivery & Git Commit Handoff
-
-1. Present a high-density Delta Summary of modified files and passing test proof. Forbid dumping raw diffs into chat by default.
-2. Deliver the ready-to-run Conventional Commit command linking the issue:
-
-   ```bash
-   git add <approved_files>
-   git commit -m "<type>(<scope>): <subject> (<issue-ref>)" -m "<body>"
-   ```
-
-3. Offer execution options: run the commit directly upon approval or provide for manual terminal execution.
+1. Inspect readiness. If a direction or required changeset is missing, report `UNRESOLVED` and hand off to design or staging. If only authorization is missing, report `STAGED` and halt without edits. Honor authorization already granted for the concrete scope.
+2. Implement and verify according to the rubric. If a material blocker appears, stop mutations, retain evidence and partial edits, and report `UNRESOLVED`; otherwise continue to `DONE`.
+3. Deliver the report and commit message. Keep redesign outside the original implementation scope.

@@ -16,7 +16,7 @@ disable-model-invocation: true
 
 ### 2. Decision Bifurcation: [LOCAL-FIX] vs. [ARCHITECTURAL-REFACTOR]
 
-- `[LOCAL-FIX]` (Localized In-Function Optimization): Algorithmic lookup indexing ($O(1)$ set/map), loop invariant hoisting, string builder replacement, or query limit additions within a single method/file. Route remediation to `/simplify`.
+- `[LOCAL-FIX]` (Localized In-Function Optimization): Algorithmic lookup indexing ($O(1)$ set/map), loop invariant hoisting, or string builder replacement within a single method/file. Route behavior-preserving candidates to `/simplify-audit`; new query limits or altered result semantics require `/changeset`.
 - `[ARCHITECTURAL-REFACTOR]` (Systemic Structural Remediation): Decomposing Cartesian joins into Split Queries / DataLoaders, extracting Transactional Outbox to decouple network I/O from database transactions, worker thread offloading, or introducing bounded distributed caches. Route remediation to `/changeset`.
 
 ## Canonical Output Contract
@@ -37,11 +37,12 @@ disable-model-invocation: true
 - **Action**: <[LOCAL-FIX] Local optimization OR [ARCHITECTURAL-REFACTOR] Separation / batching path>
 
 *(Emit 'No load-bearing performance defects observed across rubric dimensions' if clean)*
-
-## 3. Pipeline Routing
-- `/simplify` ── Localized algorithmic indexings, builder allocations, or query limits within a single file.
-- `/changeset` ── Multi-file split queries, outbox implementations, connection pool, or thread pool refactorings.
 ```
+
+### Routing
+
+- Local indexing or builder changes whose behavior equivalence can be audited → (via /simplify-audit).
+- Changes to result semantics or systemic split-query, outbox, connection-pool, or thread-pool refactorings → (via /changeset).
 
 ## Execution Protocol
 
