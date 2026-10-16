@@ -15,6 +15,7 @@ venv/
 __pycache__/
 
 # ZenForge Agent Privacy
+.agents/host-toolchain.md
 .agents/scratch/
 .agents/tasks/
 .agents/skills/
