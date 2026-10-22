@@ -12,7 +12,7 @@ disable-model-invocation: true
 - **Working Tree Preservation**: Preserve existing changes and unrelated scratch artifacts. Inspect the integration seam read-only and use isolated copies where execution needs modifications.
 - **Problem Fidelity**: Ground assertions in the original problem and acceptance criteria. Keep those assertions fixed across baseline and candidate runs; distinguish isolated capability proof from proof of a production fix.
 - **Direction Boundary**: Explore finite, evidence-grounded alternatives within the supplied solution direction and constraints. Report a required direction change for a separate decision; never silently expand the search or force a GREEN outcome.
-- **Sensitive Evidence & Environment**: Redact secrets, credentials, tokens, and sensitive payload values before creating fixtures, logging, or presenting results; forbid reading `.env`, `.env.*` (except `.env.example`), `*.pem`, or `*.key`. Ground harness runners, mock services, and scratch datastores in `.agents/dev-environment.md` (or `.agents/host-toolchain.md`); forbid touching production datastores or unlisted host containers.
+- **Sensitive Evidence & Environment**: Redact secrets before logging; never inspect secret files (`.env*`, `*.key`, `*.pem`). Ground harness runners and scratch datastores in `.agents/dev-environment.md`; confine experiments strictly to `.agents/scratch/`.
 
 ## Domain Rubric
 

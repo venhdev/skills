@@ -53,14 +53,10 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 
 ```markdown
 ## Agent Workflow
-- **Dev Environment**: Governed by `.agents/dev-environment.md` (or `.agents/host-toolchain.md`).
+- **Dev Environment**: Governed by `.agents/dev-environment.md` (local runners, zero-touch for `.env*` secrets).
 - **Task Tracker**: Governed by `.agents/task-tracker.md`.
 - **Harness Anchor**: Governed by `.agents/harness-anchor.md` (via `/harness-audit`).
 - **Documentation**: Governed by `docs/README.md` (via `/ssot`).
-
-## Security & Secret Privacy
-- **Strict File Isolation**: Forbid reading (`read_file`, `cat`, `head`, `grep`) secret and credential files: `.env`, `.env.*` (except `.env.example`), `*.pem`, `*.key`, `id_rsa`, `*credentials*`.
-- **Environment Grounding**: Reference `.env.example` or ask user for dummy values when constructing local harnesses.
 ```
 
 ### Routing
