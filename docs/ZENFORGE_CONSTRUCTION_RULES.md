@@ -9,6 +9,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Stack & Host Agnostic**: Author all instructions independent of specific programming languages, frameworks, or host repositories.
 - **Cross-LLM Determinism**: Ensure high-fidelity execution across all frontier LLM families without model-specific quirks.
 - **Self-Contained Encapsulation**: Package all references, templates, and scripts locally within the skill directory; forbid relative links or dependencies to paths outside the skill directory.
+- **Zero-Secret Exposure & Environment Isolation**: Forbid inspecting (`read_file`, `cat`, grep) secret and credential files (`.env`, `.env.*` except `.env.example`, `*.pem`, `*.key`, `id_rsa`, `*credentials*`); ground local toolchains, test runners, and service boundaries strictly in `.agents/dev-environment.md` (or `.agents/host-toolchain.md`) and keep machine-local profiles isolated in `.gitignore`.
 - **Path Portability Boundary**: Confine `file:///<abs_path>#L<N>` strictly to ephemeral chat streams for IDE jump-to-definition; mandate repository-relative POSIX paths for all persisted artifacts (tasks, documentation, commits, remote trackers).
 
 ## 2. Zero-Waste & Anti-No-Op

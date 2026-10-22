@@ -11,6 +11,7 @@ disable-model-invocation: true
 - **Authorized Scope**: Implement the authorized changeset and small necessary cascades; preserve unrelated work and exclude opportunistic refactoring or cleanup.
 - **Direction Fidelity**: Correct implementation errors within the agreed direction. Stop mutations when success requires significant changes to direction, contracts, risk, or blast radius; report the redesign gap rather than choosing a replacement design.
 - **Verification Integrity**: Require every acceptance criterion and required check to pass before `DONE`; preserve failing evidence and existing edits rather than silently reverting or weakening assertions.
+- **Environment & Secret Isolation**: Forbid reading or modifying secret files (`.env`, `.env.*` except `.env.example`, `*.pem`, `*.key`); ground test execution and linter invocations in `.agents/dev-environment.md` (or `.agents/host-toolchain.md`).
 - **Delivery Boundary**: Report implementation and verification with a proposed commit message; keep committing, merging, and publishing outside this skill's completion scope.
 
 ## Domain Rubric

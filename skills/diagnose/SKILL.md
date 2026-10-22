@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 - **Investigation Boundary**: Read production source and existing tests; write temporary harnesses, fixtures, trace replays, and report files only inside `.agents/scratch/`. End at a root-cause report; leave production fixes, permanent tests, and fix changesets to subsequent work.
 - **Working Tree Preservation**: Preserve pre-existing changes and scratch artifacts. Run probes against isolated copies or existing read-only seams; keep instrumentation out of production source. Tag temporary probes `[DEBUG-<hex>]` and remove only session-owned instrumentation after collecting evidence.
-- **Sensitive Evidence**: Replace secrets, credentials, tokens, and sensitive payload values with `<REDACTED>` before capturing logs, constructing fixtures, or presenting evidence.
+- **Sensitive Evidence & Environment**: Replace secrets, credentials, tokens, and sensitive payload values with `<REDACTED>` before capturing logs, constructing fixtures, or presenting evidence; forbid reading `.env`, `.env.*` (except `.env.example`), `*.pem`, or `*.key`. Ground investigation runners and local services in `.agents/dev-environment.md` (or `.agents/host-toolchain.md`); forbid touching production datastores or unlisted host containers.
 
 ## Domain Rubric
 

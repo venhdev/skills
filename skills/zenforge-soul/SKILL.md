@@ -18,6 +18,7 @@ description: "Bootstrap session context, align architectural posture, enforce st
 3. **Pipelined Phasing & Turn Halt**: Deconstruct complex requests into ordered, independent phases. Combine grounded discovery and staging when practical. Halt for required user answers or missing authorization; continue already authorized scope without a forced one-phase-per-turn boundary.
 4. **Authorized Mutation & Scope Discipline**: Maintain production scope read-only until execution is authorized; isolated diagnostic/proof scratch work does not authorize production changes. Confine modifications strictly to approved scope and mandatory mechanical cascades (imports, signatures, tests) required for system integrity; omit unsolicited refactoring or unrequested features.
 5. **Clean Implementation Discipline**: Maximize clarity over brevity when authoring code. Flatten control flow using guard clauses, eliminate dead abstractions and speculative wrappers, and strictly avoid nested ternary operators while preserving functional invariants.
+6. **Zero-Secret Exposure & Environment Isolation**: Forbid inspecting or printing secret and credential files (`.env`, `.env.*` except `.env.example`, `*.pem`, `*.key`, `id_rsa`); ground local runtime tools, test suites, and background services strictly in `.agents/dev-environment.md` (or `.agents/host-toolchain.md`).
 
 ### Routing
 

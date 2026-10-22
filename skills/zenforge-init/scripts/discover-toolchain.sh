@@ -15,7 +15,8 @@ Arguments:
 
 Options:
   --file <path.md>  Target Markdown file to create or update (must end in .md;
-                    default: .agents/host-toolchain.md inside [folder]).
+                    default: .agents/dev-environment.md inside [folder],
+                    falling back to .agents/host-toolchain.md if present).
   --dry-run         Emit the section block to stdout without modifying files.
   -h, --help        Show this help.
 EOF
@@ -66,7 +67,11 @@ done
 [[ -d "$target_root" ]] || fail_usage "target folder is not a directory: $target_root"
 
 if [[ -z "$file_arg" ]]; then
-  file_arg=".agents/host-toolchain.md"
+  if [[ -f "${target_root}/.agents/host-toolchain.md" && ! -f "${target_root}/.agents/dev-environment.md" ]]; then
+    file_arg=".agents/host-toolchain.md"
+  else
+    file_arg=".agents/dev-environment.md"
+  fi
 fi
 
 if [[ "${file_arg,,}" != *.md ]]; then
