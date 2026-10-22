@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 Receive a settled direction or solution with outcome, constraints, and available evidence. Ground it against the current checkout and governing contracts; keep planning read-only and preserve the supplied direction.
 
-Trace direct and indirect callers, implementations, imports, schemas, and tests. Inspect only the target and load-bearing cascades; exclude cosmetic churn, speculative files, and unaffected backward-compatible callers. Stop if the input plan is stale or contradictory rather than silently redesigning it.
+Trace direct and indirect callers, implementations, imports, schemas, and tests. Inspect only the target and load-bearing cascades; exclude cosmetic churn, speculative files, and unaffected backward-compatible callers. Prune superseded logic: stage explicit removal of dead helpers, obsolete branches, and tests invalidated by the solution. Stop if the input plan is stale or contradictory rather than silently redesigning it.
 
 ### File Actions
 

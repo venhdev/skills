@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Authorized Scope**: Implement the authorized changeset and small necessary cascades; preserve unrelated work and exclude opportunistic refactoring or cleanup.
+- **Authorized Scope & Clean Replacement**: Implement the authorized changeset and necessary cascades while actively removing superseded logic, dead helpers, and obsolete tests directly replaced by the solution; preserve unrelated work and exclude opportunistic refactoring.
 - **Direction Fidelity**: Correct implementation errors within the agreed direction. Stop mutations when success requires significant changes to direction, contracts, risk, or blast radius; report the redesign gap rather than choosing a replacement design.
 - **Verification Integrity**: Require every acceptance criterion and required check to pass before `DONE`; preserve failing evidence and existing edits rather than silently reverting or weakening assertions.
 - **Environment & Secret Isolation**: Never inspect or modify secret files (`.env*`, `*.key`, `*.pem`); ground test execution and linter invocations in `.agents/dev-environment.md`.

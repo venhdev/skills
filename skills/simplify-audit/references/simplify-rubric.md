@@ -41,3 +41,8 @@ Evaluate worthwhile simplification against the following dimensions; classify ca
    - Smell: Hardcoded magic numbers, status strings, or configuration thresholds embedded directly inside operational logic.
    - Remedy: Extract to private, descriptive constants adhering to host language conventions.
    - Guardrail: Keep self-evident literals (`0`, `1`, `""`, `-1`) inline and constants private unless the approved design needs a public contract.
+
+9. **Dead & Superseded Logic (Zombie Pruning)**
+   - Smell: Unreachable code, uncalled private helpers, unused parameters after refactoring, or tests testing discarded mechanisms.
+   - Remedy: Delete cleanly; never retain dead code or commented-out blocks.
+   - Guardrail: Preserve intentional interface contracts, polymorphic hooks, and planned extension points.
