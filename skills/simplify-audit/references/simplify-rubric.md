@@ -18,9 +18,9 @@ Evaluate worthwhile simplification against the following dimensions; classify ca
    - Guardrail: Preserve cohesive linear logic; extract only when the helper clarifies a real responsibility.
 
 4. **Code Repetition (Horizontal Duplication)**
-   - Smell: Repeated load-bearing logic with the same contract in the inspected slice.
-   - Remedy: Consolidate common logic into a single private helper.
-   - Guardrail: Keep independent logic separate; avoid boolean-flag helpers that couple accidental similarities.
+   - Smell: Repeated load-bearing logic with the same contract and rule ownership.
+   - Remedy: Consolidate into a shared helper or import the canonical owner; preserve state verification at each transaction boundary.
+   - Guardrail: Keep logic separate when coincidental similarity spans independent policy owners; avoid boolean-flag helpers coupling unrelated change vectors.
 
 5. **Expression Density (Inline Syntax)**
    - Smell: Nested ternary expressions or chained inline conditionals, multiple statements packed onto one line.
@@ -39,10 +39,10 @@ Evaluate worthwhile simplification against the following dimensions; classify ca
 
 8. **Magic Literals (Literal Obfuscation)**
    - Smell: Hardcoded magic numbers, status strings, or configuration thresholds embedded directly inside operational logic.
-   - Remedy: Extract to private, descriptive constants adhering to host language conventions.
+   - Remedy: Import the canonical constant owner when one exists; extract to a private constant only when the value belongs to local logic.
    - Guardrail: Keep self-evident literals (`0`, `1`, `""`, `-1`) inline and constants private unless the approved design needs a public contract.
 
 9. **Dead & Superseded Logic (Zombie Pruning)**
    - Smell: Unreachable code, uncalled private helpers, unused parameters after refactoring, or tests testing discarded mechanisms.
    - Remedy: Delete cleanly; never retain dead code or commented-out blocks.
-   - Guardrail: Preserve intentional interface contracts, polymorphic hooks, and planned extension points.
+   - Guardrail: Preserve interface contracts and polymorphic hooks with a confirmed consumer or active requirement; remove speculative extension points without demonstrated need.

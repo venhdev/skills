@@ -17,7 +17,7 @@ disable-model-invocation: true
 ### 2. Structural Inspection Dimensions
 
 1. **Class Cohesion & SRP (God Class)**
-   - Smell: Class aggregating multiple disparate domain concerns, bloated field/method counts, or low method cohesion.
+   - Smell: Class aggregating disparate domain concerns with low method cohesion. Elevated field/method counts are investigation signals, not verdicts; confirm independent responsibilities or unrelated dependency clusters before concluding.
    - Remedy: Decompose into focused single-responsibility services, value objects, or strategy delegates.
    - Micro-Snippet:
      ```text
@@ -36,11 +36,11 @@ disable-model-invocation: true
 
 3. **Systemic Duplication (Macro & Micro DRY)**
    - Smell: Copy-pasted algorithmic routines, multi-step validation sequences, or error handling pipelines spanning multiple classes, files, or methods.
-   - Remedy: Centralize into shared domain helpers, base abstractions, or reusable middleware.
+   - Remedy: Extract shared rules into pure functions or composed helpers; consider base abstractions only when duplicated logic shares lifecycle, dependencies, and ownership. Each call site retains its own transaction-boundary verification.
    - Micro-Snippet:
      ```text
-     Smell:  ServiceA and ServiceB replicate identical 20-line auth header parsing and claim verification.
-     Remedy: Extract to TokenAuthenticator.validateAndExtractClaims().
+     Smell:  ServiceA and ServiceB replicate identical decision logic inside their own transactions.
+     Remedy: Extract a pure function accepting a state snapshot; each service retains its own transaction, lock, and state read.
      ```
 
 4. **Coupling & Encapsulation Bleed**
@@ -53,12 +53,12 @@ disable-model-invocation: true
      ```
 
 5. **Polymorphism & Strategy Deficits (Scattered Branching)**
-   - Smell: Parallel `switch(type)` or `if (type == A)` cascades scattered across multiple classes inducing Shotgun Surgery.
-   - Remedy: Replace scattered type conditionals with Polymorphism, Strategy Pattern, or dedicated Visitor dispatch.
+   - Smell: Parallel `switch(type)` or `if (type == A)` cascades scattered across multiple classes, inducing Shotgun Surgery on variant changes.
+   - Remedy: Consider Strategy or Polymorphism when variants evolve independently and new variants force multi-file edits. Prefer explicit conditionals when branches are cohesive cases of one policy in one location; evaluate cohesion and change cost before extraction.
    - Micro-Snippet:
      ```text
      Smell:  PaymentService, InvoiceService, and EmailService all maintain parallel switch (user.getPlanTier()).
-     Remedy: Encapsulate tier-specific behaviors inside PlanTier strategy implementations.
+     Remedy: Encapsulate tier-specific behaviors in PlanTier strategies (three independent services change in lockstep per new tier).
      ```
 
 6. **Robustness & Resource Hygiene**
