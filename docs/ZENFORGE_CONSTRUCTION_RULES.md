@@ -9,7 +9,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Stack & Host Agnostic**: Author all instructions independent of specific programming languages, frameworks, or host repositories.
 - **Cross-LLM Determinism**: Ensure high-fidelity execution across all frontier LLM families without model-specific quirks.
 - **Self-Contained Encapsulation**: Package all references, templates, and scripts locally within the skill directory; forbid relative links or dependencies to paths outside the skill directory.
-- **Zero-Secret Exposure & Environment Isolation**: Forbid inspecting (`read_file`, `cat`, grep) secret files (`.env*` except `.env.example`, `*.pem`, `*.key`, `id_rsa`); ground local execution in `.agents/dev-environment.md` and isolate machine-local profiles in `.gitignore`.
+- **Zero-Secret Exposure & Environment Isolation**: Forbid inspecting (`read_file`, `cat`, grep) secret files (`.env*` except `.env.example`, `*.pem`, `*.key`, `id_rsa`); ground local execution in `.agents/environment.md` (fallback to `.agents/dev-environment.md` if present) and isolate machine-local profiles in `.gitignore`.
 - **Path Portability Boundary**: Confine `file:///<abs_path>#L<N>` strictly to ephemeral chat streams for IDE jump-to-definition; mandate repository-relative POSIX paths for all persisted artifacts (tasks, documentation, commits, remote trackers).
 
 ## 2. Zero-Waste & Anti-No-Op
@@ -60,6 +60,18 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Description Formula**: Frontmatter descriptions must stay under 25 words following: `[Imperative Action] + [Target Entity] + [Context / Purpose]`. Forbid negative clauses in frontmatter.
 - **3-Tier Context Economics**: Tier 1 (Catalog: frontmatter < 50 tokens) ──> Tier 2 (Activation: `SKILL.md` < 150 lines, 40–120 lines sweet spot) ──> Tier 3 (Execution on Demand: offload runbooks to `references/`).
 
+### Invocation Tiers & Output Adaptability
+
+Classify all skills into one of three operational invocation tiers:
+
+1. **User-Invoked (Interactive Skills)**: Direct human engagement (e.g., `/clarify`, `/architect-decision`, `/changeset`, `/contract-freeze`, `/seam-plan`). Mandates a rich Canonical Output Contract (Markdown tables, ASCII trees, structured options) for human review and authorization gates.
+2. **Dual-Invoked (Pipeline & Execution Skills)**: Callable either directly by human operators or autonomously by runners and subagents (e.g., `/forge`, `/assay`, `/split-tasks`, `/tracking-tasks`, `/env-doctor`, `/skeleton-spike`). Supports **Adaptive Output**:
+   - *Human Caller*: Renders the full Canonical Output Contract for audit and inspection.
+   - *Model / Runner Caller*: Returns a lean **Micro-Summary / Exit Status** (`PASS | commit: <sha> | <stats>` or compact JSON < 50 tokens) to prevent context bloat and token churn.
+3. **Model-Invoked (Behavioral Protocols)**: Cognitive guidelines, heuristics, and execution guardrails (e.g., `/tdd`, coding conventions, UI/UX heuristics). **Canonical Output Contract is Omitted by Design**; its artifact is the verified production code and test delta itself. Governed by Domain Rubric and Smell vs. Remedy snippets.
+
+*Progressive Adoption Policy*: Apply these invocation tiers immediately to all newly authored or modified skills; legacy skills retain their existing contracts until scheduled for revision.
+
 ## 6. SSOT & Markdown Integrity
 
 - **Define Once in SSOT**: Every invariant, contract, or format must belong to exactly one authoritative location. Forbid duplicating invariants inside phase steps.
@@ -73,7 +85,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 ## 8. Canonical Artifacts & Lean Turn-Halt Gate
 
-- **Canonical Completion Artifact**: Specify one deterministic artifact appropriate to the job (report, decision, Changeset Tree, or Task Staging Table), with conditional sections for clean, unresolved, or staged outcomes. Keep full file bodies and raw multi-page diffs out of chat.
+- **Canonical Completion Artifact**: Specify one deterministic artifact appropriate to the job (report, decision, Changeset Tree, or Task DAG), with conditional sections for clean, unresolved, or staged outcomes. Keep full file bodies and raw multi-page diffs out of chat. Model-invoked behavioral skills omit this section entirely; dual-invoked skills collapse into micro-tokens when dispatched autonomously.
 - **ASCII Tree Staging Rigor**: Mandate ASCII tree representation inside ```text code fences for changeset staging; forbid markdown bullet lists (lacks structural hierarchy) and bare un-fenced ASCII pipes (triggers markdown table parsing collisions).
 - **Lean Turn-Halt Gate**: Pair a staged artifact needing authorization with an immediate halt and a mutation boundary. Honor authorization already provided for that concrete scope; omit review-choice menus and redundant approval turns.
 

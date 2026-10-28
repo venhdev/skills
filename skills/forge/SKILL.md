@@ -11,7 +11,7 @@ disable-model-invocation: true
 - **Authorized Scope & Clean Replacement**: Implement the authorized changeset and necessary cascades while actively removing superseded logic, dead helpers, and obsolete tests directly replaced by the solution; preserve unrelated work and exclude opportunistic refactoring.
 - **Direction Fidelity**: Correct implementation errors within the agreed direction. Stop mutations when success requires significant changes to direction, contracts, risk, or blast radius; report the redesign gap rather than choosing a replacement design.
 - **Verification Integrity**: Require every acceptance criterion and required check to pass before `DONE`; preserve failing evidence and existing edits rather than silently reverting or weakening assertions.
-- **Environment & Secret Isolation**: Never inspect or modify secret files (`.env*`, `*.key`, `*.pem`); ground test execution and linter invocations in `.agents/dev-environment.md`.
+- **Environment & Secret Isolation**: Never inspect or modify secret files (`.env*`, `*.key`, `*.pem`); ground test execution and linter invocations in `.agents/environment.md` (fallback to `.agents/dev-environment.md` if present).
 - **Delivery Boundary**: Report implementation and verification with a proposed commit message; keep committing, merging, and publishing outside this skill's completion scope.
 
 ## Domain Rubric
@@ -61,6 +61,7 @@ Commit message: <Include only when DONE.>
 - Unresolved requirements prevent the agreed result → (via /clarify).
 - The direction must change to achieve the outcome → (via /architect-decision).
 - The direction remains settled but file impact needs restaging → (via /changeset).
+- Missing toolchain or failing test datastores prevent verification → (via /env-doctor).
 
 ## Execution Protocol
 
