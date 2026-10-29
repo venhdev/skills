@@ -25,7 +25,7 @@ Run `glab issue view <number> --comments -F json` (with `--repo <owner>/<repo>` 
 
 ## Task Decomposition & Execution Operations
 
-Used by `/to-tasks` and `/forge`:
+Used by `/tracking-tasks` and `/forge`:
 
 - **Publish Task**: `glab issue create --title "<NN>: <Task Title>" --description "..."` with embedded changeset and acceptance criteria.
 - **Blocking Dependencies**: GitLab's **native blocking link**, the canonical, UI-visible representation. Add it with the `/blocked_by #<n>` quick action, posted as a note (`glab issue note <child> --message "/blocked_by #<blocker>"`). Native blocking links are a Premium/Ultimate feature; on the free tier (or where unavailable) fall back to a `**Blocked by**: #<n>` line at the top of the description. A ticket is unblocked when every blocker is closed.

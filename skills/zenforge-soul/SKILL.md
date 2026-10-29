@@ -36,7 +36,6 @@ description: "Bootstrap session context, align architectural posture, enforce st
 - A settled solution needs file-impact and cascade planning → (via /changeset).
 - Complex work needs in-memory vertical DAG decomposition → (via /split-tasks).
 - Tasks need persistence to configured backlog or issue tracker → (via /tracking-tasks).
-- Legacy task tracking and decomposition → (via /to-tasks).
 - A supported changeset is authorized for implementation → (via /forge).
 - Code implementation requires strict Red-Green-Refactor loop → (via /tdd).
 - Code needs behavior-preserving simplification audit and staging → (via /simplify-audit).

@@ -54,7 +54,8 @@ For `UNRESOLVED`, replace the tree with a concise blocker, evidence, and require
 - An outdated plan exposes unresolved requirements → (via /clarify).
 - An outdated plan requires a new design direction → (via /architect-decision).
 - The supported changeset is authorized for implementation → (via /forge).
-- The caller wants tracking or useful task decomposition → (via /to-tasks).
+- The caller wants task decomposition into verifiable slices → (via /split-tasks).
+- The caller wants backlog persistence or issue tracking → (via /tracking-tasks).
 
 ## Execution Protocol
 

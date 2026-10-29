@@ -17,7 +17,7 @@ disable-model-invocation: true
 ## Domain Rubric
 
 ### 1. Tracker Resolution
-Read `.agents/task-tracker.md`. If absent, stage local Markdown storage under `.agents/tasks/<feature-slug>/` using `<NN>-<slug>.md` naming conventions. Honor remote tracking (`gh`, `glab`, Linear) when authenticated CLI access is confirmed.
+Read `.agents/task-tracker.md`. If absent, stage local Markdown storage under `.agents/tasks/<feature-slug>/` using `<NN>-<slug>.md` naming conventions (via [references/issue-tracker-local.md](references/issue-tracker-local.md)). Honor remote tracking (`gh`, `glab`, Linear) when authenticated CLI access is confirmed. When formatting task bodies, adhere to [references/task-template.md](references/task-template.md).
 
 ### 2. State & Task Lifecycle Transitions
 - `STAGED`: Tasks partitioned and ready for persistence authorization.

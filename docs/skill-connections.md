@@ -42,7 +42,8 @@ flowchart LR
     end
     subgraph planning[Planning and tracking]
         changeset["/changeset"]
-        tasks["/to-tasks"]
+        split["/split-tasks"]
+        tracking["/tracking-tasks"]
         simplify["/simplify-audit"]
     end
     assay["/assay"]
@@ -63,10 +64,13 @@ flowchart LR
     spike -->|Requirements need resolution| clarify
     spike -->|Original direction cannot hold| architect
     changeset -->|Supported scope and authorized implementation| forge
-    changeset -->|Tracking requested| tasks
+    changeset -->|Task decomposition requested| split
+    split -->|Backlog persistence requested| tracking
+    split -.->|Immediate authorized in-turn execution| forge
+    split -.->|Task breakdown review requested| assay
     changeset -->|Stale plan needing requirement revision| clarify
     changeset -->|Stale plan needing direction redesign| architect
-    tasks -.->|Eligible task with requested authorized execution| forge
+    tracking -.->|Eligible task with requested authorized execution| forge
     forge -->|Material requirements gap| clarify
     forge -->|Direction requires redesign| architect
     forge -->|Settled direction needing impact restaging| changeset
@@ -74,7 +78,7 @@ flowchart LR
     simplify -->|Architectural requirements unresolved| clarify
     simplify -->|Architecture needs a design decision| architect
     changeset -.->|Plan review requested| assay
-    tasks -.->|Task review requested| assay
+    tracking -.->|Task review requested| assay
     forge -.->|Implementation review requested| assay
     assay -->|Clear scope correction| changeset
     assay -->|Contract tension| clarify
@@ -87,8 +91,9 @@ inside that direction. Unverified assumptions or missing access remain explicit
 gaps rather than evidence of success or failure.
 
 `simplify-audit` can embed its own changeset; it does not call `changeset` just to
-stage that artifact. `to-tasks` records work and splits only when useful, ending
-after verified publication unless implementation is separately requested.
+stage that artifact. `split-tasks` derives in-memory vertical DAGs without persistence;
+`tracking-tasks` records work and synchronizes lifecycle states, ending after verified
+publication unless implementation is separately requested.
 `forge` ends at verified implementation and a proposed commit message; a
 necessary redesign is a separate handoff, not an implementation adjustment.
 
@@ -170,7 +175,7 @@ without a downstream invocation.
 
 - Framing: [distill](../skills/distill/SKILL.md), [clarify](../skills/clarify/SKILL.md), [architect-decision](../skills/architect-decision/SKILL.md), [contract-freeze](../skills/contract-freeze/SKILL.md), [seam-plan](../skills/seam-plan/SKILL.md).
 - Proof: [diagnose](../skills/diagnose/SKILL.md), [spike](../skills/spike/SKILL.md), [skeleton-spike](../skills/skeleton-spike/SKILL.md), [tdd](../skills/tdd/SKILL.md).
-- Planning and implementation: [changeset](../skills/changeset/SKILL.md), [split-tasks](../skills/split-tasks/SKILL.md), [tracking-tasks](../skills/tracking-tasks/SKILL.md), [to-tasks](../skills/to-tasks/SKILL.md), [forge](../skills/forge/SKILL.md), [simplify-audit](../skills/simplify-audit/SKILL.md).
+- Planning and implementation: [changeset](../skills/changeset/SKILL.md), [split-tasks](../skills/split-tasks/SKILL.md), [tracking-tasks](../skills/tracking-tasks/SKILL.md), [forge](../skills/forge/SKILL.md), [simplify-audit](../skills/simplify-audit/SKILL.md).
 - Review: [assay](../skills/assay/SKILL.md), [harness-audit](../skills/harness-audit/SKILL.md), [perimeter](../skills/perimeter/SKILL.md), [inspect-structure](../skills/inspect-structure/SKILL.md), [inspect-role-naming](../skills/inspect-role-naming/SKILL.md), [inspect-perf](../skills/inspect-perf/SKILL.md), [inspect-security](../skills/inspect-security/SKILL.md).
 - Support: [recon](../skills/recon/SKILL.md), [scout](../skills/scout/SKILL.md), [ssot](../skills/ssot/SKILL.md), [env-doctor](../skills/env-doctor/SKILL.md), [zenforge-init](../skills/zenforge-init/SKILL.md), [zenforge-soul](../skills/zenforge-soul/SKILL.md), [lens-pro](../skills/lens-pro/SKILL.md), [lens-eli5](../skills/lens-eli5/SKILL.md).
 - Isolation and release: [worktree](../skills/worktree/SKILL.md), [forge-isolated](../skills/forge-isolated/SKILL.md), [forge-isolated-subagent](../skills/forge-isolated-subagent/SKILL.md), [ci-pub](../skills/ci-pub/SKILL.md).
