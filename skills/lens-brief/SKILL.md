@@ -1,6 +1,6 @@
 ---
 name: lens-brief
-description: "Distill complex technical discussions, diffs, or architecture into unambiguous plain language using ASD-STE100 and BLUF principles."
+description: "Distill dense context, verbose explanations, or complex topics into concise plain language with an immediate bottom-line conclusion."
 disable-model-invocation: true
 ---
 
@@ -8,19 +8,18 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Language Adaptation**: Respond in the caller's active conversational language (e.g., Vietnamese, English) while strictly upholding plain-language brevity, active voice, and sentence caps.
-- **BLUF Primacy (Bottom Line Up Front)**: Open immediately with a single declarative sentence stating the decisive conclusion, change, or answer.
-- **Controlled Sentence Constraint (ASD-STE100)**: Enforce strict sentence length caps: maximum 20 words per procedural sentence, maximum 25 words per descriptive sentence.
-- **Active Voice & Anti-Filler**: Use active voice exclusively (*who or what performs the action*); forbid phrasal verbs (*carry out, put off*), passive obfuscation, conversational filler, and decorative adjectives.
-- **Ubiquitous Code Grounding**: Bind all references directly to concrete repository symbols and relative POSIX paths (`file_path`, `SymbolName`); forbid ambiguous pronouns (*this, that, it*).
-- **Context Isolation**: Deliver the distillation in isolation without derailing active session tasks or mutating files on disk.
+- **Language Adaptation**: Respond in the caller's active conversational language (e.g., Vietnamese, English).
+- **BLUF Primacy**: State the decisive conclusion or answer in the opening sentence.
+- **Plain Voice (ASD-STE100)**: Use active voice and short sentences (max 20–25 words); eliminate filler words, phrasal verbs, and passive phrasing.
+- **Code Anchoring**: Bind terms directly to concrete repository symbols and relative paths (`file_path`, `SymbolName`) instead of vague pronouns.
+- **Context Isolation**: Explain in isolation without modifying files or expanding active scope.
 
 ## Domain Rubric
 
 ### 1. Plain-Language Translation Matrix (ISO 24495-1)
-- *Findable*: High-contrast sectioning so readers immediately locate impact and action.
-- *Understandable*: Single-meaning words replacing multi-word bureaucratic phrases.
-- *Usable*: Concrete next operational choice or action step.
+- *Findable*: Lead with the decisive takeaway in the BLUF blockquote so the core message is found instantly.
+- *Understandable*: Clear, single-meaning words in active sentences instead of bureaucratic phrasing or nominalizations.
+- *Usable*: State the concrete takeaway or operational action directly in context.
 
 ### 2. Word Choice Guidance (Smell vs. Remedy)
 - *Smell (English)*: "We decided to carry out an asynchronous refactoring of the authentication pipeline."
@@ -31,18 +30,10 @@ disable-model-invocation: true
 ## Canonical Output Contract
 
 ```markdown
-# Lens [Brief]: <Target Topic / Change / Inquiry>
+> **BLUF**: <Single active sentence stating the core conclusion, change, or answer. Max 20 words.>
 
-> **BLUF**: <Single active sentence answering what this is or what happened. Max 20 words.>
+<1–3 short paragraphs in plain natural prose. Max 25 words per descriptive sentence, 20 words per procedural sentence. Use active voice and ubiquitous symbols. Explain the context, mechanics, or consequence directly.>
 
-## 1. Core Change & Fact
-- **State**: <Current reality in 1–2 short sentences; max 25 words per sentence.>
-- **Delta**: <What is added, modified, or removed.>
-
-## 2. Why It Matters
-- **Gain**: <Direct operational advantage or solved problem.>
-- **Risk / Constraint**: <Immediate trade-off, edge case, or prerequisite to know.>
-
-## 3. Next Action *(omit if purely informational)*
-- **Decision / Command**: <Concrete command to run or decision required from caller.>
+*(omit if purely informational)*
+**Next Step**: <Concrete command to execute or decisive choice required from caller.>
 ```
