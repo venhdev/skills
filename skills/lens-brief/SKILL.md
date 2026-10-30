@@ -1,6 +1,6 @@
 ---
 name: lens-brief
-description: "Distill complex technical discussions, diffs, or architecture into unambiguous plain English using ASD-STE100 and BLUF principles."
+description: "Distill complex technical discussions, diffs, or architecture into unambiguous plain language using ASD-STE100 and BLUF principles."
 disable-model-invocation: true
 ---
 
@@ -8,9 +8,10 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
+- **Language Adaptation**: Respond in the caller's active conversational language (e.g., Vietnamese, English) while strictly upholding plain-language brevity, active voice, and sentence caps.
 - **BLUF Primacy (Bottom Line Up Front)**: Open immediately with a single declarative sentence stating the decisive conclusion, change, or answer.
-- **ASD-STE100 Sentence Constraint**: Enforce strict sentence length caps: maximum 20 words per procedural sentence, maximum 25 words per descriptive sentence.
-- **Controlled Voice & Phrasal Ban**: Use active voice exclusively (*who or what performs the action*); forbid phrasal verbs (*carry out, put off, run out*), passive obfuscation, conversational filler, and decorative adjectives.
+- **Controlled Sentence Constraint (ASD-STE100)**: Enforce strict sentence length caps: maximum 20 words per procedural sentence, maximum 25 words per descriptive sentence.
+- **Active Voice & Anti-Filler**: Use active voice exclusively (*who or what performs the action*); forbid phrasal verbs (*carry out, put off*), passive obfuscation, conversational filler, and decorative adjectives.
 - **Ubiquitous Code Grounding**: Bind all references directly to concrete repository symbols and relative POSIX paths (`file_path`, `SymbolName`); forbid ambiguous pronouns (*this, that, it*).
 - **Context Isolation**: Deliver the distillation in isolation without derailing active session tasks or mutating files on disk.
 
@@ -22,10 +23,10 @@ disable-model-invocation: true
 - *Usable*: Concrete next operational choice or action step.
 
 ### 2. Word Choice Guidance (Smell vs. Remedy)
-- *Smell*: "We decided to carry out an asynchronous refactoring of the authentication pipeline."
+- *Smell (English)*: "We decided to carry out an asynchronous refactoring of the authentication pipeline."
 - *Remedy*: "We split `AuthService` into two background tasks. This prevents login timeouts."
-- *Smell*: "It is recommended that the database migration should be initiated."
-- *Remedy*: "Run `pnpm db:migrate` before deploying `OrderService`."
+- *Smell (Vietnamese)*: "Chúng tôi đã tiến hành triển khai thực hiện việc tái cấu trúc bất đồng bộ đối với luồng xác thực."
+- *Remedy*: "Hệ thống tách `AuthService` thành hai tác vụ nền để ngăn lỗi timeout đăng nhập."
 
 ## Canonical Output Contract
 
