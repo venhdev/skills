@@ -53,10 +53,10 @@ disable-model-invocation: true
 
 2. **Scale-Adaptive Pragmatic Audit**:
    - In-Turn Execution (< 10 files or cohesive module): Audit code directly in-turn against rubric dimensions.
-   - Subagent Fan-Out (broad multi-package subsystem): Launch 2–3 `research` subagents (Role: `Performance Inspector (<Slice>)`) seeded with slice coordinates, discovered anchors, Domain Rubric, and Output Contract.
+   - Subagent Fan-Out (broad multi-package subsystem): Launch concurrent `research` subagents dynamically scaled to partitioned slices or caller-declared budget (Role: `Performance Inspector (<Slice>)`) seeded with slice coordinates, discovered anchors, Domain Rubric, and Output Contract (offload extensive profiling traces to `.agents/scratch/perf-<slice>-dossier.md`).
    - Enforce Section 1 Guardrails: ignore micro-benchmarking noise on non-hot paths; classify every finding explicitly as `[LOCAL-FIX]` or `[ARCHITECTURAL-REFACTOR]`.
 
 3. **Synthesis & Turn-Halt Gate**:
-   - Consolidate findings into the Canonical Output Contract.
+   - Consolidate findings into the Canonical Output Contract with pointers to any offloaded dossiers.
    - Assign definitive Health Rating (`OPTIMAL`, `LOCALIZED_BOTTLENECK`, `CRITICAL_DEGRADATION`).
    - Present completed dossier into conversation stream and halt turn immediately.

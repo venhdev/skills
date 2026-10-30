@@ -57,10 +57,10 @@ disable-model-invocation: true
 
 1. Evaluate target scope scale:
    - *In-Turn Execution* (< 10 files or single cohesive module): Trace call flows against discovered anchors directly in-turn to eliminate subagent latency and token overhead.
-   - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Cartography Scout (<Layer>)`). Seed each with target boundary, discovered anchors, and Canonical Output Contract.
+   - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch concurrent `research` subagents dynamically scaled to partitioned layers or caller-declared budget (Role: `Cartography Scout (<Layer>)`). Seed each with target boundary, discovered anchors, and Canonical Output Contract (offload extensive traces to `.agents/scratch/recon-<layer>-dossier.md`).
 
 ### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
 
-1. Reconcile findings into the Canonical Output Contract.
+1. Reconcile findings into the Canonical Output Contract with pointers to any offloaded dossiers.
 2. Present the completed cartography into the conversation stream and halt turn immediately.
 

@@ -8,22 +8,13 @@ disable-model-invocation: true
 
 ## Domain Rubric
 
-### 1. Seam Identification (Michael Feathers)
-Locate an enabling seam where behavior can be altered without editing existing client source code:
-- *Interface / Object Seam*: Introduce an abstraction wrapper around legacy components.
-- *Link / Module Seam*: Intercept at the import, dependency injection, or package boundary.
+### 1. Seam Coordinates & Isolation Mechanism
+Identify interception seams at interface, dependency injection, or package boundaries. Select a zero-downtime isolation mechanism: *Interface Adapter*, *Feature Flag*, *Shadow Proxy*, or *Branch by Abstraction*.
 
-### 2. Expand-Contract Triad (Three Invariant Phases)
-1. **Phase 1: Expand (Additive Non-Breaking)**:
-   - Introduce new interfaces, data schemas, or shadow services alongside legacy code.
-   - *Invariant*: Zero modifications to existing callers. Legacy test suites remain unmodified and GREEN.
-2. **Phase 2: Migrate (Progressive Cutover)**:
-   - Reroute callers individually to the new abstraction via feature flags, adapters, or dual-writes.
-   - Verify behavioral parity between legacy and new paths.
-   - *Invariant*: Rollback to legacy path must execute in zero seconds via flag toggle without code redeployment.
-3. **Phase 3: Contract (Pruning & Cleanup)**:
-   - Remove legacy implementations, delete temporary flags, and purge obsolete branches and shims.
-   - Run full regression suites to confirm the clean state.
+### 2. Expand-Contract Triad Invariants
+1. **Phase 1: Expand (Additive Non-Breaking)**: Introduce new interfaces, schemas, or shadow services alongside legacy code. Caller signatures and legacy test suites remain unmodified and GREEN.
+2. **Phase 2: Migrate (Progressive Cutover)**: Reroute callers individually to the new abstraction via feature flags or adapters. Rollback to legacy path must execute instantly via flag toggle without code redeployment.
+3. **Phase 3: Contract (Pruning & Cleanup)**: Remove legacy implementations, delete temporary flags, and purge obsolete branches and shims once full regression tests pass.
 
 ### 3. State
 - `STAGED`: The 3-phase migration strategy and rollback coordinates are staged for human review.
@@ -66,8 +57,5 @@ Summary: 3 atomic phases planned, rollback exposure confined to Phase 2 flag.
 
 ## Execution Protocol
 
-1. Inspect target refactoring scope and locate available seams.
-2. Formulate Phase 1 Expand artifacts (additive interfaces, wrappers, shadow pipes).
-3. Plan Phase 2 progressive migration steps with explicit feature flags and rollback gates.
-4. Plan Phase 3 contract cleanup operations.
-5. Present the 3-phase migration plan and halt turn for human authorization before any code changes.
+1. Inspect target refactoring scope, locate interception seams, and formulate the 3-phase progression (Expand -> Migrate -> Contract).
+2. Stage the Seam Migration Plan with explicit rollback gates. Report `STAGED` (or `UNRESOLVED` if coupling prevents seam isolation).

@@ -53,6 +53,10 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
   - *Archetype C (Stateful & Mutating Workflows)* (e.g., `forge`, `to-tasks`): Authorized filesystem/tracker modifications or isolated scratch experimentation (e.g., `diagnose`, `spike`), with explicit boundaries and verification. Scratch permission never implies permission to patch production.
 - **Turn-Bounded Execution**: Combine Discovery, Staging, and Authorization Gate whenever feasible. Halt for required answers or missing authorization; continue authorized scope without re-asking or imposing one phase per turn.
 - **Universal Mention Convention**: Reference supporting sub-skills conditionally in templates and prose (`(via /<name>)`). Never treat sub-skills as hard blocking dependencies.
+- **Composite Wrappers & Execution Topologies**:
+  - *Composite Wrapper (Workflow Chaining)*: Skills chaining multiple distinct skills into a unified convenience facade (e.g., `to-tasks`, `forge-isolated`). Wrappers do not invent independent rubrics or duplicate sub-skill contracts.
+  - *Topological Cascade*: Sequential execution of prerequisite-dependent tasks (`BLOCKED` -> `READY`) derived from a Task DAG.
+  - *Concurrent Scatter*: Simultaneous execution of independent, non-conflicting slices (`READY`) across isolated worktrees or subagents.
 
 ## 5. Invocation Gating & 3-Tier Economics
 
@@ -99,15 +103,21 @@ Classify all skills into one of three operational invocation tiers:
 
 - **Two-Tier Discovery (Macro Grounding vs. Micro Execution)**:
   - *Main Agent (Orchestrator)*: Pre-scouts high-level architectural anchors (shared primitives, governing specs, boundary coordinates) before dispatching to ground subagent scope. Forbid blind dispatch without grounded anchor context.
-  - *Subagents (Workers)*: Execute deep, parallel, file-by-file traversal or multi-query search strictly within their partitioned slice.
+  - *Subagents (Workers)*: Execute deep, concurrent, file-by-file traversal or multi-query search strictly within their partitioned slice.
 - **Context Seeding Contract**: Subagents run in isolated conversation contexts and do not inherit active memory. The Main Agent must explicitly seed each subagent with:
-  1. *Target Slice*: Exact directory or file boundary.
+  1. *Target Slice*: Exact boundary, package, or query coordinates.
   2. *Discovered Anchors*: Pre-scouted primitives, interfaces, or specs to audit against.
   3. *Governing Rubric & References*: Relevant evaluation rules and the exact path to any Tier 3 reference files (`references/*.md`) for the subagent to view on demand.
-  4. *Output Contract*: Mandatory sub-report schema for deterministic fan-in.
-- **Scale-Adaptive Execution Threshold**:
+  4. *Output Contract*: Mandatory sub-report schema or dossier pointer protocol for deterministic fan-in.
+- **Scale-Adaptive & Elastic Worker Allocation**:
   - *In-Turn Execution*: If the target scope is localized (e.g., 1–5 files, single cohesive module), the Main Agent executes the audit directly in-turn to eliminate subagent spawning latency and token overhead.
-  - *Subagent Fan-Out*: Launch 2–3 concurrent subagents strictly when the codebase spans multiple architectural layers, cross-package subsystems, or exceeds single-turn inspection budgets.
+  - *Elastic Subagent Scatter*: Launch concurrent subagents dynamically scaled to the number of decoupled bounded contexts, subsystems, or orthogonal inquiry angles (or strictly honor a caller-declared worker budget). Forbid arbitrary numerical quotas.
+- **Resilient Aggregation (No Fragile Fail-Fast)**:
+  - Do not kill running peer subagents when one worker fails or yields negative results. In multi-perspective exploration and audit, each slice represents an independent inquiry; treat missing data or localized failures as explicit gaps or negative findings to preserve the complete multi-dimensional picture.
+- **Dossier Offloading & Pointer Protocol**:
+  - *In-Turn Return*: Compact findings and summary tables return directly in chat messages.
+  - *Dossier Offloading*: When an audit or investigation yields extensive technical evidence (reproduction scripts, long stack traces, PoC exploits, raw AST/telemetry data, or system-wide cartography), the subagent writes the full dossier to `.agents/scratch/<skill>-<slice>-report.md`. The subagent returns only an Executive Verdict, key findings, and a clickable file pointer to the Main Agent.
+  - *Lossless Human Presentation*: The Main Agent presents a concise Decision-Sufficient report in chat with links to the full persisted dossiers, preserving 100% of the raw technical evidence without chat stream clutter.
 
 ## 11. Input, State & Routing
 

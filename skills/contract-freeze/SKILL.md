@@ -11,16 +11,10 @@ disable-model-invocation: true
 ### 1. Bounded Context Isolation
 Isolate domain boundaries so each context exclusively owns its datastore and internal state. Forbid direct cross-database queries or foreign entity mutations; require all cross-boundary interactions to traverse explicit Public Interfaces, Domain Events, or Anti-Corruption Layers (ACL).
 
-### 2. Frozen Interface Specifications
-Define cross-module contracts using strict typed declarations (TypeScript types, Protocol Buffers, JSONSchema, OpenAPI, or Go interfaces). Every contract must declare:
-- *Direction & Protocol*: In-process interface, sync RPC, or async event.
-- *Strict Payloads*: Input command structure and output event/return type.
-- *Invariants & Semantics*: Idempotency requirements, failure modes, and deterministic error codes.
+### 2. Contract Specifications & Consumer Fixtures
+Define cross-module contracts using strict typed declarations (TypeScript types, Protocol Buffers, JSONSchema, OpenAPI, or Go interfaces). Every contract must declare protocol, direction, typed command/event payloads, error models, and mock provider fixtures so downstream consumers can build independently without upstream readiness.
 
-### 3. Consumer-Driven Mockability
-Generate or specify mock provider fixtures for each frozen contract. Downstream contexts must be capable of building and executing against mock fixtures without waiting for upstream implementations.
-
-### 4. State
+### 3. State
 - `STAGED`: Bounded contexts mapped, public interfaces frozen, and mock fixtures reviewable.
 - `UNRESOLVED`: Domain boundary ambiguity or conflicting data ownership prevents clean separation.
 
@@ -65,7 +59,6 @@ Summary: <N> contexts defined, <M> cross-boundary contracts frozen.
 
 ## Execution Protocol
 
-1. Analyze architectural proposals and codebase module boundaries.
-2. Partition domain responsibilities into isolated Bounded Contexts with single data ownership.
-3. Draft typed interfaces, payloads, error models, and mock stubs for all cross-boundary traffic.
-4. Output the frozen contract specification and halt turn for human authorization before any implementation.
+1. Partition domain boundaries into isolated Bounded Contexts with single data ownership.
+2. Define typed interface specifications, error models, and mock stubs for all cross-boundary traffic.
+3. Output the staged contract specification as `STAGED` (or report `UNRESOLVED` on conflicting ownership).

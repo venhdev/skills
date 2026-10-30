@@ -72,7 +72,7 @@ Before executing audit passes, agents MUST read and ground themselves in:
    - Read `references/test-smells.md` and `references/invariant-dimensions.md`.
 2. **Scale-Adaptive Audit Dispatch**:
    - *In-Turn Execution* (< 10 test files or localized suite): Inspect test suite against Audit Hierarchy directly in-turn.
-   - *Subagent Fan-Out* (broad multi-package test suites): Launch 1–3 `research` subagents partitioned by directory, seeding with anchor and reference paths.
+   - *Subagent Fan-Out* (broad multi-package test suites): Launch concurrent `research` subagents dynamically scaled to partitioned directories or caller-declared budget, seeding with anchor and reference paths (offload raw test traces to `.agents/scratch/harness-<slice>-dossier.md`).
 3. **Synthesis & Turn-Halt Gate (Fan-in)**:
-   - Deduplicate findings into the Canonical Output Contract.
+   - Deduplicate findings into the Canonical Output Contract with pointers to any offloaded dossiers.
    - Present completed report into conversation stream and halt turn immediately.

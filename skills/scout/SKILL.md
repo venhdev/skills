@@ -54,11 +54,11 @@ Triangulate technical inquiries against authoritative production evidence:
 
 1. **Query Triangulation & Dispatch**:
    - Formulate 2 to 3 targeted search queries crossing: canonical standards/RFCs, high-scale engineering cases, and failure postmortems.
-   - Launch a `research` subagent (Role: `Real-System Research Scout`) supplying:
+   - Launch `research` subagent(s) dynamically scaled to inquiry complexity or caller-declared budget (Role: `Real-System Research Scout`) supplying:
      - The triangulated queries and Search Budget (max 8 queries, 10 fetched pages).
-     - The **Canonical Output Contract** above as the required output contract.
+     - The **Canonical Output Contract** above as the required output contract (offload deep comparative dossiers to `.agents/scratch/scout-dossier.md` when extensive).
    - Mandate the subagent to inspect full page bodies via URL tools before synthesizing; cite strictly verified URLs and never synthesize from search snippets alone.
 
 2. **Synthesis & Halt**:
-   - Emit the completed report into the conversation stream and halt turn immediately.
+   - Emit the completed report into the conversation stream (with pointers to any offloaded dossiers) and halt turn immediately.
 

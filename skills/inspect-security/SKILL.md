@@ -53,10 +53,10 @@ disable-model-invocation: true
 
 2. **Scale-Adaptive Pragmatic Audit**:
    - In-Turn Execution (< 10 files or cohesive module): Audit code directly in-turn against rubric dimensions.
-   - Subagent Fan-Out (broad multi-package subsystem): Launch 2–3 `research` subagents (Role: `Security Inspector (<Slice>)`) seeded with slice coordinates, discovered anchors, Domain Rubric, and Output Contract.
+   - Subagent Fan-Out (broad multi-package subsystem): Launch concurrent `research` subagents dynamically scaled to partitioned slices or caller-declared budget (Role: `Security Inspector (<Slice>)`) seeded with slice coordinates, discovered anchors, Domain Rubric, and Output Contract (offload extensive proof traces or PoCs to `.agents/scratch/security-<slice>-dossier.md`).
    - Enforce Section 1 Guardrails: ignore stylistic noise; classify every finding explicitly as `[LOCAL-FIX]` or `[ARCHITECTURAL-REFACTOR]`.
 
 3. **Synthesis & Turn-Halt Gate**:
-   - Consolidate findings into the Canonical Output Contract.
+   - Consolidate findings into the Canonical Output Contract with pointers to any offloaded dossiers.
    - Assign definitive Security Posture (`HARDENED`, `LOCALIZED_RISKS`, `CRITICAL_EXPOSURE`).
    - Present completed dossier into conversation stream and halt turn immediately.

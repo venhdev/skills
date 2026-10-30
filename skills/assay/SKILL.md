@@ -65,14 +65,14 @@ Inspect mutation artifacts against 4 structural dimensions:
 
 1. Evaluate mutation scope scale:
    - *In-Turn Review* (localized diff of < 10 files, or single task card): Audit mutations directly in-turn against review dimensions.
-   - *Subagent Fan-Out* (multi-package changesets or broad PR diffs): Launch 2–3 `research` subagents (Role: `Mutation Reviewer (<Target Slice>)`). Seed each with:
+   - *Subagent Fan-Out* (multi-package changesets or broad PR diffs): Launch concurrent `research` subagents dynamically scaled to partitioned slices or caller-declared budget (Role: `Mutation Reviewer (<Target Slice>)`). Seed each with:
      - Allocated diff slice and target file pointers.
      - Discovered governing contracts and invariant baselines.
-     - The Dual-Citation Rule and the Canonical Output Contract.
+     - The Dual-Citation Rule and Canonical Output Contract (offload extensive proof traces to `.agents/scratch/assay-<slice>-dossier.md`).
 
 ### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
 
-1. Reconcile and deduplicate subagent findings into the Canonical Output Contract.
+1. Reconcile and deduplicate subagent findings into the Canonical Output Contract with pointers to any offloaded dossiers.
 2. Compute the definitive Executive Verdict (`PASS` only if all slices pass; downgrade to `CONDITIONAL` or `FAIL` based on highest defect severity).
 3. Emit the report into the conversation stream and halt turn immediately.
 
