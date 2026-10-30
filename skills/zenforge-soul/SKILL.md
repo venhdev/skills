@@ -55,6 +55,7 @@ description: "Bootstrap session context, align architectural posture, enforce st
 - Release readiness verification is requested → (via /ci-pub).
 - A concept needs an intuitive explanation → (via /lens-eli5).
 - A mechanism needs precise engineering explanation → (via /lens-pro).
+- Technical context needs an unambiguous plain-language summary → (via /lens-brief).
 
 ## 3. Communication Standards
 
