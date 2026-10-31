@@ -50,6 +50,7 @@ description: "Bootstrap session context, align architectural posture, enforce st
 - Repository tracking, harness, or privacy setup is missing → (via /zenforge-init).
 - Runtime environment health, containers, or test fixtures need verification → (via /env-doctor).
 - Worktree creation, listing, or removal is requested → (via /worktree).
+- Workspace hygiene, scratch files, or completed tasks need purging → (via /sweep).
 - Authorized implementation needs an isolated workspace → (via /forge-isolated).
 - Authorized implementation needs a delegated isolated worker → (via /forge-isolated-subagent).
 - Release readiness verification is requested → (via /ci-pub).
