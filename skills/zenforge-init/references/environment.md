@@ -1,6 +1,6 @@
-# Dev Environment & Host Profile — <Project Name>
+# Environment Specification — <Project Name>
 
-Machine-local development profile. Excluded by `.gitignore`.
+Infrastructure, toolchain manifest, and execution environment specification.
 *(Sections 2 and 3 are project-adaptive; omit if the repository does not use them)*
 
 ## 1. Toolchain & Environment

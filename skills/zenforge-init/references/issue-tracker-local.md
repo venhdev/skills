@@ -37,3 +37,4 @@ Used by `/track-tasks` and `/forge`:
 - **Frontier**: Scan `.agents/tasks/<feature-slug>/` for files where `Status` is `ready` and all predecessors in `Blocked by` are `done`. First in sequence order is the active frontier.
 - **Claim**: Set `**Status**: in-progress` before active execution.
 - **Resolve**: Ensure all acceptance criteria are verified `[x]`, set `**Status**: done`, and append execution notes under `## Comments`.
+- **Purge**: Delete `.agents/tasks/<feature-slug>/` once all contained tasks reach `**Status**: done` and verified.

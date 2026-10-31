@@ -17,7 +17,7 @@ of the task unless they define a binding interface or schema.
 - [ ] <Verifiable criterion>
 
 ## Basis
-<Solution proof or official references; relevant conditions and scope.>
+<Solution proof or official references; embed concise proof inline for remote trackers.>
 
 ## Embedded Changeset
 <Planned impact; reconcile against current checkout before implementation.>

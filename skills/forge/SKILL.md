@@ -8,10 +8,11 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Authorized Scope & Clean Replacement**: Implement the authorized changeset and necessary cascades while actively removing superseded logic, dead helpers, and obsolete tests directly replaced by the solution; preserve unrelated work and exclude opportunistic refactoring.
+- **Authorized Scope & Clean Replacement**: Implement the authorized changeset and necessary cascades while actively removing superseded logic, dead helpers, and obsolete tests directly replaced by the solution; purge related transient scratch artifacts (`.agents/scratch/`) and temporary worktrees once implementation and verification reach `DONE`; preserve unrelated work and exclude opportunistic refactoring.
 - **Direction Fidelity**: Correct implementation errors within the agreed direction. Stop mutations when success requires significant changes to direction, contracts, risk, or blast radius; report the redesign gap rather than choosing a replacement design.
 - **Verification Integrity**: Require every acceptance criterion and required check to pass before `DONE`; preserve failing evidence and existing edits rather than silently reverting or weakening assertions.
-- **Environment & Secret Isolation**: Never inspect or modify secret files (`.env*`, `*.key`, `*.pem`); ground test execution and linter invocations in `.agents/environment.md` (fallback to `.agents/dev-environment.md` if present).
+- **Safe Rollback**: Use `git reset --soft HEAD~1` when undoing local commits to preserve uncommitted deltas in the staging index.
+- **Environment & Secret Isolation**: Never inspect or modify secret files (`.env*`, `*.key`, `*.pem`); ground test execution and linter invocations in `.agents/environment.md`.
 - **Delivery Boundary**: Report implementation and verification with a proposed commit message; keep committing, merging, and publishing outside this skill's completion scope.
 
 ## Domain Rubric
@@ -32,6 +33,7 @@ Determine required verification from project rules and acceptance criteria befor
 - Continue fixing ordinary compiler, linter, and test failures within scope. Distinguish implementation mistakes from invalid design assumptions and unrelated baseline failures.
 - Treat import, signature, and caller updates as small cascades only when they preserve agreed behavior outside the target. New ownership, schema semantics, or substantial scope expansion requires redesign.
 - For tracked work, follow the configured task lifecycle: claim eligible work before edits and mark it complete only after required verification. Preserve dependency gates; task tracking is not a substitute for execution authorization.
+- Purge related scratch artifacts (`.agents/scratch/`) and temporary worktrees upon verified completion.
 
 ### State
 

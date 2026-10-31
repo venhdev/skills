@@ -9,7 +9,7 @@ disable-model-invocation: true
 ## Operating Invariants
 
 - **Pre-Mutation Gate**: Stage strictly missing assets via Changeset and halt turn for human approval; never overwrite valid existing configurations.
-- **Privacy Baseline**: Always isolate `.agents/scratch/`, `.agents/dev-environment.md`, and legacy `.agents/host-toolchain.md` in `.gitignore`; forbid committing transient scratch files, machine-local environment profiles, or secrets.
+- **Privacy Baseline**: Always isolate `.agents/scratch/` in `.gitignore`; forbid committing transient scratch files or secrets.
 
 ## Domain Rubric
 
@@ -25,17 +25,26 @@ Propose **Harness Anchor** using template [`references/harness-anchor.md`](./ref
 - **SSOT Discovery**: Scan for existing testing guides (`test/AGENTS.md`, `tests/AGENTS.md`, `docs/**/testing*.md`, `<subsystem>/test/AGENTS.md`). Record all discovered SSOT paths as relative paths under Governing Testing SSOTs without transcribing content, preventing stale copies and routing agents directly to authoritative sources.
 - **Hermetic Primitives Discovery**: Scan test helper directories (`test/helpers/`, `test/fixtures/`) to register existing foundation helpers in the Hermetic Primitives Registry.
 
-### 3. Dev Environment & Host Profile (`.agents/dev-environment.md`)
+### 3. Environment Specification (`.agents/environment.md`)
 
-Propose **Dev Environment Profile** using template [`references/dev-environment.md`](./references/dev-environment.md). Populate or replace the `## 1. Toolchain & Environment` section via [`scripts/discover-toolchain.sh`](./scripts/discover-toolchain.sh) (`--file` defaults to `.agents/dev-environment.md` with fallback to `.agents/host-toolchain.md` if present, ensuring target is in `.gitignore`), recording active runtime wrappers, canonical test/analysis commands, and installed host CLIs. Non-applicable sections (services, datastores) remain omissible.
+Propose **Environment Specification** using template [`references/environment.md`](./references/environment.md). Populate or replace the `## 1. Toolchain & Environment` section via [`scripts/discover-toolchain.sh`](./scripts/discover-toolchain.sh) (`--file` defaults to `.agents/environment.md`), recording active runtime wrappers, canonical test/analysis commands, and installed host CLIs. Non-applicable sections (services, datastores) remain omissible.
 
 ### 4. Git Privacy Configuration (`.gitignore`)
 
 - `.agents/scratch/`: Private scratchpad (immutable).
-- `.agents/dev-environment.md` / `.agents/host-toolchain.md`: Machine-local environment and toolchain profile (immutable).
 - `.agents/tasks/`: Local-Only default for local markdown; omit if user requests team-shared tracking.
 
-### 5. Documentation Placement Matrix (`docs/README.md`)
+### 5. Git Core Safety Configuration (`.git/config`)
+
+Apply repository safety defaults:
+```bash
+git config --local merge.conflictstyle zdiff3
+git config --local diff.algorithm histogram
+git config --local push.useForceIfIncludes true
+git config --local rebase.autoStash true
+```
+
+### 6. Documentation Placement Matrix (`docs/README.md`)
 
 ```markdown
 # Documentation Index & Placement Matrix
@@ -47,13 +56,13 @@ Propose **Dev Environment Profile** using template [`references/dev-environment.
 | **Documentation Governance** | `docs/` | Governed via `/ssot` |
 ```
 
-### 6. Agent Constitution Hook (`AGENTS.md` or `CLAUDE.md`)
+### 7. Agent Constitution Hook (`AGENTS.md` or `CLAUDE.md`)
 
 Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). If target file exists, append this block; do not overwrite:
 
 ```markdown
 ## Agent Workflow
-- **Dev Environment**: Governed by `.agents/dev-environment.md` (local runners, zero-touch for `.env*` secrets).
+- **Environment**: Governed by `.agents/environment.md` (local runners, zero-touch for `.env*` secrets).
 - **Task Tracker**: Governed by `.agents/task-tracker.md`.
 - **Harness Anchor**: Governed by `.agents/harness-anchor.md` (via `/harness-audit`).
 - **Documentation**: Governed by `docs/README.md` (via `/ssot`).
@@ -73,13 +82,12 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 2. **Toolchain Pre-flight**: Run `bash scripts/discover-toolchain.sh <path_to_repository> --dry-run` to inspect tracker CLI auth (`gh` / `glab`), inferred runtime wrappers, test/analysis commands, and installed host tools without mutating disk.
 3. **Workspace Signals**:
    - Check `AGENTS.md` vs `CLAUDE.md` (preserve existing, forbid duplicating).
-   - Check `.gitignore`, `.agents/dev-environment.md` (or `.agents/host-toolchain.md`), `.agents/task-tracker.md`, `.agents/harness-anchor.md`, `.agents/tasks/`.
+   - Check `.gitignore`, `.agents/environment.md`, `.agents/task-tracker.md`, `.agents/harness-anchor.md`, `.agents/tasks/`.
    - Scan existing documentation (`docs/README.md` or `README.md`).
-4. **Clean-Pass Short-Circuit**: If all scaffolding assets (`.agents/dev-environment.md` / `.agents/host-toolchain.md`, `.agents/task-tracker.md`, `.agents/harness-anchor.md`, `.gitignore` privacy rules, `docs/README.md`, and constitution hook) are already configured and valid, report:
+4. **Clean-Pass Short-Circuit**: If all scaffolding assets (`.agents/environment.md`, `.agents/task-tracker.md`, `.agents/harness-anchor.md`, `.gitignore` privacy rules, `docs/README.md`, and constitution hook) are already configured and valid, report:
 
    ```text
    Repository ecosystem is already initialized and up-to-date.
-
    ```
 
    Halt turn immediately without staging redundant mutations.
@@ -92,8 +100,8 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
    # Changeset: Repository Initialization
 
    |-- .agents/
-   |   |-- dev-environment.md
-   |   |   `-- [CREATE] Record machine-local environment, toolchains, and service contracts.
+   |   |-- environment.md
+   |   |   `-- [CREATE] Record environment toolchains, runners, and service contracts.
    |   |-- task-tracker.md
    |   |   `-- [CREATE] Configure task tracking mode and execution protocols.
    |   `-- harness-anchor.md
@@ -101,7 +109,7 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
    |-- docs/README.md
    |   `-- [<ACTION>] Establish documentation Placement Matrix.
    |-- .gitignore
-   |   `-- [<ACTION>] Add .agents/scratch/, .agents/dev-environment.md, and .agents/tasks/ privacy rules.
+   |   `-- [<ACTION>] Add .agents/scratch/ and .agents/tasks/ privacy rules.
    `-- <AGENTS.md | CLAUDE.md>
        `-- [<ACTION>] Add agent workflow, secret privacy rules, and documentation pointers.
 
@@ -113,5 +121,5 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
 
 ### Phase 3: Atomic Application & Handoff
 
-1. Upon receiving approval, write staged files to disk and run `bash scripts/discover-toolchain.sh <path_to_repository> [--file <path.md>]` to create or update `.agents/dev-environment.md` and register it in `.gitignore`.
+1. Upon receiving approval, write staged files to disk, apply Git core safety configurations, and run `bash scripts/discover-toolchain.sh <path_to_repository> [--file <path.md>]` to create or update `.agents/environment.md`.
 2. Report setup complete and any caller-relevant follow-up gaps.

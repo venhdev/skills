@@ -25,6 +25,7 @@ disable-model-invocation: true
 - `[CREATE]`: Add a new worktree branch checked out at target path.
 - `[DELETE]`: Remove worktree directory and prune git administrative metadata.
 - `[LIST]`: Inspect active worktrees and associated branches.
+- `[PRUNE]`: Clean up squash-merged branches safely via `scripts/prune-squashed.sh`.
 
 ## Canonical Output Contract
 
@@ -55,4 +56,5 @@ Summary: 1 worktree affected (<branch>).
 1. On approval, execute the required operation:
    - Create: `git worktree add <path> -b <branch> <base_ref>`
    - Delete: `git worktree remove <path> && git worktree prune`
+   - Prune: `bash scripts/prune-squashed.sh <target_branch>`
 2. Report operation completed with the absolute workspace path for IDE navigation.

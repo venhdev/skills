@@ -9,8 +9,9 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Stack & Host Agnostic**: Author all instructions independent of specific programming languages, frameworks, or host repositories.
 - **Cross-LLM Determinism**: Ensure high-fidelity execution across all frontier LLM families without model-specific quirks.
 - **Self-Contained Encapsulation**: Package all references, templates, and scripts locally within the skill directory; forbid relative links or dependencies to paths outside the skill directory.
-- **Zero-Secret Exposure & Environment Isolation**: Forbid inspecting (`read_file`, `cat`, grep) secret files (`.env*` except `.env.example`, `*.pem`, `*.key`, `id_rsa`); ground local execution in `.agents/environment.md` (fallback to `.agents/dev-environment.md` if present) and isolate machine-local profiles in `.gitignore`.
+- **Zero-Secret Exposure & Environment Isolation**: Forbid inspecting (`read_file`, `cat`, grep) secret files (`.env*` except `.env.example`, `*.pem`, `*.key`, `id_rsa`); ground local execution in `.agents/environment.md` and isolate machine-local profiles in `.gitignore`.
 - **Path Portability Boundary**: Confine `file:///<abs_path>#L<N>` strictly to ephemeral chat streams for IDE jump-to-definition; mandate repository-relative POSIX paths for all persisted artifacts (tasks, documentation, commits, remote trackers).
+- **Remote Artifact Portability**: Embed proof artifacts inline or cite version-controlled Git branches/ADRs when syncing to remote trackers.
 
 ## 2. Zero-Waste & Anti-No-Op
 
@@ -22,6 +23,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 - **Tool-Aware Zero-Waste**: Forbid defensive rules, speculative circuit breakers, or retry instructions for behaviors that underlying tooling, permissions, or native error returns already handle.
 - **Zero Transitional Glue**: Attach templates and schemas directly beneath governing headings without conversational filler.
 - **Zero-Emoji & Token Economy**: Forbid decorative emojis across all skills, templates, and staging artifacts to conserve context tokens and eliminate visual noise.
+- **Clean Purge Discipline**: Purge transient scratch files (`.agents/scratch/`), temporary worktrees, and completed local task directories (`.agents/tasks/<feature-slug>/`) upon verified implementation.
 
 ## 3. Affirmative Framing & Paired Directives
 

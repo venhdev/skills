@@ -15,7 +15,7 @@ Inspect mutation artifacts against 4 structural dimensions:
 - **Scope Integrity (Blast Radius & Anti-Bloat)**: Verify that every planned or modified file is strictly load-bearing. Flag accidental formatting, cosmetic churn, unrelated refactoring, speculative files, or lingering dead code left unpruned after replacement.
 - **Contract & Spec Fidelity (Anti-Drift)**: Reconcile changes against governing specifications, SSOT documents, and established interfaces. Flag undocumented behavioral changes or broken contracts.
 - **Structural Cohesion & Slicing**: Verify modular encapsulation without leaky abstractions. For tasks, verify true vertical slicing (end-to-end capability) over horizontal layer fragmentation.
-- **Operational Hygiene & Safety**: Expose unhandled edge cases, resource leaks, lingering debug probes (`[DEBUG-<hex>]`), or unredacted secrets.
+- **Operational Hygiene & Safety**: Expose unhandled edge cases, resource leaks, lingering debug probes (`[DEBUG-<hex>]`), unredacted secrets, or unpurged transient scratch/task files.
 
 ### 2. Review Verdicts
 

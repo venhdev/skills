@@ -11,7 +11,8 @@ disable-model-invocation: true
 - **Storage Exclusivity**: Mutate task records exclusively in the configured tracker from `.agents/task-tracker.md` (Local Markdown `.agents/tasks/`, GitHub Issues, GitLab, or Linear); never touch production code.
 - **State Integrity**: Maintain canonical states: `ready`, `in-progress`, `done`. Treat `blocked` as a derived state based on prerequisite tasks; a task is only `ready` when all predecessor dependencies are `done`.
 - **Idempotent Synchronization**: Check existing issues/files before creating; re-read after writing to verify IDs and persistence.
-- **Self-Contained Payloads**: Embed acceptance criteria, verification commands, and parent traces into the stored task body so subagents can execute independently.
+- **Self-Contained Payloads**: Embed acceptance criteria, verification commands, and inline proof into task bodies so subagents execute independently without local scratch dependencies.
+- **Completion Purge**: Delete `.agents/tasks/<feature-slug>/` (or close remote tickets) once all tasks reach `done` and verified.
 - **Adaptive Invocation Output**: Render a persistence summary table for humans; emit a compact micro-token for autonomous runners.
 
 ## Domain Rubric
