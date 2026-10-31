@@ -69,7 +69,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 Classify all skills into one of three operational invocation tiers:
 
 1. **User-Invoked (Interactive Skills)**: Direct human engagement (e.g., `/clarify`, `/architect-decision`, `/changeset`, `/contract-freeze`, `/seam-plan`). Mandates a rich Canonical Output Contract (Markdown tables, ASCII trees, structured options) for human review and authorization gates.
-2. **Dual-Invoked (Pipeline & Execution Skills)**: Callable either directly by human operators or autonomously by runners and subagents (e.g., `/forge`, `/assay`, `/split-tasks`, `/tracking-tasks`, `/env-doctor`, `/skeleton-spike`). Supports **Adaptive Output**:
+2. **Dual-Invoked (Pipeline & Execution Skills)**: Callable either directly by human operators or autonomously by runners and subagents (e.g., `/forge`, `/assay`, `/split-tasks`, `/track-tasks`, `/env-doctor`, `/spike-skeleton`). Supports **Adaptive Output**:
    - *Human Caller*: Renders the full Canonical Output Contract for audit and inspection.
    - *Model / Runner Caller*: Returns a lean **Micro-Summary / Exit Status** (`PASS | commit: <sha> | <stats>` or compact JSON < 50 tokens) to prevent context bloat and token churn.
 3. **Model-Invoked (Behavioral Protocols)**: Cognitive guidelines, heuristics, and execution guardrails (e.g., `/tdd`, coding conventions, UI/UX heuristics). **Canonical Output Contract is Omitted by Design**; its artifact is the verified production code and test delta itself. Governed by Domain Rubric and Smell vs. Remedy snippets.

@@ -1,10 +1,10 @@
 ---
-name: skeleton-spike
+name: spike-skeleton
 description: "Construct and verify a minimal end-to-end walking skeleton across distributed modules or bounded contexts to prove architectural integration before detailed implementation."
 disable-model-invocation: true
 ---
 
-# skeleton-spike — Multi-Module Walking Skeleton & Plumbing Proof
+# spike-skeleton — Multi-Module Walking Skeleton & Plumbing Proof
 
 ## Operating Invariants
 

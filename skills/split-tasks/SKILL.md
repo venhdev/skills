@@ -61,7 +61,7 @@ Summary: <N> slices (Max depth <K>, <D> direct dependencies).
 ### Routing
 
 - Immediate in-session execution -> Take first READY slice to (via /changeset) -> (via /forge).
-- Deferred execution or team backlog tracking -> (via /tracking-tasks).
+- Deferred execution or team backlog tracking -> (via /track-tasks).
 - Long-running automated pipeline execution -> Autonomous Runner (/goal).
 - Ambiguous scope or conflicting dependencies -> (via /clarify).
 

@@ -1,10 +1,10 @@
 ---
-name: tracking-tasks
+name: track-tasks
 description: "Persist, synchronize, and update task lifecycle states to the configured issue tracker or local repository markdown store."
 disable-model-invocation: true
 ---
 
-# tracking-tasks — Task Persistence & Lifecycle Synchronization
+# track-tasks — Task Persistence & Lifecycle Synchronization
 
 ## Operating Invariants
 

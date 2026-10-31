@@ -24,7 +24,7 @@ Run `gh issue view <number> --json number,title,body,labels,comments` (with `--r
 
 ## Task Decomposition & Execution Operations
 
-Used by `/tracking-tasks` and `/forge`:
+Used by `/track-tasks` and `/forge`:
 
 - **Publish Task**: `gh issue create --title "<NN>: <Task Title>" --body "..."` with embedded changeset and acceptance criteria.
 - **Blocking Dependencies**: GitHub's **native issue dependencies**, the canonical, UI-visible representation. Add an edge with `gh api --method POST repos/<owner>/<repo>/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`, where `<blocker-db-id>` is the blocker's numeric **database id** (`gh api repos/<owner>/<repo>/issues/<n> --jq .id`, *not* the `#number` or `node_id`). GitHub reports `issue_dependencies_summary.blocked_by` (open blockers only, the live gate). Where native dependencies aren't available, fall back to a `**Blocked by**: #<n>` line at the top of the issue body. A ticket is unblocked when every blocker is closed.

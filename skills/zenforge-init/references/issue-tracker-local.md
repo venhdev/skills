@@ -21,7 +21,7 @@ Read the file at the referenced path. The user will normally pass the path or th
 
 ## Task Decomposition & Execution Operations
 
-Used by `/tracking-tasks` and `/forge`:
+Used by `/track-tasks` and `/forge`:
 
 - **Task Files**: `.agents/tasks/<feature-slug>/<NN>-<slug>.md`, numbered sequentially starting from `01`.
 - **Task Header Format**:

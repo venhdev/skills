@@ -52,7 +52,7 @@ Summary: <N> contexts defined, <M> cross-boundary contracts frozen.
 
 ### Routing
 
-- Greenfield plumbing verification across frozen contracts → (via /skeleton-spike).
+- Greenfield plumbing verification across frozen contracts → (via /spike-skeleton).
 - Large-scale refactor with frozen contracts → (via /seam-plan).
 - Single-module feature with frozen contracts ready for file impact planning → (via /changeset).
 - Domain boundary or schema ambiguities unresolved → (via /clarify).

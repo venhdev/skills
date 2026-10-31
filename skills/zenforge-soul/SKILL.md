@@ -28,14 +28,14 @@ description: "Bootstrap session context, align architectural posture, enforce st
 - Open design direction or competing approaches → (via /architect-decision).
 - Cross-module boundaries, schemas, and DTOs need freezing → (via /contract-freeze).
 - Large-scale refactoring requires safe 3-phase seam migration → (via /seam-plan).
-- Greenfield architecture requires end-to-end plumbing proof → (via /skeleton-spike).
+- Greenfield architecture requires end-to-end plumbing proof → (via /spike-skeleton).
 - Unknown codebase seams or execution flow → (via /recon).
 - Missing production precedent or failure-mode context → (via /scout).
 - A supplied candidate needs proof within its original direction → (via /spike).
 - A defect needs confirmed or inferred root-cause findings → (via /diagnose).
 - A settled solution needs file-impact and cascade planning → (via /changeset).
 - Complex work needs in-memory vertical DAG decomposition → (via /split-tasks).
-- Tasks need persistence to configured backlog or issue tracker → (via /tracking-tasks).
+- Tasks need persistence to configured backlog or issue tracker → (via /track-tasks).
 - A supported changeset is authorized for implementation → (via /forge).
 - Code implementation requires strict Red-Green-Refactor loop → (via /tdd).
 - Code needs behavior-preserving simplification audit and staging → (via /simplify-audit).
