@@ -100,6 +100,11 @@ Classify all skills into one of three operational invocation tiers:
 - **Canonical Completion Artifact**: Specify one deterministic artifact appropriate to the job (report, decision, Changeset Tree, or Task DAG), with conditional sections for clean, unresolved, or staged outcomes. Keep full file bodies and raw multi-page diffs out of chat. Model-invoked behavioral skills omit this section entirely; dual-invoked skills collapse into micro-tokens when dispatched autonomously.
 - **ASCII Tree Staging Rigor**: Mandate ASCII tree representation inside ```text code fences for changeset staging; forbid markdown bullet lists (lacks structural hierarchy) and bare un-fenced ASCII pipes (triggers markdown table parsing collisions).
 - **Lean Turn-Halt Gate**: Pair a staged artifact needing authorization with an immediate halt and a mutation boundary. Honor authorization already provided for that concrete scope; omit review-choice menus and redundant approval turns.
+- **Living Plan Governance (In-Flight Initiative Artifacts)**:
+  - *Ephemeral Scratch Isolation*: Maintain multi-phase architectural plans and living execution states strictly under `.agents/scratch/plans/<initiative-slug>/` with a `README.md` Master State Dashboard. Never write in-flight, unverified planning drafts to permanent `docs/`.
+  - *2-Beat Authorization Gate*: In-turn deliberation and staging remain in-memory; write plan dossiers to scratch strictly upon affirmative human authorization.
+  - *Drift Breaker & Re-Planning*: When code reality diverges from staged contracts during execution, halt mutations immediately, transition phase to `DRIFTED`, and require caller re-planning before amending the plan.
+  - *Durable Promotion via /ssot*: Upon full initiative completion (`VERIFIED`), promote lasting contracts and architectural decisions to repository documentation strictly via `/ssot` (allowing `/ssot` to determine canonical placement according to host conventions); purge ephemeral scratch dossiers via `/sweep`.
 
 ## 9. Test-Driven Skill Authoring
 

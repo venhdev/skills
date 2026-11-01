@@ -52,6 +52,7 @@ Summary: <N> contexts defined, <M> cross-boundary contracts frozen.
 
 ### Routing
 
+- Multi-phase initiative contracts ready for living plan packaging → (via /plan-dossier).
 - Greenfield plumbing verification across frozen contracts → (via /spike-skeleton).
 - Large-scale refactor with frozen contracts → (via /seam-plan).
 - Single-module feature with frozen contracts ready for file impact planning → (via /changeset).

@@ -51,6 +51,7 @@ Summary: 3 atomic phases planned, rollback exposure confined to Phase 2 flag.
 
 ### Routing
 
+- Migration strategy ready for multi-phase living plan packaging → (via /plan-dossier).
 - Migration strategy staged, proceed to slice each phase into a DAG → (via /split-tasks).
 - Single phase ready for immediate file-impact planning → (via /changeset).
 - Cannot isolate a seam without a major architectural pivot → (via /architect-decision).

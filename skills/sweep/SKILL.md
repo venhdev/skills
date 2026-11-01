@@ -9,14 +9,14 @@ disable-model-invocation: true
 ## Operating Invariants
 
 - **Pre-Mutation Gate**: Stage all candidate deletions in the Canonical Output Contract and halt for affirmative authorization before deleting files.
-- **Active Work Preservation**: Purge exclusively verified completed artifacts; preserve task collections containing `ready` or `in-progress` tasks, dirty worktrees, and unmerged branches.
+- **Active Work Preservation**: Purge exclusively verified completed artifacts; preserve plan dossiers in `.agents/scratch/plans/` containing active phases (`PLANNED`, `CLAIMED`, `IN_PROGRESS`, `DRIFTED`), task collections containing `ready` or `in-progress` tasks, dirty worktrees, and unmerged branches.
 - **Targeted Scope**: Confine deletions strictly to `.agents/scratch/`, fully completed `.agents/tasks/<feature-slug>/` directories, and merged `.agents/worktree/` paths.
 - **Atomic Execution**: Execute approved deletions atomically, prune orphaned git administrative metadata via `git worktree prune`, and report reclaimed status.
 
 ## Domain Rubric
 
 ### 1. Reclamation Dimensions
-1. *Scratch & Dossiers*: Temporary scripts (`hitl-loop.sh`), subagent traces (`*-dossier.md`), and absorbed spike directories in `.agents/scratch/`.
+1. *Scratch & Dossiers*: Temporary scripts (`hitl-loop.sh`), subagent traces (`*-dossier.md`), absorbed spike directories, and completed plan dossiers (`COMPLETED` or `REJECTED`) in `.agents/scratch/`.
 2. *Completed Task Collections*: Feature directories under `.agents/tasks/<feature-slug>/` where all contained tasks have `Status: done`.
 3. *Merged Worktrees & Branches*: Clean worktrees under `.agents/worktree/` and squash-merged local branches verified via `scripts/prune-squashed.sh`.
 

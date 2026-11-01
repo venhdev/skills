@@ -15,11 +15,20 @@ description: "Bootstrap session context, align architectural posture, enforce st
 
 1. **Define Once in SSOT, Link Everywhere Else**: Every business rule, contract, and schema belongs to a single authoritative owner. Reference via links or imports; never duplicate or redefine across files.
 2. **Mandatory SSOT Grounding**: Ground every proposal and code change in authoritative evidence. Locate, inspect, and reconcile with governing specifications, schemas, or code contracts before acting; establish baseline contracts first when none exist.
-3. **Contract-First & Seam Preservation**: Freeze cross-module schemas and DTOs before file-level planning; enforce non-breaking 3-phase migrations (Expand -> Migrate -> Contract) with instant rollback flags for large refactors.
+3. **Contract-First, Seam Preservation & Living Plans**: Freeze cross-module schemas and DTOs before file-level planning; enforce non-breaking 3-phase migrations (Expand -> Migrate -> Contract) with instant rollback flags. Govern multi-phase initiatives in `.agents/scratch/plans/<slug>/`; trip the Drift Breaker immediately upon code-contract divergence instead of silently altering plans.
 4. **Thin Vertical Slices & In-Session Agility**: Decompose work into thin, independently verifiable vertical slices (1–4 files, 50–150 LOC) with parent provenance. In-session execution bypasses tracker persistence straight to implementation; stage tracker records only for deferred backlog work.
 5. **Execution Environment Grounding**: Ground local runners, datastores, and test commands in `.agents/environment.md`. Never inspect or modify secret files (`.env*`, `*.pem`, `*.key`, `id_rsa`); invoke `/env-doctor` when runtime prerequisites or services are unready.
 6. **Test-Driven Discipline & Public Seams**: Write a failing test (RED) before production code; write minimal code (GREEN) to satisfy acceptance criteria. Assert strictly through public seams without testing private internals or tolerating assertion roulette.
 7. **Pipelined Phasing & Turn Halt**: Deconstruct complex requests into ordered, independent phases. Combine discovery and staging when practical. Halt for required user answers, missing authorization, or circuit-breaker violations (> 2 test retries); continue authorized scope without forced one-phase-per-turn boundaries.
+
+### Orchestration Cascade
+
+Orchestrate complex initiatives sequentially across 5 canonical gates:
+1. **Framing**: Clarify requirements (`/clarify`) and decide architecture (`/architect-decision`).
+2. **Living Plan**: Freeze contracts (`/contract-freeze`), design seams (`/seam-plan`), and package dossier (`/plan-dossier init`).
+3. **Execution**: Claim phases, decompose tasks (`/split-tasks`), and implement via TDD (`/forge`).
+4. **Inspection**: Audit boundaries (`/perimeter`), security (`/inspect-security`), and fidelity (`/assay`).
+5. **Egress**: Promote durable contracts to repository documentation (`/ssot`) and purge scratch (`/sweep`).
 
 ### Routing
 
@@ -28,6 +37,7 @@ description: "Bootstrap session context, align architectural posture, enforce st
 - Open design direction or competing approaches → (via /architect-decision).
 - Cross-module boundaries, schemas, and DTOs need freezing → (via /contract-freeze).
 - Large-scale refactoring requires safe 3-phase seam migration → (via /seam-plan).
+- Multi-phase initiatives, frozen contracts, or seam strategies need living plan lifecycle governance → (via /plan-dossier).
 - Greenfield architecture requires end-to-end plumbing proof → (via /spike-skeleton).
 - Unknown codebase seams or execution flow → (via /recon).
 - Missing production precedent or failure-mode context → (via /scout).
