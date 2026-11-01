@@ -61,13 +61,8 @@ Qualify candidate constraints strictly against 3 conditions:
 
 ### Phase 2: Scale-Adaptive Boundary Audit
 
-1. Evaluate target scope scale:
-   - *In-Turn Execution* (< 10 files or localized module): Audit call sites against discovered anchors directly in-turn.
-   - *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch 1–3 `research` subagents (Role: `Perimeter Reviewer (<Slice>)`). Seed each with:
-     - Target slice directory.
-     - Discovered architectural anchors from Phase 1.
-     - The Load-Bearing Qualification Gate and path to `references/fitness-functions.md`.
-     - Canonical sub-report contract requiring offending code pointers (`file:///...#L<N>`).
+- *In-Turn Execution* (< 10 files or localized module): Audit call sites against discovered anchors directly in-turn.
+- *Subagent Fan-Out* (broad codebase or cross-layer scopes): Launch concurrent `research` subagents dynamically scaled to partitioned slices or caller-declared budget (Role: `Perimeter Reviewer (<Slice>)`), seeded with target slice directory, discovered architectural anchors, Load-Bearing Qualification Gate, path to `references/fitness-functions.md`, and Canonical sub-report contract requiring offending code pointers (`file:///...#L<N>`).
 
 ### Phase 3: Codification & Turn-Halt Gate (Fan-in)
 

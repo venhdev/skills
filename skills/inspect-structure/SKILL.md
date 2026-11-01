@@ -11,18 +11,27 @@ disable-model-invocation: true
 ### 1. Scope & Operational Boundaries
 
 - **Structural Debt vs. Syntax Formatting**: Confine analysis strictly to structural, OOP, and cognitive debt across module, class, and method tiers; defer whitespace, semicolons, and styling nits entirely to native linters.
+- **Architectural Cohesion vs. Line Quotas (LOC / `wc -l`)**: Prohibit raw line counts (LOC) or `wc -l` as a primary metric or verdict for "God Class". Assess structural cohesion, actor boundaries, and I/O coupling instead of file length. Distinguish declarative UI component hierarchies (markup, layout trees, responsive styling) and configuration/token registries from OOP God Classes; an expansive declarative view component bound to a single presenter/controller is architecturally valid, whereas a compact class interweaving persistence, network transport, and domain state is a dangerous God Class.
 - **Architectural Form vs. Business Logic**: Audit structural cohesion and maintainability exclusively; never evaluate domain business rules, pricing logic, or math formulas without authoritative specs (route bug isolation to `/diagnose`; route spec drift to `/assay`).
 - **Read-Only Audit vs. Code Mutation**: Deliver structured inspection dossiers only; forbid modifying files on disk, generating code diffs, or applying automatic refactorings (route remediation planning to `/changeset`).
 
 ### 2. Structural Inspection Dimensions
 
 1. **Class Cohesion & SRP (God Class)**
-   - Smell: Class aggregating disparate domain concerns with low method cohesion. Elevated field/method counts are investigation signals, not verdicts; confirm independent responsibilities or unrelated dependency clusters before concluding.
-   - Remedy: Decompose into focused single-responsibility services, value objects, or strategy delegates.
-   - Micro-Snippet:
+   - **Evaluation Criteria**:
+     - *Lack of Cohesion (LCOM)*: Assess whether methods operate on a shared state cluster or partition into isolated, disjoint state silos.
+     - *Responsibility & Actor Clustering*: Confirm whether the class serves multiple external actors, disparate lifecycles, or unrelated subsystem concerns (e.g., storage, transport, hardware drivers).
+     - *Boundary Separation*: Verify whether presentation/UI components execute I/O, manage persistence, or perform transport requests directly instead of delegating to domain controllers, presenters, or state notifiers.
+   - **True Anti-Patterns**: Mixing direct I/O or persistence into presentation components; coordinating multiple independent aggregate roots in one service; violating Single Responsibility (multiple actors or axes of change).
+   - **False Positives to Avoid**: Never flag a God class solely on line counts (LOC); tolerate expansive declarative UI trees, view styling, serialization tables, and configuration/token registries when bound to a single cohesive responsibility.
+   - **Remedy**: Decompose into single-responsibility domain services, value objects, controllers/presenters, or strategy delegates.
+   - **Micro-Snippets**:
      ```text
-     Smell:  class OrderManager { calculateTax(); sendEmail(); saveToDb(); renderPdf(); }
-     Remedy: class OrderService delegates to TaxCalculator, OrderMailer, OrderRepository, PdfRenderer.
+     Smell (OOP God Class):    class OrderManager { calculateTax(); sendEmail(); saveToDb(); renderPdf(); }
+     Remedy:                   class OrderService delegates to TaxCalculator, OrderMailer, OrderRepository, PdfRenderer.
+
+     Smell (UI Boundary Leak): class ProfileView { render() { http.get("/user"); db.save(); } }
+     Remedy:                   ProfileView binds to ProfileController; controller coordinates UserService and Repository.
      ```
 
 2. **Method & Flow Complexity (Long Method / Deep Nesting)**
@@ -104,11 +113,8 @@ disable-model-invocation: true
 
 ### Phase 2: Scale-Adaptive Inspection
 
-1. Evaluate target scope scale:
-   - *In-Turn Execution* (< 10 files or single cohesive module): Audit code directly in-turn against rubric dimensions.
-   - *Subagent Fan-Out* (multi-package subsystems or broad repositories): Launch 2–3 `research` subagents (Role: `Structural Inspector (<Slice>)`).
-2. Context Seeding Contract for Subagents:
-   - Seed each subagent with target slice coordinates, discovered structural anchors, Domain Rubric dimensions, and the Canonical Output Contract.
+- *In-Turn Execution* (< 10 files or cohesive module): Audit code directly in-turn against rubric dimensions.
+- *Subagent Fan-Out* (broad multi-package subsystems or repositories): Launch concurrent `research` subagents dynamically scaled to partitioned slices or caller-declared budget (Role: `Structural Inspector (<Slice>)`), seeded with slice coordinates, discovered anchors, Domain Rubric, and Canonical Output Contract.
 
 ### Phase 3: Synthesis & Turn-Halt Gate (Fan-in)
 
