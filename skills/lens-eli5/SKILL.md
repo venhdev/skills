@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Jargon Boundary**: Never introduce a technical term without immediately pairing it with an everyday physical equivalent.
+- **Jargon Grounding**: Pair every technical term immediately with an everyday physical equivalent; avoid ungrounded industry jargon.
 - **Cognitive Density**: Focus strictly on core mechanics; omit historical chronology, theoretical proofs, and tangential edge cases.
 - **Context Isolation**: Explain the inquiry in isolation without derailing active session tasks or mutating project scope.
 

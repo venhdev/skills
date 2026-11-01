@@ -25,8 +25,8 @@ Inspect mutation artifacts against 4 structural dimensions:
 
 ### 3. Anti-Hallucination & Grounding Guardrails
 
-- **Dual-Citation Rule**: Every reported `Contract & Spec Fidelity` defect must explicitly cite both the offending code pointer (`file:///path/to/code#L<N>`) and the violated specification or interface contract (`file:///path/to/spec#L<M>`). Forbid claiming drift without contract citation.
-- **Multi-Layer Contract Grounding**: Ground mutations against 3 authoritative layers: explicit specifications/tasks, structural code interfaces/schemas, and baseline test invariants. Mark Contract Fidelity as `UNGROUNDED` only when no governing specs or code contracts exist across the repository; evaluate strictly on Scope Integrity and Hygiene. Forbid inventing imaginary requirements.
+- **Dual-Citation Rule**: Cite both the offending code pointer (`file:///path/to/code#L<N>`) and the violated specification or interface contract (`file:///path/to/spec#L<M>`) for every reported `Contract & Spec Fidelity` defect; never claim drift without an authoritative specification citation.
+- **Multi-Layer Contract Grounding**: Ground mutations against 3 authoritative layers: explicit specifications/tasks, structural code interfaces/schemas, and baseline test invariants; evaluate strictly on Scope Integrity and Hygiene when marked `UNGROUNDED` without inventing unstated requirements.
 
 ## Canonical Output Contract
 

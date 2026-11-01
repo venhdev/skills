@@ -49,7 +49,7 @@ Summary: 1 worktree affected (<branch>).
 ### Phase 2: Staging & Authorization Gate
 
 1. Stage the planned worktree modification in Canonical Changeset format.
-2. Present the staging summary and halt turn immediately. Never execute git mutations without affirmative authorization.
+2. Present the staging summary and halt turn immediately for human authorization.
 
 ### Phase 3: Atomic Execution & Handoff
 

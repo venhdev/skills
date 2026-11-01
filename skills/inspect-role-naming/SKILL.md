@@ -11,7 +11,7 @@ disable-model-invocation: true
 ### 1. Scope & Tolerability Guardrails (What to Ignore)
 
 - **Confine to Load-Bearing Risks**: Focus exclusively on dangerous architectural misrepresentations, runtime collisions, or boundary schema leaks.
-- **Tolerate Benign Code**: Forgive minor local helpers (< 3 methods), internal variable brevity, benign metrics/logging in accessors, and cosmetic style differences. Forbid forcing refactoring on working, cohesive code.
+- **Tolerate Benign Code**: Tolerate minor local helpers (< 3 methods), internal variable brevity, benign metrics/logging in accessors, and cosmetic style differences; never force refactoring on working, cohesive code.
 - **Governing Reference**: Evaluate naming and role alignment strictly against `references/role-naming-rubric.md` (or the host repository's authoritative naming specifications, which always take precedence).
 
 ### 2. Decision Bifurcation: [RENAME] vs. [REFACTOR]

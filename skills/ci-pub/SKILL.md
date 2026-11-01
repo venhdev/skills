@@ -39,7 +39,7 @@ Run formatting (`dart format --output=none --set-exit-if-changed .`), analyzer c
    - *Single Package*: Propose recommended SemVer candidate grounded against remote baseline (and optional pre-release preview if applicable).
    - *Pub Workspace*: Present Release Matrix listing affected packages in topological order, Remote Live vs Local version, proposed version, and downstream constraint cascades.
    - *CI Workflow Addition*: If user elected in Phase 1 to seed a publish workflow, include `.github/workflows/publish.yml` in the proposed changeset.
-3. Halt turn immediately. Forbid modifying manifests or git history until the user selects or approves the version proposal.
+3. Halt turn immediately for version selection and human authorization.
 
 ### Phase 4: Manifest Mutation, Dry-Run Verification & Handoff
 

@@ -116,8 +116,8 @@ Target `CLAUDE.md` if present; otherwise target `AGENTS.md` (create if absent). 
    Summary: <N> files affected (<C> created, <U> updated).
    ```
 
-2. Present Changeset summary, recommended tracker choice, and toolchain status (report auth status if CLI is unauthenticated). Forbid emitting raw file bodies into chat.
-3. Halt turn immediately for human approval; forbid modifying workspace files on disk without affirmative authorization.
+2. Present Changeset summary, recommended tracker choice, and toolchain status (report auth status if CLI is unauthenticated); keep raw file bodies out of chat.
+3. Halt turn immediately for human authorization.
 
 ### Phase 3: Atomic Application & Handoff
 

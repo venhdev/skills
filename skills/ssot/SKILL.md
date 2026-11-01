@@ -34,7 +34,7 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
 
 3. **Read-Only Exit**: If the request is search or audit only, report authoritative locations with pointer citations (`file:///path#L1-L20`) and halt turn immediately.
 4. **Contradiction Escalation Gate**: If specifications conflict or canonical authority is ambiguous:
-   - Halt turn immediately. Forbid proceeding to Phase 2.
+   - Halt turn immediately for human direction.
    - Report conflicting evidence with pointer citations (`[Doc A:L12]` vs `[Doc B:L40]`).
    - Present resolution options and wait for explicit human direction before staging mutations.
 
@@ -57,7 +57,7 @@ Classify every planned documentation operation into exactly one of the 4 atomic 
    Summary: <N> files affected (<C> created, <U> updated, <M> moved, <D> deleted).
    ```
 
-2. Present strictly the high-density Changeset summary and technical rationale. Forbid dumping raw document diffs into chat.
+2. Present the high-density Changeset summary and technical rationale; keep raw document diffs out of chat.
 3. If the staged scope lacks authorization, halt before modifying documentation. Continue to application when that concrete scope is already authorized.
 
 ### Phase 3: Application & Link Verification
