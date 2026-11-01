@@ -13,6 +13,11 @@ disable-model-invocation: true
 - **Sanctioned Primitives vs. Raw Bypass (Horizontal)**: Identify internal wrappers governing I/O, network clients, resources, or lifecycles; flag call sites bypassing them for raw runtime APIs.
 - **Layer & Dependency Directionality (Vertical)**: Trace import graphs across architectural layers (Domain, App, Infra, UI); flag inverted or cross-boundary imports.
 - **Resource & Sandbox Hygiene**: Audit storage paths, concurrency pools, and memory buffers; flag unanchored filesystem access or unthrottled resources.
+- **Micro-Snippet**:
+  ```text
+  Banned:   fetch("https://api.domain/orders") // Raw runtime bypass
+  Required: appHttpClient.get("/orders")       // Sanctioned primitive with auth & telemetry
+  ```
 
 ### 2. The Load-Bearing Qualification Gate
 
@@ -20,7 +25,7 @@ Qualify candidate constraints strictly against 3 conditions:
 1. *Existing Sanctioned Primitive*: Codebase defines an internal wrapper, base class, or canonical path addressing the boundary.
 2. *Empirical Bypass Evidence*: At least one active call site violates the boundary by calling raw APIs directly.
 3. *Quantifiable Failure Risk*: Bypass induces architectural drift, resource leaks, memory exhaustion, or security exposure.
-- **Negative Boundary**: Forbid declaring constraints for cosmetic styling, trivial utilities (`Math.*`, collections), or speculative rules lacking active primitives.
+- **Negative Boundary**: Confine constraints strictly to load-bearing architectural boundaries with existing internal primitives; never police cosmetic styling, standard utility methods (`Math.*`, collections), or speculative rules lacking active wrappers.
 
 ## Canonical Output Contract
 
@@ -56,8 +61,7 @@ Qualify candidate constraints strictly against 3 conditions:
 ### Phase 1: Macro Anchor Grounding
 
 1. Ingest target directory or subsystem.
-2. Scout high-level architectural anchors (internal wrappers, sanctioned clients, resolvers, base interfaces) using symbol and file search tools.
-3. Establish grounded anchor context to seed downstream inspection.
+2. Scout architectural anchors (internal wrappers, sanctioned clients, resolvers, base interfaces) to ground boundary baselines.
 
 ### Phase 2: Scale-Adaptive Boundary Audit
 
