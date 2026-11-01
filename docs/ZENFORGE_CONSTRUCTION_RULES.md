@@ -29,6 +29,12 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 - **Paired Action & Boundary**: State direct operational actions paired with explicit negative boundaries (*what to produce vs. what never to exceed*), using natural imperatives (`Stage`, `Verify`, `Confine`, `Never`, `Only`).
 - **Anti-Priming ("Instead of X, do Y")**: Never state negative prohibitions in isolation without immediately defining the approved alternative. Forbid naked "Do not..." directives.
+- **The 2-Clause Qualification Gate (When to Pair vs. When to Keep Single)**:
+  - *Pair Action & Boundary ("Do X, Never Y" / "Instead of Y, Do X") strictly when*:
+    1. **Empirical Action Bias / Scope Creep**: The agent's natural bias threatens to exceed authority (e.g., mutating files during a read-only audit; scanning the whole repository instead of a target slice).
+    2. **Gravity Traps & Battle Scars**: Common LLM shortcuts or internet antipatterns pull the agent into a known failure mode (e.g., judging God classes by `wc -l` instead of LCOM; swallowing errors in empty catch blocks).
+  - *Confine to Single-Action Directives ("Do X") when*: The instruction is deterministic and unambiguous without competing shortcuts or scope-creep risks (e.g., schema formatting, sorting orders). Forbid defensive "Do not do [unrelated thing]" clauses when no empirical failure trace exists.
+  - *Omit Entirely when*: Underlying tooling, compiler typechecks, CLI flags, or read-only sandboxes already enforce the boundary (Tool-Aware Zero-Waste), or modern frontier LLMs follow it by default (Anti-No-Op).
 - **Show, Don't Tell (Micro-Snippets)**: Prefer concrete micro-snippets (`Smell vs. Remedy` or `Bad vs. Good`) over verbose explanatory prose. Snippets provide unambiguous grounding across all frontier LLMs.
 
 ## 4. Archetype-Driven Topology & Modular Blocks
