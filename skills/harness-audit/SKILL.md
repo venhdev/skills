@@ -14,7 +14,7 @@ Inspect target test suites across progressive architectural layers:
 
 1. **Harness Anchor & Foundation Layer**:
    - Inspect the authoritative project harness anchor at `.agents/harness-anchor.md` and follow its `Governing Testing SSOTs` routes to read project testing standards.
-   - If missing: Check for legacy test guides (`test/AGENTS.md`, `tests/AGENTS.md`). If found, use as temporary SSOT and advise running `/zenforge-init` to establish canonical `.agents/harness-anchor.md`. If absent, mark anchor as `UNGROUNDED` and route to `/zenforge-init`.
+   - If missing: Check for legacy test guides (`test/AGENTS.md`, `tests/AGENTS.md`). If found, use as temporary SSOT and advise running `/zenf-init` to establish canonical `.agents/harness-anchor.md`. If absent, mark anchor as `UNGROUNDED` and route to `/zenf-init`.
    - Verify existence on disk of registered hermetic primitives (Deterministic Clock, Storage Sandbox, Fixtures / Factories, Transport / Network Mock, Lifecycle / Cleanup).
 2. **Smells & Flakiness Traps**:
    - Evaluate tests against anti-patterns and flakiness traps detailed in `references/test-smells.md`.
@@ -60,7 +60,7 @@ Before executing audit passes, agents MUST read and ground themselves in:
 
 ### Routing
 
-- Missing harness anchor requires setup → (via /zenforge-init).
+- Missing harness anchor requires setup → (via /zenf-init).
 - Missing foundational hermetic primitives requiring architectural trade-off deliberation → (via /clarify).
 - Discovered gaps or invariant blind spots ready for remediation planning → (via /changeset).
 - A supported changeset authorizes localized test remediation and its acceptance criteria/verification → (via /forge).

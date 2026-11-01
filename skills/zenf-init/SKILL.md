@@ -1,10 +1,10 @@
 ---
-name: zenforge-init
+name: zenf-init
 description: "Scaffold repository task tracking, test harness anchor, dev environment profile, Git ignore privacy, documentation index, and agent constitution."
 disable-model-invocation: true
 ---
 
-# zenforge-init — Repository Scaffolding Engine
+# zenf-init — Repository Scaffolding Engine
 
 ## Operating Invariants
 

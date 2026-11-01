@@ -1,5 +1,5 @@
 ---
-name: zenforge-soul
+name: zenf-soul
 description: "Bootstrap session context, align architectural posture, enforce strict execution gates, and govern SSOT invariants across the agent workflow."
 ---
 
@@ -57,7 +57,7 @@ Orchestrate complex initiatives sequentially across 5 canonical gates:
 - Code needs performance or resource-risk inspection → (via /inspect-perf).
 - Code needs threat or authorization-risk inspection → (via /inspect-security).
 - Documentation authority needs reconciliation → (via /ssot).
-- Repository tracking, harness, or privacy setup is missing → (via /zenforge-init).
+- Repository tracking, harness, or privacy setup is missing → (via /zenf-init).
 - Runtime environment health, containers, or test fixtures need verification → (via /env-doctor).
 - Worktree creation, listing, or removal is requested → (via /worktree).
 - Workspace hygiene, scratch files, or completed tasks need purging → (via /sweep).
