@@ -1,60 +1,37 @@
-# Environment Specification & Architecture Framework
+# Environment Specification — my-skills (ZenForge Ecosystem)
 
-This document governs the execution environment for developer agents and automated runners. It defines the universal architectural invariants, an open discovery framework, and an adaptive template for deriving project-specific environment specifications.
+Infrastructure, toolchain manifest, and execution environment specification.
 
----
+## 1. Toolchain & Environment
 
-## 1. Governing Invariants
+- **Primary Runtime (Backend)**: Go 1.24+ (`/usr/bin/go`, toolchain: go1.26+)
+- **Primary Runtime (Frontend)**: Node.js v24.19.0 (`/home/rirong/.nvm/versions/node/v24.19.0/bin/node`)
+- **Package & Task Wrappers**:
+  - `pnpm` v11.23.0 (Frontend dependency management)
+  - `GNU Make` 4.4.1 (Monorepo build automation: `apps/daemon/Makefile`)
+- **Version Control & Shell**:
+  - `git` 2.47.3
+  - `bash` (Linux amd64 POSIX shell)
+- **Container Engine**: Docker v29.7.2 (optional, not required for core daemon)
 
-- **Stack & Host Agnostic**: Never assume a specific language runtime, framework, or container engine. Adapt to pure libraries, distributed microservices, CLI binaries, or embedded targets.
-- **Zero-Secret Exposure**: Never store real credentials, production connection strings, or private keys. Confine test authentication strictly to mock fixtures or synthetic `.env.test` templates.
-- **Zero Business Coupling**: Confine all content strictly to runtime infrastructure, execution toolchains, test datastores, and verification commands. Forbid feature specifications or domain logic.
-- **Profile Portability**: Project-wide invariants belong in version control; host-specific ephemeral paths or machine overrides must be isolated in `.gitignore` or local user profiles.
+## 2. Local Services & Control Plane Endpoints
 
----
+| Resource | Type / Startup Command | Local Target / Endpoint | Health Probe |
+| :--- | :--- | :--- | :--- |
+| **zenfd Control Plane** | Go Daemon binary (`apps/daemon/bin/zenfd`) | `127.0.0.1:1123` | `curl -f http://127.0.0.1:1123/api/v1/plans` |
+| **zenfd Web UI** | Embedded SPA or Vite Dev Server (`apps/web`) | `http://127.0.0.1:1123` (Prod) / `http://localhost:5173` (Dev) | Browser HTTP GET |
+| **SQLite State DB** | Embedded WASM SQLite WAL (`ncruces/go-sqlite3`) | `~/.zenforge/state.db` | `PRAGMA journal_mode;` -> `wal` |
 
-## 2. Agent Discovery Questions (Open Heuristic)
+## 3. Canonical Verification Commands
 
-When an agent initializes or reconciles the environment layout, it evaluates these 5 open questions against the target codebase:
+- **Backend Daemon Tests**: `cd apps/daemon && go test -v -race ./...`
+- **Frontend Dashboard Build**: `cd apps/web && pnpm build`
+- **Single-Binary Monorepo Build**: `cd apps/daemon && make build` (tự động build web/dist -> embed vào Go binary)
+- **Plumbing Spike Suite**: `cd .agents/scratch/spike-zenfd && go test -v -race ./...`
 
-1. **Host & Platform Primitives**: What system binaries (`git`, `curl`, `make`) or container runtimes (Docker, Podman) must be present on the host?
-2. **Project Toolchains & Execution Wrappers**: Where are language versions pinned (`.nvmrc`, `Cargo.toml`, `go.mod`, `pyproject.toml`)? What execution wrapper manages dependencies (`cargo`, `pnpm`, `uv`, `mise`, `poetry`)?
-3. **External Services & Datastores *(omit if none)* **: Does the project depend on external datastores, queues, or emulators? How are local test instances provisioned and probed for readiness?
-4. **Verification Harness & Command Tiers**: What is the canonical fast command for unit/static checks? What command runs hermetic integration tests? What command formats/lints?
-5. **Observability & Scratch Storage *(omit if none)* **: Where do temporary debug artifacts and logs reside (`.agents/scratch/logs/`)? What local ports or health endpoints expose status?
+## 4. Safety, Secrets & Ephemeral Storage Boundary
 
----
-
-## 3. Universal Adaptive Template
-
-The agent derives the concrete layout below, populating only the dimensions relevant to this repository and omitting non-applicable sections:
-
-```markdown
-# Project Environment Specification
-
-## 1. Host & Platform Prerequisites
-- Platform: <OS / Architecture constraints, e.g. Linux x86_64, macOS arm64, POSIX>
-- Required Host Tools: <List of essential system CLIs, e.g. git, curl, jq>
-- Container Engine: <Docker Engine / Podman / None (pure host execution)>
-
-## 2. Runtime & Toolchain Matrix
-- Primary Runtime: <Language and version constraint, e.g. Rust 1.78+, Node 20.x, Python 3.11+>
-- Version Manifest: <Repo-relative manifest path, e.g. Cargo.toml, .nvmrc, go.mod>
-- Package & Execution Wrapper: <Canonical runner, e.g. cargo, pnpm, uv run, ./mvnw>
-
-## 3. Backing Services & Datastores *(omit for standalone libraries / CLIs)*
-- Provisioning Mechanism: <docker-compose.yml / testcontainers / local daemon / embedded>
-- Service Inventory:
-  - `<Service Name>`: Port `<Port>` | Health Probe: `<Command or socket check>`
-- Test Datastore Isolation: <Target test database name or in-memory instance, e.g. *_test, :memory:>
-
-## 4. Canonical Verification Commands
-- Fast / Static Check: `<Command for typecheck, linter, or fast unit tests>`
-- Hermetic Integration Check: `<Command for end-to-end or container-backed test suite>`
-- Dependency Sync: `<Command to install locked dependencies, e.g. pnpm install --frozen-lockfile>`
-
-## 5. Ephemeral Storage & Secrets Boundary
-- Test Configuration: `<Repo-relative path for test env, e.g. .env.test or mock fixtures>`
-- Ephemeral Scratch Directory: `.agents/scratch/` (strictly git-ignored)
-- Local Log / Trace Output: `.agents/scratch/logs/` *(omit if none)*
-```
+- **Secrets Boundary**: Strictly forbid reading `.env*` (except `.env.example`), private keys (`*.pem`, `*.key`, `id_rsa`).
+- **Ephemeral Scratch Directory**: `.agents/scratch/` (strictly git-ignored).
+- **Persistent State Directory**: `~/.zenforge/` (local machine daemon state and database).
+- **Claim-Check Disk Cache**: `.agents/scratch/logs/` and `.agents/scratch/artifacts/`.

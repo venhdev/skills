@@ -2,7 +2,7 @@
 tmp-skillshare-workspaces
 .system
 tmp
-Makefile
+/Makefile
 
 .env
 **/.env
@@ -19,3 +19,9 @@ __pycache__/
 .agents/tasks/
 .agents/skills/
 skills-lock.json
+
+# ZenForge Apps Monorepo
+apps/daemon/bin/
+apps/daemon/internal/gateway/web_dist/
+apps/web/node_modules/
+apps/web/dist/

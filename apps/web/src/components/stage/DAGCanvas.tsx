@@ -1,0 +1,205 @@
+import React, { useMemo, useState } from 'react'
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  type Node,
+  type Edge,
+  MarkerType,
+} from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
+import { GitFork, Kanban } from 'lucide-react'
+import { TaskNode } from './TaskNode'
+import { SwimlanesView } from './SwimlanesView'
+import type { Task } from '../../types/contracts'
+
+interface DAGCanvasProps {
+  tasks: Task[]
+  selectedTaskId: string | null
+  onSelectTask: (task: Task) => void
+}
+
+const nodeTypes = {
+  taskNode: TaskNode,
+}
+
+// Compute topological depths for left-to-right DAG layout
+function computeLayout(tasks: Task[]): { nodes: Node[]; edges: Edge[] } {
+  const taskMap = new Map<string, Task>()
+  tasks.forEach((t) => taskMap.set(t.id, t))
+
+  // Calculate topological depth for each task
+  const depthMap = new Map<string, number>()
+  function getDepth(id: string, visited = new Set<string>()): number {
+    if (depthMap.has(id)) return depthMap.get(id)!
+    if (visited.has(id)) return 0 // cycle protection
+    visited.add(id)
+
+    const task = taskMap.get(id)
+    if (!task || !task.dependencies || task.dependencies.length === 0) {
+      depthMap.set(id, 0)
+      return 0
+    }
+
+    let maxPredDepth = 0
+    for (const dep of task.dependencies) {
+      maxPredDepth = Math.max(maxPredDepth, getDepth(dep, visited) + 1)
+    }
+
+    depthMap.set(id, maxPredDepth)
+    return maxPredDepth
+  }
+
+  tasks.forEach((t) => getDepth(t.id))
+
+  // Group tasks by depth level
+  const levels = new Map<number, Task[]>()
+  tasks.forEach((t) => {
+    const d = depthMap.get(t.id) || 0
+    if (!levels.has(d)) levels.set(d, [])
+    levels.get(d)!.push(t)
+  })
+
+  // Build nodes with (x, y) coordinates
+  const nodes: Node[] = []
+  levels.forEach((levelTasks, depth) => {
+    levelTasks.forEach((task, index) => {
+      nodes.push({
+        id: task.id,
+        type: 'taskNode',
+        position: {
+          x: depth * 320 + 50,
+          y: index * 160 + 50,
+        },
+        data: {
+          task,
+          isSelected: false,
+          onSelect: () => {},
+        },
+      })
+    })
+  })
+
+  // Build directed edges
+  const edges: Edge[] = []
+  tasks.forEach((task) => {
+    if (task.dependencies) {
+      task.dependencies.forEach((depId) => {
+        if (taskMap.has(depId)) {
+          const isRunning = task.status === 'RUNNING'
+          const isDone = task.status === 'COMPLETED'
+
+          edges.push({
+            id: `edge-${depId}-${task.id}`,
+            source: depId,
+            target: task.id,
+            animated: isRunning,
+            style: {
+              stroke: isRunning ? '#a855f7' : isDone ? '#10b981' : '#3f3f46',
+              strokeWidth: isRunning ? 2.5 : 1.5,
+            },
+            markerEnd: {
+              type: MarkerType.ArrowClosed,
+              color: isRunning ? '#a855f7' : isDone ? '#10b981' : '#52525b',
+            },
+          })
+        }
+      })
+    }
+  })
+
+  return { nodes, edges }
+}
+
+export const DAGCanvas: React.FC<DAGCanvasProps> = ({
+  tasks,
+  selectedTaskId,
+  onSelectTask,
+}) => {
+  const [viewMode, setViewMode] = useState<'dag' | 'swimlanes'>('dag')
+
+  const { nodes, edges } = useMemo(() => {
+    const layout = computeLayout(tasks)
+    const updatedNodes = layout.nodes.map((node) => ({
+      ...node,
+      data: {
+        task: (node.data as { task: Task }).task,
+        isSelected: node.id === selectedTaskId,
+        onSelect: onSelectTask,
+      },
+    }))
+    return { nodes: updatedNodes, edges: layout.edges }
+  }, [tasks, selectedTaskId, onSelectTask])
+
+  return (
+    <main className="relative flex flex-1 flex-col overflow-hidden bg-zinc-950">
+      {/* View Switcher Bar */}
+      <div className="flex h-10 items-center justify-between border-b border-zinc-800 bg-zinc-900/40 px-4 select-none">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setViewMode('dag')}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+              viewMode === 'dag'
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <GitFork className="h-3.5 w-3.5" />
+            <span>DAG Flow Canvas</span>
+          </button>
+          <button
+            onClick={() => setViewMode('swimlanes')}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+              viewMode === 'swimlanes'
+                ? 'bg-zinc-800 text-white'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Kanban className="h-3.5 w-3.5" />
+            <span>Kanban Swimlanes</span>
+          </button>
+        </div>
+
+        <div className="text-[11px] font-mono text-zinc-500">
+          {tasks.length} total tasks
+        </div>
+      </div>
+
+      {/* Main View Area */}
+      <div className="relative flex-1">
+        {viewMode === 'dag' ? (
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            fitView
+            minZoom={0.2}
+            maxZoom={2}
+            defaultEdgeOptions={{ type: 'smoothstep' }}
+          >
+            <Background color="#27272a" gap={24} size={1} />
+            <Controls className="!border-zinc-800 !bg-zinc-900 !text-zinc-300" />
+            <MiniMap
+              nodeColor={(node) => {
+                const task = (node.data as { task?: Task })?.task
+                if (task?.status === 'COMPLETED') return '#10b981'
+                if (task?.status === 'RUNNING') return '#8b5cf6'
+                if (task?.status === 'READY') return '#f59e0b'
+                if (task?.status === 'FAILED') return '#f43f5e'
+                return '#3f3f46'
+              }}
+              className="!border !border-zinc-800 !bg-zinc-900/90 !rounded-lg"
+            />
+          </ReactFlow>
+        ) : (
+          <SwimlanesView
+            tasks={tasks}
+            selectedTaskId={selectedTaskId}
+            onSelectTask={onSelectTask}
+          />
+        )}
+      </div>
+    </main>
+  )
+}
