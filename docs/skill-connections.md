@@ -3,12 +3,12 @@ title: ZenForge Skill Connections
 description: Canonical map of conditional handoffs and composition across ZenForge skills.
 status: active
 created: 2026-10-14
-updated: 2026-10-14
+updated: 2026-11-02
 ---
 
 # ZenForge Skill Connections
 
-This document owns the connection map for all 27 skills. Three views show the same
+This document owns the connection map for all 38 skills. Three views show the same
 network; repeated nodes refer to the same skill. Arrows describe conditional
 handoffs, not a required sequence of invocations.
 
@@ -34,17 +34,20 @@ flowchart LR
         distill["/distill"]
         clarify["/clarify"]
         architect["/architect-decision"]
+        freeze["/freeze-contracts"]
+        seam["/plan-seam"]
     end
     subgraph proof[Proof and implementation]
         diagnose["/diagnose"]
         spike["/spike"]
+        skeleton["/spike-skeleton"]
         forge["/forge"]
     end
     subgraph planning[Planning and tracking]
         changeset["/changeset"]
+        dossier["/plan-dossier"]
         split["/split-tasks"]
         tracking["/track-tasks"]
-        dossier["/plan-dossier"]
         simplify["/simplify-audit"]
     end
     assay["/assay"]
@@ -54,11 +57,25 @@ flowchart LR
     distill -->|Accepted supported direction| changeset
     distill -->|Symptom needs investigation| diagnose
     distill -->|Supplied candidate needs proof| spike
-    clarify -->|Settled direction| changeset
+    clarify -->|Settled direction needing contract lock| freeze
+    clarify -->|Settled single-module direction| changeset
     clarify -->|Candidate needs proof| spike
     clarify -->|Architecture needs selection| architect
     architect -->|Candidate and direction need empirical proof| spike
-    architect -->|Supported direction accepted| changeset
+    architect -->|Distributed architecture needs plumbing proof| skeleton
+    architect -->|Cross-module boundary direction accepted| freeze
+    architect -->|Single-module direction accepted| changeset
+    freeze -->|Large-scale refactor needing seam strategy| seam
+    freeze -->|Multi-module plumbing proof needed| skeleton
+    freeze -->|Multi-phase initiative living packaging| dossier
+    freeze -->|Single-module feature ready for file impact| changeset
+    freeze -->|Boundary ambiguity unresolved| clarify
+    seam -->|Migration strategy ready for living plan packaging| dossier
+    seam -->|Single phase ready for file impact planning| changeset
+    seam -->|Seam blocked by foundational coupling| architect
+    skeleton -->|Walking skeleton confirmed, proceed to slice| split
+    skeleton -->|Contract mismatch detected| freeze
+    skeleton -->|Architecture plumbing rejected| architect
     diagnose -->|Candidate and direction supplied| spike
     diagnose -->|Solution direction needs selection| architect
     spike -->|Proven solution accepted| changeset
@@ -66,6 +83,11 @@ flowchart LR
     spike -->|Original direction cannot hold| architect
     changeset -->|Supported scope and authorized implementation| forge
     changeset -->|Task decomposition requested| split
+    changeset -->|Packaged living plan changeset| dossier
+    dossier -->|Complex phase task decomposition| split
+    dossier -.->|Immediate authorized in-turn execution| forge
+    dossier -->|Drifted phase needing architectural redesign| architect
+    dossier -->|Drifted phase needing clarification| clarify
     split -->|Backlog persistence requested| tracking
     split -.->|Immediate authorized in-turn execution| forge
     split -.->|Task breakdown review requested| assay
@@ -84,14 +106,15 @@ flowchart LR
     assay -->|Clear scope correction| changeset
     assay -->|Contract tension| clarify
     assay -->|PASS and supported unapplied scope authorized| forge
-    dossier -->|Complex phase task decomposition| split
-    dossier -.->|Immediate authorized in-turn execution| forge
 ```
 
 `diagnose` ends at a root-cause report; it does not fix production.
 `spike` receives a problem and candidate/direction, and only explores alternatives
-inside that direction. Unverified assumptions or missing access remain explicit
-gaps rather than evidence of success or failure.
+inside that direction. `spike-skeleton` verifies cross-module plumbing with dummy ping tracers.
+`freeze-contracts` isolates boundaries and locks typed interfaces; `plan-seam` formulates
+safe 3-phase Expand-Contract migrations. `plan-dossier` packages living plans in scratch
+and trips the Drift Breaker immediately upon code-contract divergence.
+Unverified assumptions or missing access remain explicit gaps rather than evidence of success or failure.
 
 `simplify-audit` can embed its own changeset; it does not call `changeset` just to
 stage that artifact. `split-tasks` derives in-memory vertical DAGs without persistence;
@@ -119,6 +142,8 @@ flowchart LR
     forge["/forge"]
     simplify["/simplify-audit"]
     diagnose["/diagnose"]
+    worktree["/worktree"]
+    sweep["/sweep"]
 
     harness -->|Missing harness anchor| init
     harness -->|Infrastructure trade-off| clarify
@@ -135,6 +160,9 @@ flowchart LR
     perf -->|Behavior-preserving optimization candidate| simplify
     security -->|Local or systemic security patch needs staging| changeset
     security -->|Supported security changeset authorized| forge
+    deps -->|Breaking API migration needs staging| changeset
+    deps -->|Verified upgrade ready to merge| worktree
+    deps -->|Discarded upgrade experiment| sweep
 ```
 
 A clean audit can finish without remediation. Locality does not establish behavior
@@ -179,9 +207,9 @@ without a downstream invocation.
 
 ## Source Contracts
 
-- Framing: [distill](../skills/distill/SKILL.md), [clarify](../skills/clarify/SKILL.md), [architect-decision](../skills/architect-decision/SKILL.md), [contract-freeze](../skills/contract-freeze/SKILL.md), [seam-plan](../skills/seam-plan/SKILL.md).
+- Framing: [distill](../skills/distill/SKILL.md), [clarify](../skills/clarify/SKILL.md), [architect-decision](../skills/architect-decision/SKILL.md), [freeze-contracts](../skills/freeze-contracts/SKILL.md), [plan-seam](../skills/plan-seam/SKILL.md).
 - Proof: [diagnose](../skills/diagnose/SKILL.md), [spike](../skills/spike/SKILL.md), [spike-skeleton](../skills/spike-skeleton/SKILL.md), [tdd](../skills/tdd/SKILL.md).
-- Planning and implementation: [changeset](../skills/changeset/SKILL.md), [split-tasks](../skills/split-tasks/SKILL.md), [track-tasks](../skills/track-tasks/SKILL.md), [plan-dossier](../skills/plan-dossier/SKILL.md), [forge](../skills/forge/SKILL.md), [simplify-audit](../skills/simplify-audit/SKILL.md).
+- Planning and implementation: [changeset](../skills/changeset/SKILL.md), [split-tasks](../skills/split-tasks/SKILL.md), [track-tasks](../skills/track-tasks/SKILL.md), [to-tasks](../skills/to-tasks/SKILL.md), [plan-dossier](../skills/plan-dossier/SKILL.md), [forge](../skills/forge/SKILL.md), [simplify-audit](../skills/simplify-audit/SKILL.md).
 - Review: [assay](../skills/assay/SKILL.md), [harness-audit](../skills/harness-audit/SKILL.md), [perimeter](../skills/perimeter/SKILL.md), [inspect-structure](../skills/inspect-structure/SKILL.md), [inspect-role-naming](../skills/inspect-role-naming/SKILL.md), [inspect-perf](../skills/inspect-perf/SKILL.md), [inspect-security](../skills/inspect-security/SKILL.md), [inspect-deps](../skills/inspect-deps/SKILL.md).
 - Support: [recon](../skills/recon/SKILL.md), [scout](../skills/scout/SKILL.md), [ssot](../skills/ssot/SKILL.md), [env-doctor](../skills/env-doctor/SKILL.md), [zenf-init](../skills/zenf-init/SKILL.md), [zenf-soul](../skills/zenf-soul/SKILL.md), [lens-pro](../skills/lens-pro/SKILL.md), [lens-eli5](../skills/lens-eli5/SKILL.md), [lens-brief](../skills/lens-brief/SKILL.md).
 - Isolation, cleanup, and release: [worktree](../skills/worktree/SKILL.md), [sweep](../skills/sweep/SKILL.md), [forge-isolated](../skills/forge-isolated/SKILL.md), [forge-isolated-subagent](../skills/forge-isolated-subagent/SKILL.md), [ci-pub](../skills/ci-pub/SKILL.md).

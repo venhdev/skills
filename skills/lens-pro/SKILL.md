@@ -1,7 +1,6 @@
 ---
 name: lens-pro
 description: "Deconstruct complex technical concepts, architecture, or code mechanics into precise engineering definitions, state transitions, and production trade-offs."
-disable-model-invocation: true
 ---
 
 # lens-pro — Professional Engineering Deconstruction Engine

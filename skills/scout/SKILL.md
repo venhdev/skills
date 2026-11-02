@@ -1,7 +1,6 @@
 ---
 name: scout
 description: "Investigate real-system best practices, production archetypes, and failure modes before architectural commitment."
-disable-model-invocation: true
 ---
 
 # scout — Real-System Best Practices & Production Archetype Engine

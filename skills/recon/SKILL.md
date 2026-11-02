@@ -1,7 +1,6 @@
 ---
 name: recon
 description: "Map codebase topology, module seams, and execution call chains."
-disable-model-invocation: true
 ---
 
 # recon — Codebase Topology & Architecture Cartography Engine

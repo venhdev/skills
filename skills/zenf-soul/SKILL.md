@@ -25,9 +25,9 @@ description: "Bootstrap session context, align architectural posture, enforce st
 
 Orchestrate complex initiatives sequentially across 5 canonical gates:
 1. **Framing**: Clarify requirements (`/clarify`) and decide architecture (`/architect-decision`).
-2. **Living Plan**: Freeze contracts (`/contract-freeze`), design seams (`/seam-plan`), and package dossier (`/plan-dossier init`).
+2. **Living Plan**: Freeze contracts (`/freeze-contracts`), design seams (`/plan-seam`), and package dossier (`/plan-dossier init`).
 3. **Execution**: Claim phases, decompose tasks (`/split-tasks`), and implement via TDD (`/forge`).
-4. **Inspection**: Audit boundaries (`/perimeter`), security (`/inspect-security`), and fidelity (`/assay`).
+4. **Inspection**: Audit boundaries (`/perimeter`), security (`/inspect-security`), dependencies (`/inspect-deps`), and fidelity (`/assay`).
 5. **Egress**: Promote durable contracts to repository documentation (`/ssot`) and purge scratch (`/sweep`).
 
 ### Routing
@@ -35,8 +35,8 @@ Orchestrate complex initiatives sequentially across 5 canonical gates:
 - Raw requirements or uncertain X–Y intent → (via /distill).
 - Unresolved requirements, semantics, or trade-offs → (via /clarify).
 - Open design direction or competing approaches → (via /architect-decision).
-- Cross-module boundaries, schemas, and DTOs need freezing → (via /contract-freeze).
-- Large-scale refactoring requires safe 3-phase seam migration → (via /seam-plan).
+- Cross-module boundaries, schemas, and DTOs need freezing → (via /freeze-contracts).
+- Large-scale refactoring requires safe 3-phase seam migration → (via /plan-seam).
 - Multi-phase initiatives, frozen contracts, or seam strategies need living plan lifecycle governance → (via /plan-dossier).
 - Greenfield architecture requires end-to-end plumbing proof → (via /spike-skeleton).
 - Unknown codebase seams or execution flow → (via /recon).
@@ -56,6 +56,7 @@ Orchestrate complex initiatives sequentially across 5 canonical gates:
 - Identifiers need architectural role inspection → (via /inspect-role-naming).
 - Code needs performance or resource-risk inspection → (via /inspect-perf).
 - Code needs threat or authorization-risk inspection → (via /inspect-security).
+- Dependency upgrade candidates or breaking trade-offs need isolated audit → (via /inspect-deps).
 - Documentation authority needs reconciliation → (via /ssot).
 - Repository tracking, harness, or privacy setup is missing → (via /zenf-init).
 - Runtime environment health, containers, or test fixtures need verification → (via /env-doctor).
@@ -72,3 +73,4 @@ Orchestrate complex initiatives sequentially across 5 canonical gates:
 
 - **Delta-Only Reporting**: Present strictly new findings, modified deltas, or direct answers. Omit established history, settled decisions, and unchanged context.
 - **Pointer-Based Citations**: Reference existing code, schemas, and specifications via file paths and line ranges. Confine `file:///<path>#L<N>` strictly to ephemeral chat streams for IDE jump-to-definition; mandate repository-relative POSIX paths for all persisted artifacts (tasks, docs, commits). Reserve code blocks exclusively for newly authored snippets or proposed diffs.
+- **Next-Step Signposting**: Conclude every staged, confirmed, or completed report with 2–3 concrete, clickable next-step routes formatted as `(via /<skill>)` or actionable CLI commands. Never leave the caller stranded without explicit direction; eliminate the cognitive burden of memorizing skill names.

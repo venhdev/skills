@@ -1,10 +1,10 @@
 ---
-name: contract-freeze
+name: freeze-contracts
 description: "Partition system boundaries into isolated bounded contexts and freeze explicit cross-module interface contracts before changeset planning or implementation."
 disable-model-invocation: true
 ---
 
-# contract-freeze — Boundary Partitioning & Interface Contract Locking
+# freeze-contracts — Boundary Partitioning & Interface Contract Locking
 
 ## Domain Rubric
 
@@ -54,7 +54,7 @@ Summary: <N> contexts defined, <M> cross-boundary contracts frozen.
 
 - Multi-phase initiative contracts ready for living plan packaging → (via /plan-dossier).
 - Greenfield plumbing verification across frozen contracts → (via /spike-skeleton).
-- Large-scale refactor with frozen contracts → (via /seam-plan).
+- Large-scale refactor with frozen contracts → (via /plan-seam).
 - Single-module feature with frozen contracts ready for file impact planning → (via /changeset).
 - Domain boundary or schema ambiguities unresolved → (via /clarify).
 

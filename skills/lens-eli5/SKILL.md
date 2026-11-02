@@ -1,7 +1,6 @@
 ---
 name: lens-eli5
 description: "Deconstruct complex technical concepts, architecture, or code into intuitive physical analogies and beginner-friendly mental models."
-disable-model-invocation: true
 ---
 
 # lens-eli5 — Intuitive Mental Model Engine

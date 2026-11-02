@@ -68,7 +68,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 ## 5. Invocation Gating & 3-Tier Economics
 
-- **Invocation Governance**: Planning, scaffolding, destructive, and implementation skills must use `disable-model-invocation: true`. Only pure advisory/inquiry skills (`clarify`, `ssot`) allow autonomous model invocation.
+- **Invocation Governance**: Mutating, destructive, tracker-persisting, and gated initiative skills (`forge`, `sweep`, `worktree`, `ci-pub`, `track-tasks`, `freeze-contracts`, `plan-seam`, `plan-dossier`, `architect-decision`, `zenf-init`) must use `disable-model-invocation: true`. Pure advisory skills (`clarify`, `ssot`), cognitive lenses (`lens-*`), read-only cartography/scouting (`recon`, `scout`), in-memory DAG slicing (`split-tasks`), diagnostics (`env-doctor`, `diagnose`), and behavioral protocols (`tdd`) allow autonomous model invocation to maximize developer ergonomics and conversational agility.
 - **Description Formula**: Frontmatter descriptions must stay under 25 words following: `[Imperative Action] + [Target Entity] + [Context / Purpose]`. Forbid negative clauses in frontmatter.
 - **3-Tier Context Economics**: Tier 1 (Catalog: frontmatter < 50 tokens) ──> Tier 2 (Activation: `SKILL.md` < 150 lines, 40–120 lines sweet spot) ──> Tier 3 (Execution on Demand: offload runbooks to `references/`).
 
@@ -76,7 +76,7 @@ Authoritative architectural laws and quality standards for all ZenForge skills a
 
 Classify all skills into one of three operational invocation tiers:
 
-1. **User-Invoked (Interactive Skills)**: Direct human engagement (e.g., `/clarify`, `/architect-decision`, `/changeset`, `/contract-freeze`, `/seam-plan`). Mandates a rich Canonical Output Contract (Markdown tables, ASCII trees, structured options) for human review and authorization gates.
+1. **User-Invoked (Interactive Skills)**: Direct human engagement (e.g., `/clarify`, `/architect-decision`, `/changeset`, `/freeze-contracts`, `/plan-seam`). Mandates a rich Canonical Output Contract (Markdown tables, ASCII trees, structured options) for human review and authorization gates.
 2. **Dual-Invoked (Pipeline & Execution Skills)**: Callable either directly by human operators or autonomously by runners and subagents (e.g., `/forge`, `/assay`, `/split-tasks`, `/track-tasks`, `/env-doctor`, `/spike-skeleton`). Supports **Adaptive Output**:
    - *Human Caller*: Renders the full Canonical Output Contract for audit and inspection.
    - *Model / Runner Caller*: Returns a lean **Micro-Summary / Exit Status** (`PASS | commit: <sha> | <stats>` or compact JSON < 50 tokens) to prevent context bloat and token churn.

@@ -1,7 +1,6 @@
 ---
 name: diagnose
 description: "Isolate root causes from defect descriptions, errors, logs, or reproductions through discriminating investigation and minimal feedback loops."
-disable-model-invocation: true
 ---
 
 # diagnose — Root-Cause Isolation

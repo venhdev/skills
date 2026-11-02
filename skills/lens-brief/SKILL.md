@@ -1,7 +1,6 @@
 ---
 name: lens-brief
 description: "Distill dense context, verbose explanations, or complex topics into concise plain language with an immediate bottom-line conclusion."
-disable-model-invocation: true
 ---
 
 # lens-brief — Controlled Plain-Language Technical Summary Engine

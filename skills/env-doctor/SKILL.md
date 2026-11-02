@@ -1,7 +1,6 @@
 ---
 name: env-doctor
 description: "Audit runtime toolchains, verify container service health, seed hermetic test primitives, and execute safe local remediation."
-disable-model-invocation: true
 ---
 
 # env-doctor — Execution Environment Diagnostics & Remediation

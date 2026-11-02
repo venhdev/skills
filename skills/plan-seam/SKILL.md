@@ -1,10 +1,10 @@
 ---
-name: seam-plan
+name: plan-seam
 description: "Formulate safe multi-phase migration strategies using seams, expand-contract patterns, and feature flags to eliminate regression cascades during large-scale refactors."
 disable-model-invocation: true
 ---
 
-# seam-plan — Seam-Driven Refactoring & Expand-Contract Strategy
+# plan-seam — Seam-Driven Refactoring & Expand-Contract Strategy
 
 ## Domain Rubric
 

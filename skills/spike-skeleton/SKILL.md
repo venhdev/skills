@@ -56,7 +56,7 @@ CONFIRMED | trace: <seam-path> | runtime: passed | fixtures: verified
 
 - Walking skeleton CONFIRMED, proceed to slice implementation tasks → (via /split-tasks).
 - Architectural plumbing REJECTED or unworkable → (via /architect-decision).
-- Contract mismatch detected during traversal → (via /contract-freeze).
+- Contract mismatch detected during traversal → (via /freeze-contracts).
 - Unready host runtime or failing service dependencies prevent traversal → (via /env-doctor).
 
 ## Execution Protocol

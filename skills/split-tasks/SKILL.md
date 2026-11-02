@@ -1,7 +1,6 @@
 ---
 name: split-tasks
 description: "Decompose complex features or settled designs into an acyclic directed graph of independently verifiable vertical slices with explicit parent provenance."
-disable-model-invocation: true
 ---
 
 # split-tasks — Task DAG Decomposition & Provenance Slicing
