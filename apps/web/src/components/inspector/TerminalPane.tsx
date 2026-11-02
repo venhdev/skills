@@ -84,6 +84,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     termInstanceRef.current = term
     fitAddonRef.current = fitAddon
 
+    if (!runId) {
+      term.writeln('\x1b[38;5;242m[zenfd@control-plane] ~ No active agent run selected.\x1b[0m')
+      term.writeln('\x1b[38;5;242mSelect a task from the DAG or Tree to inspect live PTY stream.\x1b[0m\r\n')
+    }
+
     // Initial fit
     setTimeout(() => {
       try {

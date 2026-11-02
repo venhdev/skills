@@ -168,7 +168,27 @@ export const DAGCanvas: React.FC<DAGCanvasProps> = ({
 
       {/* Main View Area */}
       <div className="relative flex-1">
-        {viewMode === 'dag' ? (
+        {tasks.length === 0 ? (
+          <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center select-none">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/80 text-zinc-500 mb-4 shadow-xl">
+              <GitFork className="h-8 w-8 text-zinc-600" />
+            </div>
+            <h3 className="text-sm font-semibold text-zinc-200">
+              No Active Tasks in Database
+            </h3>
+            <p className="mt-1 text-xs text-zinc-400 max-w-sm">
+              The ZenForge Control Plane is connected and listening on port 1123, but the database is currently empty.
+            </p>
+            <div className="mt-4 flex flex-col items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs font-mono">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-sans font-bold">
+                Push a plan via CLI:
+              </span>
+              <span className="text-emerald-400">
+                zenfd plan push .agents/scratch/plans/zenfd/README.md
+              </span>
+            </div>
+          </div>
+        ) : viewMode === 'dag' ? (
           <ReactFlow
             nodes={nodes}
             edges={edges}

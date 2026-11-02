@@ -4,12 +4,10 @@ import type { Artifact } from '../../types/contracts'
 
 interface ArtifactLightboxProps {
   artifacts: Artifact[]
-  sampleDiff?: string
 }
 
 export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
   artifacts,
-  sampleDiff = `--- a/internal/scheduler/scheduler.go\n+++ b/internal/scheduler/scheduler.go\n@@ -120,6 +120,12 @@\n-    return run, nil\n+    // Thread-safe snapshot copy before background reaping\n+    runCopy := *run\n+    return &runCopy, nil\n`,
 }) => {
   const [activeTab, setActiveTab] = useState<'diff' | 'image' | 'logs'>('diff')
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(
@@ -54,7 +52,7 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
           <span className="text-xs font-semibold text-zinc-200">
             Claim-Check Artifacts
           </span>
-          <span className="rounded bg-zinc-800 px-1 py-0.2 text-[10px] text-zinc-400">
+          <span className="rounded bg-zinc-800 px-1 py-0.2 text-[10px] text-zinc-400 font-bold">
             {artifacts.length}
           </span>
         </div>
@@ -117,53 +115,67 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-zinc-950 p-2">
-        {activeTab === 'diff' && (
-          <div className="rounded border border-zinc-850 bg-zinc-900/50 py-1">
-            <div className="flex items-center justify-between border-b border-zinc-850 px-3 py-1.5 text-[11px] text-zinc-400">
-              <span className="truncate">
-                {selectedArtifact?.file_path || 'patch.diff'}
-              </span>
-              <a
-                href={
-                  selectedArtifact
-                    ? `/api/v1/artifacts/${selectedArtifact.id}`
-                    : '#'
-                }
-                download
-                className="flex items-center gap-1 text-[10px] text-emerald-400 hover:underline"
-              >
-                <Download className="h-3 w-3" /> Download
-              </a>
-            </div>
-            <div className="py-1">{renderDiffLines(sampleDiff)}</div>
+        {artifacts.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center py-12 text-center text-xs text-zinc-500">
+            <FileCode className="h-8 w-8 text-zinc-700 mb-2" />
+            <span>No Claim-Check artifacts recorded yet for this task.</span>
           </div>
-        )}
-
-        {activeTab === 'image' && (
-          <div className="flex h-full flex-col items-center justify-center py-8 text-center text-xs text-zinc-500">
-            {selectedArtifact && selectedArtifact.type === 'IMAGE' ? (
-              <img
-                src={`/api/v1/artifacts/${selectedArtifact.id}`}
-                alt="Artifact Preview"
-                className="max-h-64 rounded border border-zinc-800 object-contain shadow-lg"
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <ImageIcon className="h-8 w-8 text-zinc-700" />
-                <span>No UI screenshots recorded for this step.</span>
+        ) : (
+          <>
+            {activeTab === 'diff' && (
+              <div className="rounded border border-zinc-850 bg-zinc-900/50 py-1">
+                <div className="flex items-center justify-between border-b border-zinc-850 px-3 py-1.5 text-[11px] text-zinc-400">
+                  <span className="truncate">
+                    {selectedArtifact?.file_path || 'patch.diff'}
+                  </span>
+                  {selectedArtifact && (
+                    <a
+                      href={`/api/v1/artifacts/${selectedArtifact.id}`}
+                      download
+                      className="flex items-center gap-1 text-[10px] text-emerald-400 hover:underline"
+                    >
+                      <Download className="h-3 w-3" /> Download
+                    </a>
+                  )}
+                </div>
+                <div className="py-2 px-3 text-xs text-zinc-400">
+                  {selectedArtifact ? (
+                    <p className="font-mono text-zinc-300">
+                      Artifact ID: {selectedArtifact.id} ({selectedArtifact.byte_size} bytes)
+                    </p>
+                  ) : (
+                    renderDiffLines('// No diff selected')
+                  )}
+                </div>
               </div>
             )}
-          </div>
-        )}
 
-        {activeTab === 'logs' && (
-          <div className="rounded border border-zinc-850 bg-zinc-900/50 p-3 text-xs text-zinc-400">
-            <p className="text-zinc-500">// Claim-Check Log Pointer</p>
-            <p className="mt-1 font-mono text-zinc-300">
-              {selectedArtifact?.file_path ||
-                '~/.zenforge/logs/run-execution.log'}
-            </p>
-          </div>
+            {activeTab === 'image' && (
+              <div className="flex h-full flex-col items-center justify-center py-8 text-center text-xs text-zinc-500">
+                {selectedArtifact && selectedArtifact.type === 'IMAGE' ? (
+                  <img
+                    src={`/api/v1/artifacts/${selectedArtifact.id}`}
+                    alt="Artifact Preview"
+                    className="max-h-64 rounded border border-zinc-800 object-contain shadow-lg"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <ImageIcon className="h-8 w-8 text-zinc-700" />
+                    <span>No UI screenshots recorded for this step.</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'logs' && (
+              <div className="rounded border border-zinc-850 bg-zinc-900/50 p-3 text-xs text-zinc-400">
+                <p className="text-zinc-500">// Claim-Check Log Pointer</p>
+                <p className="mt-1 font-mono text-zinc-300">
+                  {selectedArtifact?.file_path || 'No log file path associated'}
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
