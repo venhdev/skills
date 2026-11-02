@@ -25,3 +25,4 @@ apps/daemon/bin/
 apps/daemon/internal/gateway/web_dist/
 apps/web/node_modules/
 apps/web/dist/
+.agents/environment.md
