@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
   ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
   Background,
   Controls,
   MiniMap,
@@ -17,11 +19,34 @@ import type { Task } from '../../types/contracts'
 interface DAGCanvasProps {
   tasks: Task[]
   selectedTaskId: string | null
-  onSelectTask: (task: Task) => void
+  onSelectTask: (task: Task, source?: 'sidebar' | 'canvas' | 'dock') => void
+  focusTarget?: { id: string; timestamp: number } | null
 }
 
 const nodeTypes = {
   taskNode: TaskNode,
+}
+
+// Focus handler sub-component that uses useReactFlow hook
+function FlowFocusHandler({
+  focusTarget,
+}: {
+  focusTarget?: { id: string; timestamp: number } | null
+}) {
+  const { fitView } = useReactFlow()
+
+  useEffect(() => {
+    if (!focusTarget?.id) return
+    // Smooth auto-focus onto the selected node: 600ms, maxZoom 1.0, padding 0.3
+    fitView({
+      nodes: [{ id: focusTarget.id }],
+      duration: 600,
+      padding: 0.3,
+      maxZoom: 1.0,
+    })
+  }, [focusTarget, fitView])
+
+  return null
 }
 
 // Compute topological depths for left-to-right DAG layout
@@ -112,28 +137,101 @@ function computeLayout(tasks: Task[]): { nodes: Node[]; edges: Edge[] } {
   return { nodes, edges }
 }
 
-export const DAGCanvas: React.FC<DAGCanvasProps> = ({
+// Compute topological blast radius: set of all tasks that transitively depend on selectedId
+function getDownstreamBlastRadius(selectedId: string | null, tasks: Task[]): Set<string> {
+  const downstream = new Set<string>()
+  if (!selectedId) return downstream
+  const queue = [selectedId]
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    for (const t of tasks) {
+      if (t.dependencies && t.dependencies.includes(current) && !downstream.has(t.id)) {
+        downstream.add(t.id)
+        queue.push(t.id)
+      }
+    }
+  }
+  return downstream
+}
+
+const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
   tasks,
   selectedTaskId,
   onSelectTask,
+  focusTarget,
 }) => {
   const [viewMode, setViewMode] = useState<'dag' | 'swimlanes'>('dag')
+  const [isMapActive, setIsMapActive] = useState(false)
+  const mapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMapActivity = () => {
+    setIsMapActive(true)
+    if (mapTimerRef.current) {
+      clearTimeout(mapTimerRef.current)
+      mapTimerRef.current = null
+    }
+  }
+
+  const handleMapMouseLeave = () => {
+    if (mapTimerRef.current) {
+      clearTimeout(mapTimerRef.current)
+    }
+    // After 3.5s of idle/no mouse, smoothly fade out
+    mapTimerRef.current = setTimeout(() => {
+      setIsMapActive(false)
+    }, 3500)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (mapTimerRef.current) {
+        clearTimeout(mapTimerRef.current)
+      }
+    }
+  }, [])
 
   const { nodes, edges } = useMemo(() => {
     const layout = computeLayout(tasks)
+    const blastSet = getDownstreamBlastRadius(selectedTaskId, tasks)
+
     const updatedNodes = layout.nodes.map((node) => ({
       ...node,
       data: {
         task: (node.data as { task: Task }).task,
         isSelected: node.id === selectedTaskId,
-        onSelect: onSelectTask,
+        isBlastRadius: blastSet.has(node.id),
+        onSelect: (t: Task) => onSelectTask(t, 'canvas'),
       },
     }))
-    return { nodes: updatedNodes, edges: layout.edges }
+
+    const updatedEdges = layout.edges.map((edge) => {
+      const isBlastEdge =
+        (edge.source === selectedTaskId && blastSet.has(edge.target)) ||
+        (blastSet.has(edge.source) && blastSet.has(edge.target))
+
+      if (isBlastEdge) {
+        return {
+          ...edge,
+          animated: true,
+          style: {
+            ...edge.style,
+            stroke: '#f59e0b',
+            strokeWidth: 2.5,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#f59e0b',
+          },
+        }
+      }
+      return edge
+    })
+
+    return { nodes: updatedNodes, edges: updatedEdges }
   }, [tasks, selectedTaskId, onSelectTask])
 
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden bg-zinc-950">
+    <main className="relative flex flex-1 flex-col h-full w-full min-h-0 overflow-hidden bg-zinc-950">
       {/* View Switcher Bar */}
       <div className="flex h-10 items-center justify-between border-b border-zinc-800 bg-zinc-900/40 px-4 select-none">
         <div className="flex items-center gap-1">
@@ -167,7 +265,7 @@ export const DAGCanvas: React.FC<DAGCanvasProps> = ({
       </div>
 
       {/* Main View Area */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 h-full w-full min-h-0">
         {tasks.length === 0 ? (
           <div className="flex h-full w-full flex-col items-center justify-center p-8 text-center select-none">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900/80 text-zinc-500 mb-4 shadow-xl">
@@ -194,13 +292,26 @@ export const DAGCanvas: React.FC<DAGCanvasProps> = ({
             edges={edges}
             nodeTypes={nodeTypes}
             fitView
-            minZoom={0.2}
-            maxZoom={2}
+            fitViewOptions={{ padding: 0.25, includeHiddenNodes: false }}
+            minZoom={0.1}
+            maxZoom={1.5}
+            proOptions={{ hideAttribution: true }}
+            className="h-full w-full"
             defaultEdgeOptions={{ type: 'smoothstep' }}
           >
+            <FlowFocusHandler focusTarget={focusTarget} />
             <Background color="#27272a" gap={24} size={1} />
             <Controls className="!border-zinc-800 !bg-zinc-900 !text-zinc-300" />
             <MiniMap
+              pannable
+              zoomable
+              bgColor="#09090b"
+              maskColor="rgba(24, 24, 27, 0.75)"
+              maskStrokeColor="#8b5cf6"
+              maskStrokeWidth={1.5}
+              onMouseEnter={handleMapActivity}
+              onMouseMove={handleMapActivity}
+              onMouseLeave={handleMapMouseLeave}
               nodeColor={(node) => {
                 const task = (node.data as { task?: Task })?.task
                 if (task?.status === 'COMPLETED') return '#10b981'
@@ -209,17 +320,27 @@ export const DAGCanvas: React.FC<DAGCanvasProps> = ({
                 if (task?.status === 'FAILED') return '#f43f5e'
                 return '#3f3f46'
               }}
-              className="!border !border-zinc-800 !bg-zinc-900/90 !rounded-lg"
+              className={`!border !border-zinc-800 !bg-zinc-950/90 !rounded-lg shadow-xl cursor-grab active:cursor-grabbing transition-opacity duration-700 ${
+                isMapActive ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+              }`}
             />
           </ReactFlow>
         ) : (
           <SwimlanesView
             tasks={tasks}
             selectedTaskId={selectedTaskId}
-            onSelectTask={onSelectTask}
+            onSelectTask={(t) => onSelectTask(t, 'canvas')}
           />
         )}
       </div>
     </main>
+  )
+}
+
+export const DAGCanvas: React.FC<DAGCanvasProps> = (props) => {
+  return (
+    <ReactFlowProvider>
+      <DAGCanvasInner {...props} />
+    </ReactFlowProvider>
   )
 }

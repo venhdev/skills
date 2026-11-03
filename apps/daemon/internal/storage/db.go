@@ -29,11 +29,27 @@ CREATE TABLE IF NOT EXISTS tasks (
     plan_id TEXT NOT NULL,
     repo_path TEXT NOT NULL,
     title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
     dependencies TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'P2',
+    complexity TEXT NOT NULL DEFAULT 'MEDIUM',
+    risk_level TEXT NOT NULL DEFAULT 'LOW',
+    required_skills TEXT NOT NULL DEFAULT '[]',
+    required_tools TEXT NOT NULL DEFAULT '[]',
+    target_files TEXT NOT NULL DEFAULT '[]',
+    acceptance_criteria TEXT NOT NULL DEFAULT '[]',
+    verification_commands TEXT NOT NULL DEFAULT '[]',
     harness TEXT NOT NULL,
     skill_command TEXT NOT NULL,
     worktree_path TEXT NOT NULL,
     status TEXT NOT NULL,
+    claimed_by TEXT NOT NULL DEFAULT '',
+    claimed_at DATETIME,
+    review_reason TEXT NOT NULL DEFAULT '',
+    review_details TEXT NOT NULL DEFAULT '',
+    review_options TEXT NOT NULL DEFAULT '[]',
+    review_response TEXT NOT NULL DEFAULT '',
+    conflict_files TEXT NOT NULL DEFAULT '[]',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     FOREIGN KEY (plan_id) REFERENCES plans (slug) ON DELETE CASCADE
@@ -60,8 +76,10 @@ CREATE INDEX IF NOT EXISTS idx_runs_status ON runs (status);
 
 CREATE TABLE IF NOT EXISTS artifacts (
     id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
+    run_id TEXT,
     task_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'OUTPUT',
+    name TEXT NOT NULL DEFAULT '',
     type TEXT NOT NULL,
     file_path TEXT NOT NULL,
     mime_type TEXT NOT NULL,
@@ -83,6 +101,20 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_task ON events (task_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events (timestamp);
+
+CREATE TABLE IF NOT EXISTS project_docs (
+    slug TEXT NOT NULL,
+    repo_path TEXT NOT NULL,
+    git_branch TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL,
+    category TEXT NOT NULL,
+    content_markdown TEXT NOT NULL,
+    mermaid_diagrams TEXT NOT NULL DEFAULT '[]',
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (repo_path, slug)
+);
+CREATE INDEX IF NOT EXISTS idx_project_docs_repo ON project_docs (repo_path, category);
 `
 
 // DB encapsulates the connection pool and migration runner for SQLite WAL.
@@ -131,6 +163,34 @@ func Open(dbPath string) (*DB, error) {
 	if _, err := conn.Exec(schemaDDL); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("failed to apply schema migrations: %w", err)
+	}
+
+	// Apply incremental column migrations for existing databases
+	_, _ = conn.Exec("ALTER TABLE artifacts ADD COLUMN role TEXT NOT NULL DEFAULT 'OUTPUT';")
+	_, _ = conn.Exec("ALTER TABLE artifacts ADD COLUMN name TEXT NOT NULL DEFAULT '';")
+	_, _ = conn.Exec("CREATE INDEX IF NOT EXISTS idx_artifacts_role ON artifacts (role);")
+
+	// Apply incremental column migrations for tasks table
+	taskCols := []string{
+		"ALTER TABLE tasks ADD COLUMN description TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN priority TEXT NOT NULL DEFAULT 'P2';",
+		"ALTER TABLE tasks ADD COLUMN complexity TEXT NOT NULL DEFAULT 'MEDIUM';",
+		"ALTER TABLE tasks ADD COLUMN risk_level TEXT NOT NULL DEFAULT 'LOW';",
+		"ALTER TABLE tasks ADD COLUMN required_skills TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN required_tools TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN target_files TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN acceptance_criteria TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN verification_commands TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN claimed_by TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN claimed_at DATETIME;",
+		"ALTER TABLE tasks ADD COLUMN review_reason TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN review_details TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN review_options TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN review_response TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN conflict_files TEXT NOT NULL DEFAULT '[]';",
+	}
+	for _, colSQL := range taskCols {
+		_, _ = conn.Exec(colSQL)
 	}
 
 	return &DB{sqlDB: conn}, nil

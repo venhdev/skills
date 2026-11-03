@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/creack/pty"
 	"zenfd/internal/domain"
+	"zenfd/internal/harness"
 )
 
 var (
@@ -33,17 +35,49 @@ type activeProcess struct {
 
 // ProcessSupervisor implements domain.Supervisor with strict process group isolation.
 type ProcessSupervisor struct {
-	mu         sync.RWMutex
-	processes  map[string]*activeProcess
-	defaultDir string
+	mu              sync.RWMutex
+	processes       map[string]*activeProcess
+	defaultDir      string
+	harnessRegistry *harness.Registry
 }
 
 // NewProcessSupervisor creates a new supervisor storing logs in the specified directory.
 func NewProcessSupervisor(defaultLogDir string) *ProcessSupervisor {
 	return &ProcessSupervisor{
-		processes:  make(map[string]*activeProcess),
-		defaultDir: defaultLogDir,
+		processes:       make(map[string]*activeProcess),
+		defaultDir:      defaultLogDir,
+		harnessRegistry: harness.DefaultRegistry(),
 	}
+}
+
+// SetHarnessRegistry configures the harness adapter registry.
+func (s *ProcessSupervisor) SetHarnessRegistry(reg *harness.Registry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.harnessRegistry = reg
+}
+
+func (s *ProcessSupervisor) buildCommand(task domain.Task) (*exec.Cmd, bool, error) {
+	if s.harnessRegistry != nil {
+		adapter, err := s.harnessRegistry.Resolve(task)
+		if err == nil {
+			spec, err := adapter.BuildExecution(task)
+			if err == nil {
+				if spec.IsExternal {
+					return nil, true, nil
+				}
+				if spec.Binary != "" {
+					return exec.Command(spec.Binary, spec.Args...), false, nil
+				}
+			}
+		}
+	}
+
+	cmdStr := strings.TrimSpace(task.SkillCommand)
+	if cmdStr == "" {
+		return exec.Command("bash"), false, nil
+	}
+	return exec.Command("bash", "-c", cmdStr), false, nil
 }
 
 // SpawnHeadless launches an agent runner using stdio pipes (non-interactive).
@@ -56,12 +90,13 @@ func (s *ProcessSupervisor) SpawnHeadless(ctx context.Context, task domain.Task,
 		return nil, ErrAlreadyRunning
 	}
 
-	cmdStr := task.SkillCommand
-	if cmdStr == "" {
-		cmdStr = "echo 'NO_COMMAND_SPECIFIED'"
+	cmd, isExt, err := s.buildCommand(task)
+	if err != nil {
+		return nil, err
 	}
-
-	cmd := exec.Command("bash", "-c", cmdStr)
+	if isExt {
+		return nil, errors.New("cannot spawn headless process for external harness")
+	}
 	if task.WorktreePath != "" {
 		cmd.Dir = task.WorktreePath
 	}
@@ -159,12 +194,13 @@ func (s *ProcessSupervisor) SpawnPTY(ctx context.Context, task domain.Task, win 
 		return nil, nil, ErrAlreadyRunning
 	}
 
-	cmdStr := task.SkillCommand
-	if cmdStr == "" {
-		cmdStr = "bash"
+	cmd, isExt, err := s.buildCommand(task)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	cmd := exec.Command("bash", "-c", cmdStr)
+	if isExt {
+		return nil, nil, errors.New("cannot spawn PTY process for external harness")
+	}
 	if task.WorktreePath != "" {
 		cmd.Dir = task.WorktreePath
 	}

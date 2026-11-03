@@ -1,4 +1,4 @@
-.PHONY: all build build-web test clean run
+.PHONY: all build build-web test clean run dev
 
 BIN_DIR := bin
 BIN_NAME := zenfd
@@ -6,6 +6,7 @@ BINARY := $(BIN_DIR)/$(BIN_NAME)
 CUR_DIR := $(shell pwd)
 WEB_DIR := $(CUR_DIR)/../web
 GATEWAY_WEB_DIST := $(CUR_DIR)/internal/gateway/web_dist
+AIR_BIN := $(shell which air 2>/dev/null || echo "$$(go env GOPATH)/bin/air")
 
 all: test build
 
@@ -28,4 +29,16 @@ test:
 	go test -v -race -count=1 ./...
 
 clean:
-	rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR) tmp
+
+dev:
+	@if [ -x "$(AIR_BIN)" ]; then \
+		echo "Starting zenfd with air live-reload..."; \
+		$(AIR_BIN) -c .air.toml; \
+	else \
+		echo "air not found, running with go run..."; \
+		go run ./cmd/zenfd daemon --port 1123 --db ~/.zenforge/state.db; \
+	fi
+
+run:
+	go run ./cmd/zenfd daemon --port 1123 --db ~/.zenforge/state.db

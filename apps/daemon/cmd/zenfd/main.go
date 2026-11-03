@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +16,8 @@ import (
 
 	"zenfd/internal/domain"
 	"zenfd/internal/gateway"
+	"zenfd/internal/harness"
+	zenfdmcp "zenfd/internal/mcp"
 	"zenfd/internal/parser"
 	"zenfd/internal/scheduler"
 	"zenfd/internal/storage"
@@ -84,9 +87,11 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			defer db.Close()
 			store := storage.NewStore(db)
 
-			// 2. Supervisor
+			// 2. Supervisor & Harness Registry
 			scratchDir := filepath.Dir(dbPath)
 			super := supervisor.NewProcessSupervisor(filepath.Join(scratchDir, "logs"))
+			harnessReg := harness.DefaultRegistry()
+			super.SetHarnessRegistry(harnessReg)
 
 			// 3. Scheduler
 			cfg := scheduler.SchedulerConfig{
@@ -95,9 +100,11 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 				TickInterval:         time.Duration(defaultTickMs) * time.Millisecond,
 			}
 			sched := scheduler.NewDAGScheduler(cfg, store, super)
+			sched.SetHarnessRegistry(harnessReg)
 
 			// 4. Gateway
 			gw := gateway.NewServer(store, super, sched)
+			sched.SetBroadcaster(gw)
 
 			// 5. Context & Signals
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -296,6 +303,162 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 		Short: "Query and inspect tasks",
 	}
 	taskCmd.AddCommand(taskListCmd)
+
+	// Helper for task status transitions via CLI
+	sendTaskStatus := func(taskID string, newStatus domain.TaskStatus) error {
+		payload := map[string]string{
+			"status": string(newStatus),
+		}
+		bodyBytes, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		resp, err := http.Post(fmt.Sprintf("%s/api/v1/tasks/%s/status", defaultURL, taskID), "application/json", bytes.NewReader(bodyBytes))
+		if err != nil {
+			return fmt.Errorf("failed to connect to daemon at %s: %w", defaultURL, err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("daemon responded with HTTP %d", resp.StatusCode)
+		}
+
+		fmt.Printf("✓ Task '%s' status updated to %s\n", taskID, newStatus)
+		return nil
+	}
+
+	taskStartCmd := &cobra.Command{
+		Use:   "start <task-id>",
+		Short: "Mark a task as RUNNING",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sendTaskStatus(args[0], domain.StatusRunning)
+		},
+	}
+	taskCmd.AddCommand(taskStartCmd)
+
+	taskDoneCmd := &cobra.Command{
+		Use:   "done <task-id>",
+		Short: "Mark a task as COMPLETED",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sendTaskStatus(args[0], domain.StatusCompleted)
+		},
+	}
+	taskCmd.AddCommand(taskDoneCmd)
+
+	taskFailCmd := &cobra.Command{
+		Use:   "fail <task-id>",
+		Short: "Mark a task as FAILED",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return sendTaskStatus(args[0], domain.StatusFailed)
+		},
+	}
+	taskCmd.AddCommand(taskFailCmd)
+
+	var updateStatusStr string
+	taskUpdateCmd := &cobra.Command{
+		Use:   "update <task-id>",
+		Short: "Update task status to a specific state",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if updateStatusStr == "" {
+				return fmt.Errorf("--status flag is required")
+			}
+			st := domain.TaskStatus(updateStatusStr)
+			if !st.IsValid() {
+				return fmt.Errorf("invalid status '%s'", updateStatusStr)
+			}
+			return sendTaskStatus(args[0], st)
+		},
+	}
+	taskUpdateCmd.Flags().StringVarP(&updateStatusStr, "status", "s", "", "Target status (e.g. READY, RUNNING, COMPLETED, FAILED)")
+	_ = taskUpdateCmd.MarkFlagRequired("status")
+	taskCmd.AddCommand(taskUpdateCmd)
+
+	// Task Claim Command
+	var claimWorker string
+	var claimJSON bool
+	taskClaimCmd := &cobra.Command{
+		Use:   "claim <task-id>",
+		Short: "Claim a ready task and display its context packet",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			taskID := args[0]
+			payload := map[string]any{
+				"worker_id": claimWorker,
+				"pid":       os.Getpid(),
+			}
+			bodyBytes, _ := json.Marshal(payload)
+			resp, err := http.Post(fmt.Sprintf("%s/api/v1/tasks/%s/claim", defaultURL, taskID), "application/json", bytes.NewReader(bodyBytes))
+			if err != nil {
+				return fmt.Errorf("failed to connect to daemon: %w", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				body, _ := io.ReadAll(resp.Body)
+				return fmt.Errorf("claim failed (HTTP %d): %s", resp.StatusCode, string(body))
+			}
+
+			var packet domain.ContextPacket
+			if err := json.NewDecoder(resp.Body).Decode(&packet); err != nil {
+				return err
+			}
+
+			if claimJSON {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(packet)
+			}
+
+			fmt.Printf("✓ Task '%s' successfully claimed by %s (Status: RUNNING)\n\n", taskID, packet.Task.ClaimedBy)
+			fmt.Println(packet.PromptMarkdown)
+			return nil
+		},
+	}
+	taskClaimCmd.Flags().StringVarP(&claimWorker, "worker", "w", "", "Worker identifier (defaults to CLI PID)")
+	taskClaimCmd.Flags().BoolVar(&claimJSON, "json", false, "Output raw ContextPacket JSON")
+	taskCmd.AddCommand(taskClaimCmd)
+
+	// Task Merge Command
+	taskMergeCmd := &cobra.Command{
+		Use:   "merge <task-id>",
+		Short: "Merge an awaiting worktree task into main branch",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			taskID := args[0]
+			resp, err := http.Post(fmt.Sprintf("%s/api/v1/tasks/%s/merge", defaultURL, taskID), "application/json", nil)
+			if err != nil {
+				return fmt.Errorf("failed to connect to daemon: %w", err)
+			}
+			defer resp.Body.Close()
+
+			var result struct {
+				Merged        bool     `json:"merged"`
+				ConflictFiles []string `json:"conflict_files"`
+				Status        string   `json:"status"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				return err
+			}
+
+			if !result.Merged {
+				fmt.Printf("✗ Merge conflict encountered for task %s (Status: CONFLICT)\n", taskID)
+				fmt.Printf("Conflicts in:\n")
+				for _, f := range result.ConflictFiles {
+					fmt.Printf("  • %s\n", f)
+				}
+				return fmt.Errorf("merge conflict in %d files", len(result.ConflictFiles))
+			}
+
+			fmt.Printf("✓ Task '%s' cleanly merged and completed (Status: COMPLETED)\n", taskID)
+			return nil
+		},
+	}
+	taskCmd.AddCommand(taskMergeCmd)
+
 	rootCmd.AddCommand(taskCmd)
 
 	// 5. Run Kill Command
@@ -348,6 +511,34 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 		},
 	}
 	rootCmd.AddCommand(statusCmd)
+
+	// MCP Stdio Server Command
+	var mcpDBPath string
+	var mcpRepoPath string
+	mcpCmd := &cobra.Command{
+		Use:   "mcp",
+		Short: "Start the stdio Model Context Protocol (MCP) server for agents",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath := resolveHomePath(mcpDBPath)
+			db, err := storage.Open(dbPath)
+			if err != nil {
+				return fmt.Errorf("failed to open storage engine: %w", err)
+			}
+			defer db.Close()
+			store := storage.NewStore(db)
+
+			repo := mcpRepoPath
+			if repo == "" {
+				repo, _ = os.Getwd()
+			}
+
+			srv := zenfdmcp.NewServer(store, repo)
+			return srv.ServeStdio()
+		},
+	}
+	mcpCmd.Flags().StringVarP(&mcpDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
+	mcpCmd.Flags().StringVarP(&mcpRepoPath, "repo", "r", "", "Repository root path (defaults to CWD)")
+	rootCmd.AddCommand(mcpCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

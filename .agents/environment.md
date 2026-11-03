@@ -2,17 +2,15 @@
 
 Infrastructure, toolchain manifest, and execution environment specification.
 
-## 1. Toolchain & Environment
+## Toolchain & Environment
 
-- **Primary Runtime (Backend)**: Go 1.24+ (`/usr/bin/go`, toolchain: go1.26+)
-- **Primary Runtime (Frontend)**: Node.js v24.19.0 (`/home/rirong/.nvm/versions/node/v24.19.0/bin/node`)
-- **Package & Task Wrappers**:
-  - `pnpm` v11.23.0 (Frontend dependency management)
-  - `GNU Make` 4.4.1 (Monorepo build automation: `apps/daemon/Makefile`)
-- **Version Control & Shell**:
-  - `git` 2.47.3
-  - `bash` (Linux amd64 POSIX shell)
-- **Container Engine**: Docker v29.7.2 (optional, not required for core daemon)
+- **tracker_cli**: gh (authenticated)
+- **version_managers**: fvm, nvm, corepack, uv, uvx
+- **runtimes_and_build**: flutter, dart, pnpm, yarn, npm, node, python3, go, java
+- **mobile_and_device**: adb, bundletool, shorebird, flutterfire, fluttercraft
+- **task_runners**: make
+- **search_ast_data**: rg, fzf, jq, tree, curl
+- **vcs_containers_db**: git, gh, docker, kubectl, psql, sqlite3
 
 ## 2. Local Services & Control Plane Endpoints
 
@@ -35,3 +33,22 @@ Infrastructure, toolchain manifest, and execution environment specification.
 - **Ephemeral Scratch Directory**: `.agents/scratch/` (strictly git-ignored).
 - **Persistent State Directory**: `~/.zenforge/` (local machine daemon state and database).
 - **Claim-Check Disk Cache**: `.agents/scratch/logs/` and `.agents/scratch/artifacts/`.
+
+## 5. Development Mode & Live-Reload Workflow
+
+#### Terminal 1: Backend Daemon (Go Auto-Reload qua air)
+
+```bash
+make -C apps/daemon dev
+```
+
+(Bất cứ khi nào bạn sửa bất kỳ file `.go` nào trong `apps/daemon`, `air` sẽ tự compile lại và khởi động lại `zenfd` tức thì mà không cần bạn bấm `Ctrl+C`).
+
+#### Terminal 2: Frontend Dashboard (Vite HMR)
+
+```bash
+cd apps/web && pnpm dev
+```
+
+(Khởi chạy Vite dev server tại `http://localhost:5173` với Instant HMR và reverse proxy tự động chuyển tiếp API/SSE/WebSocket về daemon cổng 1123).
+

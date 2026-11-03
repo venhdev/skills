@@ -2,15 +2,21 @@ package gateway
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -80,6 +86,23 @@ func (s *Server) setupRoutes() {
 
 	// Task APIs
 	s.mux.HandleFunc("GET /api/v1/tasks", s.handleListTasks)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/status", s.handleUpdateTaskStatus)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/claim", s.handleClaimTask)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/review", s.handleRequestReview)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/resolve", s.handleResolveReview)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/merge", s.handleMergeTask)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/attachments", s.handleUploadTaskAttachment)
+	s.mux.HandleFunc("GET /api/v1/tasks/{id}/artifacts", s.handleListTaskArtifacts)
+	s.mux.HandleFunc("GET /api/v1/tasks/{id}/logs", s.handleGetTaskLogs)
+
+	// Living Architecture & Project Docs APIs
+	s.mux.HandleFunc("GET /api/v1/docs", s.handleListDocs)
+	s.mux.HandleFunc("POST /api/v1/docs", s.handleUpsertDoc)
+	s.mux.HandleFunc("POST /api/v1/docs/export", s.handleExportDocs)
+	s.mux.HandleFunc("GET /api/v1/docs/{slug}", s.handleGetDoc)
+
+	// Global Environment & Toolchains API
+	s.mux.HandleFunc("GET /api/v1/env/global", s.handleGetGlobalEnv)
 
 	// Run Supervisor APIs
 	s.mux.HandleFunc("POST /api/v1/runs/{id}/kill", s.handleKillRun)
@@ -269,6 +292,63 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(tasks)
 }
 
+// handleUpdateTaskStatus handles POST /api/v1/tasks/{id}/status
+func (s *Server) handleUpdateTaskStatus(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		From   domain.TaskStatus `json:"from"`
+		Status domain.TaskStatus `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid payload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if s.storage == nil {
+		http.Error(w, "no storage configured", http.StatusInternalServerError)
+		return
+	}
+
+	fromStatus := req.From
+	if fromStatus == "" {
+		tasks, err := s.storage.ListTasks(r.Context(), "", "")
+		if err == nil {
+			for _, t := range tasks {
+				if t.ID == taskID {
+					fromStatus = t.Status
+					break
+				}
+			}
+		}
+	}
+	if fromStatus == "" {
+		fromStatus = domain.StatusReady
+	}
+
+	if err := s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status); err != nil {
+		http.Error(w, fmt.Sprintf("failed to transition task status: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		Type:      "task:status",
+		TaskID:    taskID,
+		Payload:   fmt.Sprintf(`{"task_id":"%s","status":"%s"}`, taskID, req.Status),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"task_id": taskID,
+		"status":  string(req.Status),
+	})
+}
+
 // handleKillRun handles POST /api/v1/runs/{id}/kill
 func (s *Server) handleKillRun(w http.ResponseWriter, r *http.Request) {
 	runID := r.PathValue("id")
@@ -362,6 +442,12 @@ func (s *Server) handleTerminalWS(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Send initial terminal connection banner if attached to a specific run
+	if runID != "" {
+		welcomeMsg := fmt.Sprintf("\x1b[38;5;39m[zenfd@control-plane]\x1b[0m Connected to PTY session for: \x1b[1;37m%s\x1b[0m\r\n\x1b[38;5;242mStreaming Unix PTY output (type to interact)...\x1b[0m\r\n\r\n", runID)
+		_ = conn.Write(ctx, websocket.MessageText, []byte(welcomeMsg))
+	}
+
 	// Bidirectional communication loop
 	for {
 		typ, msg, err := conn.Read(ctx)
@@ -423,6 +509,161 @@ func (s *Server) handleGetArtifact(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", art.MimeType)
 	}
 	http.ServeFile(w, r, art.FilePath)
+}
+
+// handleUploadTaskAttachment handles POST /api/v1/tasks/{id}/attachments (multipart/form-data)
+func (s *Server) handleUploadTaskAttachment(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	// Limit upload size to 25MB
+	if err := r.ParseMultipartForm(25 << 20); err != nil {
+		http.Error(w, fmt.Sprintf("file too large or invalid multipart form: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("missing file in form field 'file': %v", err), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	displayName := r.FormValue("name")
+	if displayName == "" {
+		displayName = header.Filename
+	}
+
+	home, _ := os.UserHomeDir()
+	storageDir := filepath.Join(home, ".zenforge", "attachments", taskID)
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		http.Error(w, fmt.Sprintf("failed to create attachment directory: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	artID := fmt.Sprintf("art-in-%s-%d", taskID, time.Now().UnixNano())
+	targetPath := filepath.Join(storageDir, fmt.Sprintf("%s_%s", artID, header.Filename))
+
+	targetFile, err := os.Create(targetPath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to save attachment: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer targetFile.Close()
+
+	hasher := sha256.New()
+	multiWriter := io.MultiWriter(targetFile, hasher)
+
+	byteSize, err := io.Copy(multiWriter, file)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to write attachment bytes: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = mime.TypeByExtension(filepath.Ext(header.Filename))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+	}
+
+	artType := domain.ArtifactTypeFile
+	if strings.HasPrefix(mimeType, "image/") {
+		artType = domain.ArtifactTypeImage
+	} else if strings.Contains(mimeType, "markdown") || strings.HasSuffix(header.Filename, ".md") {
+		artType = domain.ArtifactTypeMarkdown
+	} else if strings.Contains(mimeType, "pdf") || strings.HasSuffix(header.Filename, ".pdf") {
+		artType = domain.ArtifactTypeDoc
+	}
+
+	art := domain.Artifact{
+		ID:        artID,
+		TaskID:    taskID,
+		Role:      domain.ArtifactRoleInput,
+		Name:      displayName,
+		Type:      artType,
+		FilePath:  targetPath,
+		MimeType:  mimeType,
+		ByteSize:  byteSize,
+		Sha256:    hex.EncodeToString(hasher.Sum(nil)),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	if err := s.storage.RecordArtifact(r.Context(), art); err != nil {
+		http.Error(w, fmt.Sprintf("failed to record artifact: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast SSE
+	s.Broadcast(domain.EventMessage{
+		Type:      "task:artifact_added",
+		TaskID:    taskID,
+		Payload:   fmt.Sprintf(`{"artifact_id":"%s","role":"INPUT","name":"%s","type":"%s"}`, art.ID, art.Name, art.Type),
+		Timestamp: art.CreatedAt,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(art)
+}
+
+// handleListTaskArtifacts handles GET /api/v1/tasks/{id}/artifacts?role=
+func (s *Server) handleListTaskArtifacts(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	role := r.URL.Query().Get("role")
+	artifacts, err := s.storage.GetArtifactsByTask(r.Context(), taskID, role)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to query artifacts: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if artifacts == nil {
+		artifacts = []domain.Artifact{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(artifacts)
+}
+
+// handleGetTaskLogs handles GET /api/v1/tasks/{id}/logs
+func (s *Server) handleGetTaskLogs(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	home, _ := os.UserHomeDir()
+	logDirs := []string{
+		filepath.Join(home, ".zenforge", "logs"),
+		filepath.Join(home, ".zenforge"),
+	}
+
+	var foundLog string
+	for _, dir := range logDirs {
+		matches, _ := filepath.Glob(filepath.Join(dir, fmt.Sprintf("run-%s-*.log", taskID)))
+		if len(matches) > 0 {
+			foundLog = matches[len(matches)-1]
+			break
+		}
+	}
+
+	if foundLog == "" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprintf(w, "[zenfd] No execution logs recorded yet for task %s\n", taskID)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	http.ServeFile(w, r, foundLog)
 }
 
 // handleStaticSPA serves static files from the embedded web filesystem or falls back to index.html.
@@ -518,4 +759,253 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return s.httpServer.Shutdown(ctx)
 	}
 	return nil
+}
+
+// POST /api/v1/tasks/{id}/claim
+func (s *Server) handleClaimTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		WorkerID string `json:"worker_id"`
+		PID      int    `json:"pid"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	packet, err := s.storage.ClaimTask(r.Context(), taskID, req.WorkerID, req.PID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("claim failed: %v", err), http.StatusConflict)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:status",
+		Payload:   string(domain.StatusRunning),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(packet)
+}
+
+// POST /api/v1/tasks/{id}/review
+func (s *Server) handleRequestReview(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Reason  string   `json:"reason"`
+		Details string   `json:"details"`
+		Options []string `json:"options"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.RequestReview(r.Context(), taskID, req.Reason, req.Details, req.Options); err != nil {
+		http.Error(w, fmt.Sprintf("request review failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:status",
+		Payload:   string(domain.StatusAwaitingReview),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": domain.StatusAwaitingReview})
+}
+
+// POST /api/v1/tasks/{id}/resolve
+func (s *Server) handleResolveReview(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Response string `json:"response"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.ResolveReview(r.Context(), taskID, req.Response); err != nil {
+		http.Error(w, fmt.Sprintf("resolve review failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:status",
+		Payload:   string(domain.StatusRunning),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": domain.StatusRunning})
+}
+
+// POST /api/v1/tasks/{id}/merge
+func (s *Server) handleMergeTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	merged, conflicts, err := s.storage.MergeTask(r.Context(), taskID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("merge failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	status := domain.StatusCompleted
+	if !merged {
+		status = domain.StatusConflict
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:status",
+		Payload:   string(status),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"merged":         merged,
+		"conflict_files": conflicts,
+		"status":         status,
+	})
+}
+
+// GET /api/v1/docs
+func (s *Server) handleListDocs(w http.ResponseWriter, r *http.Request) {
+	repoPath := r.URL.Query().Get("repo_path")
+	category := r.URL.Query().Get("category")
+
+	docs, err := s.storage.ListDocs(r.Context(), repoPath, category)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list docs: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if docs == nil {
+		docs = []domain.ProjectDoc{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(docs)
+}
+
+// POST /api/v1/docs
+func (s *Server) handleUpsertDoc(w http.ResponseWriter, r *http.Request) {
+	var doc domain.ProjectDoc
+	if err := json.NewDecoder(r.Body).Decode(&doc); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.UpsertDoc(r.Context(), doc); err != nil {
+		http.Error(w, fmt.Sprintf("failed to save doc: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(doc)
+}
+
+// POST /api/v1/docs/export
+func (s *Server) handleExportDocs(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		TargetDir string `json:"target_dir"`
+		RepoPath  string `json:"repo_path"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.TargetDir == "" {
+		req.TargetDir = "docs"
+	}
+
+	targetDir := req.TargetDir
+	if !filepath.IsAbs(targetDir) && req.RepoPath != "" {
+		targetDir = filepath.Join(req.RepoPath, targetDir)
+	}
+
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		http.Error(w, fmt.Sprintf("failed to create directory: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	docs, err := s.storage.ListDocs(r.Context(), req.RepoPath, "")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list docs: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	count := 0
+	for _, doc := range docs {
+		filename := fmt.Sprintf("%s.md", doc.Slug)
+		filePath := filepath.Join(targetDir, filename)
+		content := fmt.Sprintf("# %s\n\n> Category: %s | Version: %d\n\n%s\n", doc.Title, doc.Category, doc.Version, doc.ContentMarkdown)
+		if err := os.WriteFile(filePath, []byte(content), 0644); err == nil {
+			count++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"exported_count": count,
+		"target_dir":     targetDir,
+	})
+}
+
+// GET /api/v1/docs/{slug}
+func (s *Server) handleGetDoc(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	repoPath := r.URL.Query().Get("repo_path")
+
+	doc, err := s.storage.GetDoc(r.Context(), repoPath, slug)
+	if err != nil {
+		http.Error(w, "doc not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(doc)
+}
+
+// GET /api/v1/env/global
+func (s *Server) handleGetGlobalEnv(w http.ResponseWriter, r *http.Request) {
+	gitVer := "unknown"
+	if out, err := exec.Command("git", "version").Output(); err == nil {
+		gitVer = strings.TrimSpace(string(out))
+	}
+	nodeVer := "unknown"
+	if out, err := exec.Command("node", "-v").Output(); err == nil {
+		nodeVer = strings.TrimSpace(string(out))
+	}
+
+	envData := map[string]any{
+		"os":          runtime.GOOS,
+		"arch":        runtime.GOARCH,
+		"num_cpu":     runtime.NumCPU(),
+		"go_version":  runtime.Version(),
+		"git_version": gitVer,
+		"node":        nodeVer,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(envData)
 }

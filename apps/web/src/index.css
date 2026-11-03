@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "@xterm/xterm/css/xterm.css";
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
@@ -30,7 +29,40 @@
 }
 
 .react-flow__minimap {
-  background-color: #18181b !important;
+  background-color: #09090b !important;
   border: 1px solid #27272a !important;
   border-radius: 8px !important;
+}
+
+/* React Flow Controls (Zoom, Fit, Lock) Dark Cockpit Theme */
+.react-flow__controls {
+  background: #18181b !important;
+  border: 1px solid #27272a !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden;
+}
+
+.react-flow__controls-button {
+  background: #18181b !important;
+  border-bottom: 1px solid #27272a !important;
+  color: #a1a1aa !important;
+  fill: #a1a1aa !important;
+  transition: all 0.15s ease-in-out;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #27272a !important;
+  color: #f4f4f5 !important;
+  fill: #f4f4f5 !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+  max-width: 14px;
+  max-height: 14px;
 }

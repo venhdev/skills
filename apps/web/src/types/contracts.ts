@@ -2,10 +2,17 @@ export type TaskStatus =
   | 'PENDING'
   | 'READY'
   | 'RUNNING'
+  | 'AWAITING_REVIEW'
+  | 'AWAITING_MERGE'
+  | 'CONFLICT'
   | 'COMPLETED'
   | 'FAILED'
   | 'BLOCKED'
   | 'CANCELLED'
+
+export type TaskPriority = 'P0' | 'P1' | 'P2' | 'P3'
+export type TaskComplexity = 'LOW' | 'MEDIUM' | 'HIGH' | 'SPIKE'
+export type TaskRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 
 export interface Plan {
   slug: string
@@ -21,13 +28,51 @@ export interface Task {
   plan_id: string
   repo_path: string
   title: string
+  description?: string
   dependencies: string[]
+  priority?: TaskPriority
+  complexity?: TaskComplexity
+  risk_level?: TaskRisk
+  required_skills?: string[]
+  required_tools?: string[]
+  target_files?: string[]
+  acceptance_criteria?: string[]
+  verification_commands?: string[]
   harness: string
   skill_command: string
-  worktree_path: string
+  worktree_path?: string
   status: TaskStatus
+  claimed_by?: string
+  claimed_at?: string
+  review_reason?: string
+  review_details?: string
+  review_options?: string[]
+  review_response?: string
+  conflict_files?: string[]
   created_at: string
   updated_at: string
+}
+
+export interface ProjectDoc {
+  slug: string
+  repo_path: string
+  git_branch: string
+  title: string
+  category: 'ARCHITECTURE' | 'SCHEMA' | 'ADR' | 'GUIDE' | 'MEMORY' | string
+  content_markdown: string
+  mermaid_diagrams?: string[]
+  version: number
+  updated_at: string
+}
+
+export interface ContextPacket {
+  task: Task
+  target_files: string[]
+  skill_paths: string[]
+  upstream_diffs: string[]
+  input_attachments: Artifact[]
+  verification_commands: string[]
+  prompt_markdown: string
 }
 
 export interface Run {
@@ -44,12 +89,14 @@ export interface Run {
   last_beat_at: string
 }
 
-export type ArtifactType = 'DIFF' | 'IMAGE' | 'LOG' | 'TEST_RESULT' | 'MARKDOWN'
+export type ArtifactType = 'DIFF' | 'IMAGE' | 'LOG' | 'TEST_RESULT' | 'MARKDOWN' | 'DOC' | 'FILE'
 
 export interface Artifact {
   id: string
-  run_id: string
+  run_id?: string
   task_id: string
+  role: 'INPUT' | 'OUTPUT'
+  name: string
   type: ArtifactType
   file_path: string
   mime_type: string

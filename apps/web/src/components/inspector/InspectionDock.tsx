@@ -1,25 +1,33 @@
 import React, { useState } from 'react'
 import { ChevronRight, ChevronLeft } from 'lucide-react'
-import { TerminalPane } from './TerminalPane'
+import { TaskSpecPane } from './TaskSpecPane'
 import { ArtifactLightbox } from './ArtifactLightbox'
 import type { Task, Artifact } from '../../types/contracts'
 
 interface InspectionDockProps {
   selectedTask: Task | null
+  allTasks: Task[]
   artifacts: Artifact[]
-  onKillProcess?: (runId: string) => void
+  onSelectTaskId?: (taskId: string) => void
+  onResolveReview?: (taskId: string, response: string) => Promise<void>
+  onMergeTask?: (taskId: string) => Promise<void>
+  onUploadAttachment?: (file: File) => Promise<void>
   collapsed: boolean
   onToggleCollapse: () => void
 }
 
 export const InspectionDock: React.FC<InspectionDockProps> = ({
   selectedTask,
+  allTasks,
   artifacts,
-  onKillProcess,
+  onSelectTaskId,
+  onResolveReview,
+  onMergeTask,
+  onUploadAttachment,
   collapsed,
   onToggleCollapse,
 }) => {
-  const [activePane, setActivePane] = useState<'split' | 'terminal' | 'artifacts'>('split')
+  const [activePane, setActivePane] = useState<'split' | 'spec' | 'artifacts'>('split')
 
   if (collapsed) {
     return (
@@ -35,10 +43,8 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
     )
   }
 
-  const runId = selectedTask ? `run-${selectedTask.id}` : undefined
-
   return (
-    <aside className="relative flex w-[480px] flex-col border-l border-zinc-800 bg-zinc-950 select-none">
+    <aside className="relative flex w-[500px] flex-col border-l border-zinc-800 bg-zinc-950 select-none">
       {/* Dock Top Toggle Bar */}
       <div className="flex h-8 items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-3 text-xs text-zinc-400">
         <div className="flex items-center gap-1">
@@ -48,15 +54,15 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
               activePane === 'split' ? 'bg-zinc-800 text-white' : 'hover:text-zinc-200'
             }`}
           >
-            Split (50/50)
+            Split (Card / Hub)
           </button>
           <button
-            onClick={() => setActivePane('terminal')}
+            onClick={() => setActivePane('spec')}
             className={`rounded px-1.5 py-0.5 text-[10px] uppercase font-bold transition-colors ${
-              activePane === 'terminal' ? 'bg-zinc-800 text-white' : 'hover:text-zinc-200'
+              activePane === 'spec' ? 'bg-zinc-800 text-white' : 'hover:text-zinc-200'
             }`}
           >
-            Terminal Only
+            Spec Card
           </button>
           <button
             onClick={() => setActivePane('artifacts')}
@@ -64,7 +70,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
               activePane === 'artifacts' ? 'bg-zinc-800 text-white' : 'hover:text-zinc-200'
             }`}
           >
-            Artifacts Only
+            Multi-Modal Hub
           </button>
         </div>
 
@@ -79,23 +85,30 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
 
       {/* Pane Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {(activePane === 'split' || activePane === 'terminal') && (
-          <div className={activePane === 'split' ? 'h-1/2 border-b border-zinc-800' : 'h-full'}>
-            <TerminalPane
-              runId={runId}
-              taskTitle={selectedTask?.title}
-              onKillProcess={onKillProcess}
-              isMaximized={activePane === 'terminal'}
+        {(activePane === 'split' || activePane === 'spec') && (
+          <div className={activePane === 'split' ? 'h-1/2 border-b border-zinc-800 overflow-hidden' : 'h-full overflow-hidden'}>
+            <TaskSpecPane
+              task={selectedTask}
+              allTasks={allTasks}
+              onSelectTaskId={onSelectTaskId}
+              onResolveReview={onResolveReview}
+              onMergeTask={onMergeTask}
+              isMaximized={activePane === 'spec'}
               onToggleMaximize={() =>
-                setActivePane(activePane === 'terminal' ? 'split' : 'terminal')
+                setActivePane(activePane === 'spec' ? 'split' : 'spec')
               }
             />
           </div>
         )}
 
         {(activePane === 'split' || activePane === 'artifacts') && (
-          <div className={activePane === 'split' ? 'h-1/2' : 'h-full'}>
-            <ArtifactLightbox artifacts={artifacts} />
+          <div className={activePane === 'split' ? 'h-1/2 overflow-hidden' : 'h-full overflow-hidden'}>
+            <ArtifactLightbox
+              taskId={selectedTask?.id}
+              taskStatus={selectedTask?.status}
+              artifacts={artifacts}
+              onUploadAttachment={onUploadAttachment}
+            />
           </div>
         )}
       </div>

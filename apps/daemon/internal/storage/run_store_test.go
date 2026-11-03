@@ -91,11 +91,13 @@ func TestRunStore_ArtifactClaimCheck(t *testing.T) {
 	task := domain.Task{ID: "t1", PlanID: "p1", RepoPath: "/repo", Title: "T1", Status: domain.StatusReady}
 	_ = store.SavePlanWithTasks(ctx, plan, []domain.Task{task})
 
-	// Create artifact
+	// Create output artifact
 	artifact := domain.Artifact{
 		ID:        "art-123",
 		RunID:     "run-dummy",
 		TaskID:    "t1",
+		Role:      domain.ArtifactRoleOutput,
+		Name:      "diff.png",
 		Type:      domain.ArtifactTypeImage,
 		FilePath:  "/tmp/diff.png",
 		MimeType:  "image/png",
@@ -108,13 +110,48 @@ func TestRunStore_ArtifactClaimCheck(t *testing.T) {
 		t.Fatalf("RecordArtifact failed: %v", err)
 	}
 
-	// Retrieve artifact
+	// Create input attachment (no RunID)
+	inputArt := domain.Artifact{
+		ID:        "art-input-mockup",
+		TaskID:    "t1",
+		Role:      domain.ArtifactRoleInput,
+		Name:      "mockup-design.png",
+		Type:      domain.ArtifactTypeImage,
+		FilePath:  "/tmp/mockup-design.png",
+		MimeType:  "image/png",
+		ByteSize:  1024,
+		Sha256:    "hash123",
+		CreatedAt: time.Now().UTC(),
+	}
+	if err := store.RecordArtifact(ctx, inputArt); err != nil {
+		t.Fatalf("RecordArtifact input failed: %v", err)
+	}
+
+	// Retrieve artifact by ID
 	retrieved, err := store.GetArtifact(ctx, "art-123")
 	if err != nil {
 		t.Fatalf("GetArtifact failed: %v", err)
 	}
-	if retrieved.ID != "art-123" || retrieved.Type != domain.ArtifactTypeImage || retrieved.ByteSize != 2048 {
+	if retrieved.ID != "art-123" || retrieved.Type != domain.ArtifactTypeImage || retrieved.ByteSize != 2048 || retrieved.Role != domain.ArtifactRoleOutput || retrieved.Name != "diff.png" {
 		t.Errorf("Artifact mismatch: %+v", retrieved)
+	}
+
+	// Test GetArtifactsByTask (all)
+	allArts, err := store.GetArtifactsByTask(ctx, "t1", "")
+	if err != nil || len(allArts) != 2 {
+		t.Errorf("Expected 2 artifacts for task t1, got %d (err: %v)", len(allArts), err)
+	}
+
+	// Test GetArtifactsByTask (INPUT)
+	inputArts, err := store.GetArtifactsByTask(ctx, "t1", "INPUT")
+	if err != nil || len(inputArts) != 1 || inputArts[0].ID != "art-input-mockup" {
+		t.Errorf("Expected 1 input artifact, got %+v", inputArts)
+	}
+
+	// Test GetArtifactsByTask (OUTPUT)
+	outputArts, err := store.GetArtifactsByTask(ctx, "t1", "OUTPUT")
+	if err != nil || len(outputArts) != 1 || outputArts[0].ID != "art-123" {
+		t.Errorf("Expected 1 output artifact, got %+v", outputArts)
 	}
 
 	// Test non-existent artifact

@@ -21,7 +21,9 @@ __pycache__/
 skills-lock.json
 
 # ZenForge Apps Monorepo
+/bin/
 apps/daemon/bin/
+apps/daemon/tmp/
 apps/daemon/internal/gateway/web_dist/
 apps/web/node_modules/
 apps/web/dist/

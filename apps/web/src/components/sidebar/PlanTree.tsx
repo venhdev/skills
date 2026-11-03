@@ -7,6 +7,8 @@ import {
   Clock,
   PlayCircle,
   AlertCircle,
+  AlertTriangle,
+  GitMerge,
   FolderGit2,
 } from 'lucide-react'
 import type { Task, TaskStatus } from '../../types/contracts'
@@ -14,7 +16,7 @@ import type { Task, TaskStatus } from '../../types/contracts'
 interface PlanTreeProps {
   tasks: Task[]
   selectedTaskId: string | null
-  onSelectTask: (task: Task) => void
+  onSelectTask: (task: Task, source?: 'sidebar') => void
   collapsed: boolean
   onToggleCollapse: () => void
 }
@@ -34,6 +36,9 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
       ALL: tasks.length,
       RUNNING: 0,
       READY: 0,
+      AWAITING_REVIEW: 0,
+      AWAITING_MERGE: 0,
+      CONFLICT: 0,
       COMPLETED: 0,
       FAILED: 0,
       PENDING: 0,
@@ -65,6 +70,12 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
         )
       case 'READY':
         return <Clock className="h-3.5 w-3.5 text-amber-400" />
+      case 'AWAITING_REVIEW':
+        return <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
+      case 'AWAITING_MERGE':
+        return <GitMerge className="h-3.5 w-3.5 text-cyan-400" />
+      case 'CONFLICT':
+        return <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
       case 'FAILED':
         return <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
       default:
@@ -86,7 +97,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
           {tasks.slice(0, 10).map((t) => (
             <button
               key={t.id}
-              onClick={() => onSelectTask(t)}
+              onClick={() => onSelectTask(t, 'sidebar')}
               className={`flex h-7 w-7 items-center justify-center rounded text-xs transition-colors ${
                 t.id === selectedTaskId
                   ? 'bg-violet-600 text-white'
@@ -160,7 +171,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
           return (
             <div
               key={t.id}
-              onClick={() => onSelectTask(t)}
+              onClick={() => onSelectTask(t, 'sidebar')}
               className={`group flex cursor-pointer flex-col rounded-md border p-2 transition-all ${
                 isSelected
                   ? 'border-violet-500/60 bg-violet-500/10 shadow-[0_0_12px_rgba(139,92,246,0.15)]'

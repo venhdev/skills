@@ -121,5 +121,26 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 		t.Fatalf("task list failed: %v, out: %s", err, string(out))
 	}
 
-	t.Log("✓ All Cobra CLI commands (status, plan push, plan get, task list) verified successfully against running daemon")
+	// 8. Test `zenfd task start SLICE-01`
+	startCmd := exec.Command(binPath, "task", "start", "SLICE-01", "--url", daemonURL)
+	out, err = startCmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "status updated to RUNNING") {
+		t.Fatalf("task start failed: %v, out: %s", err, string(out))
+	}
+
+	// 9. Test `zenfd task done SLICE-01`
+	doneCmd := exec.Command(binPath, "task", "done", "SLICE-01", "--url", daemonURL)
+	out, err = doneCmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "status updated to COMPLETED") {
+		t.Fatalf("task done failed: %v, out: %s", err, string(out))
+	}
+
+	// 10. Test `zenfd task update SLICE-02 --status READY`
+	updateCmd := exec.Command(binPath, "task", "update", "SLICE-02", "--status", "READY", "--url", daemonURL)
+	out, err = updateCmd.CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "status updated to READY") {
+		t.Fatalf("task update failed: %v, out: %s", err, string(out))
+	}
+
+	t.Log("✓ All Cobra CLI commands (status, plan push, plan get, task list, task start/done/update) verified successfully against running daemon")
 }

@@ -138,3 +138,73 @@ func TestScheduler_Tick_ReapHungRuns(t *testing.T) {
 		t.Errorf("Expected task to be reaped to FAILED, got status: %s", ts[0].Status)
 	}
 }
+
+type mockBroadcaster struct {
+	events []domain.EventMessage
+}
+
+func (m *mockBroadcaster) Broadcast(evt domain.EventMessage) {
+	m.events = append(m.events, evt)
+}
+
+func TestScheduler_Tick_ExternalOrchestratorHarness(t *testing.T) {
+	tempDir := t.TempDir()
+	db, err := storage.Open(filepath.Join(tempDir, "state.db"))
+	if err != nil {
+		t.Fatalf("Open DB failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	sup := supervisor.NewProcessSupervisor(tempDir)
+	cfg := scheduler.DefaultConfig()
+
+	sched := scheduler.NewDAGScheduler(cfg, store, sup)
+	mb := &mockBroadcaster{}
+	sched.SetBroadcaster(mb)
+
+	ctx := context.Background()
+
+	plan := domain.Plan{Slug: "orch-plan", Title: "Orchestrator Plan", RepoPath: "/repo", Status: "ACTIVE"}
+	task := domain.Task{
+		ID:           "t-orch",
+		PlanID:       plan.Slug,
+		RepoPath:     plan.RepoPath,
+		Title:        "External Agent Task",
+		Harness:      "orchestrator",
+		SkillCommand: "/forge t-orch",
+		Status:       domain.StatusReady,
+	}
+	_ = sched.SubmitPlan(ctx, plan, []domain.Task{task})
+
+	if err := sched.Tick(ctx); err != nil {
+		t.Fatalf("Tick failed: %v", err)
+	}
+
+	// Task must remain in READY status (never spawned as OS process)
+	ts, err := store.GetTasksByPlan(ctx, "orch-plan")
+	if err != nil || len(ts) != 1 {
+		t.Fatalf("Failed to retrieve tasks: %v", err)
+	}
+	if ts[0].Status != domain.StatusReady {
+		t.Errorf("Expected status READY, got %s", ts[0].Status)
+	}
+
+	// Active runs in storage should be 0
+	activeRuns, err := store.GetActiveRuns(ctx)
+	if err != nil || len(activeRuns) != 0 {
+		t.Errorf("Expected 0 active runs, got %d", len(activeRuns))
+	}
+
+	// Event broadcaster should have received task:ready_for_agent
+	foundEvent := false
+	for _, evt := range mb.events {
+		if evt.Type == "task:ready_for_agent" && evt.TaskID == "t-orch" {
+			foundEvent = true
+			break
+		}
+	}
+	if !foundEvent {
+		t.Errorf("Expected task:ready_for_agent event, received: %+v", mb.events)
+	}
+}

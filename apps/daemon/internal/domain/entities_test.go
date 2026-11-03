@@ -13,6 +13,9 @@ func TestTaskStatus_ValidationAndTerminal(t *testing.T) {
 		domain.StatusPending,
 		domain.StatusReady,
 		domain.StatusRunning,
+		domain.StatusAwaitingReview,
+		domain.StatusAwaitingMerge,
+		domain.StatusConflict,
 		domain.StatusBlocked,
 		domain.StatusCompleted,
 		domain.StatusFailed,
@@ -30,10 +33,9 @@ func TestTaskStatus_ValidationAndTerminal(t *testing.T) {
 		t.Errorf("Expected status %s to be invalid", invalidStatus)
 	}
 
-	// Terminal status checks
+	// Terminal status checks (strictly final execution states)
 	terminalStatuses := []domain.TaskStatus{
 		domain.StatusCompleted,
-		domain.StatusFailed,
 		domain.StatusCancelled,
 	}
 	for _, s := range terminalStatuses {
@@ -46,7 +48,11 @@ func TestTaskStatus_ValidationAndTerminal(t *testing.T) {
 		domain.StatusPending,
 		domain.StatusReady,
 		domain.StatusRunning,
+		domain.StatusAwaitingReview,
+		domain.StatusAwaitingMerge,
+		domain.StatusConflict,
 		domain.StatusBlocked,
+		domain.StatusFailed, // Failed allows retry, so non-terminal
 	}
 	for _, s := range nonTerminalStatuses {
 		if s.IsTerminal() {
@@ -76,10 +82,29 @@ func TestTaskStatus_StateTransitions(t *testing.T) {
 
 		// RUNNING transitions
 		{domain.StatusRunning, domain.StatusCompleted, true},
+		{domain.StatusRunning, domain.StatusAwaitingReview, true},
+		{domain.StatusRunning, domain.StatusAwaitingMerge, true},
 		{domain.StatusRunning, domain.StatusFailed, true},
 		{domain.StatusRunning, domain.StatusCancelled, true},
 		{domain.StatusRunning, domain.StatusBlocked, true},
 		{domain.StatusRunning, domain.StatusPending, false},
+
+		// AWAITING_REVIEW transitions
+		{domain.StatusAwaitingReview, domain.StatusRunning, true},
+		{domain.StatusAwaitingReview, domain.StatusFailed, true},
+		{domain.StatusAwaitingReview, domain.StatusCancelled, true},
+		{domain.StatusAwaitingReview, domain.StatusCompleted, false},
+
+		// AWAITING_MERGE transitions
+		{domain.StatusAwaitingMerge, domain.StatusCompleted, true},
+		{domain.StatusAwaitingMerge, domain.StatusConflict, true},
+		{domain.StatusAwaitingMerge, domain.StatusRunning, true},
+		{domain.StatusAwaitingMerge, domain.StatusCancelled, true},
+
+		// CONFLICT transitions
+		{domain.StatusConflict, domain.StatusRunning, true},
+		{domain.StatusConflict, domain.StatusFailed, true},
+		{domain.StatusConflict, domain.StatusCancelled, true},
 
 		// BLOCKED transitions
 		{domain.StatusBlocked, domain.StatusReady, true},
@@ -87,10 +112,11 @@ func TestTaskStatus_StateTransitions(t *testing.T) {
 		{domain.StatusBlocked, domain.StatusCancelled, true},
 		{domain.StatusBlocked, domain.StatusRunning, false},
 
-		// Terminal states cannot transition to other states
-		{domain.StatusCompleted, domain.StatusReady, false},
+		// Re-open and Retry transitions
+		{domain.StatusCompleted, domain.StatusReady, true}, // Re-open by operator
 		{domain.StatusCompleted, domain.StatusRunning, false},
-		{domain.StatusFailed, domain.StatusReady, false},
+		{domain.StatusFailed, domain.StatusReady, true},    // Retry
+		{domain.StatusFailed, domain.StatusRunning, true},  // Immediate re-run
 		{domain.StatusCancelled, domain.StatusReady, false},
 
 		// Idempotent self-transition

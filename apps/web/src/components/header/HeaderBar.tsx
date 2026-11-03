@@ -1,5 +1,14 @@
 import React from 'react'
-import { Zap, Activity, AlertOctagon, Pause, Play } from 'lucide-react'
+import {
+  Zap,
+  Activity,
+  AlertOctagon,
+  Pause,
+  Play,
+  GitFork,
+  BookOpen,
+  Cpu,
+} from 'lucide-react'
 import type { Plan } from '../../types/contracts'
 
 interface HeaderBarProps {
@@ -12,6 +21,8 @@ interface HeaderBarProps {
   onKillAll?: () => void
   isPaused?: boolean
   onTogglePause?: () => void
+  currentView?: 'dag' | 'docs' | 'env'
+  onChangeView?: (view: 'dag' | 'docs' | 'env') => void
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -24,6 +35,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onKillAll,
   isPaused = false,
   onTogglePause,
+  currentView = 'dag',
+  onChangeView,
 }) => {
   return (
     <header className="flex h-14 w-full items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 backdrop-blur select-none">
@@ -63,6 +76,45 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           )}
         </div>
       </div>
+
+      {/* Top 3-Tab Cockpit View Switcher */}
+      {onChangeView && (
+        <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-950 p-0.5 text-xs shadow-inner">
+          <button
+            onClick={() => onChangeView('dag')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
+              currentView === 'dag'
+                ? 'bg-zinc-800 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <GitFork className="h-3.5 w-3.5" />
+            <span>DAG Flow Canvas</span>
+          </button>
+          <button
+            onClick={() => onChangeView('docs')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
+              currentView === 'docs'
+                ? 'bg-zinc-800 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            <span>Architecture & Docs</span>
+          </button>
+          <button
+            onClick={() => onChangeView('env')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
+              currentView === 'env'
+                ? 'bg-zinc-800 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Cpu className="h-3.5 w-3.5" />
+            <span>Global & Dev Env</span>
+          </button>
+        </div>
+      )}
 
       {/* Worker Slots, SSE Status & Controls */}
       <div className="flex items-center gap-5">

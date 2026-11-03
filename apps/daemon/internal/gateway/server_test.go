@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"os"
@@ -296,5 +297,74 @@ func TestGateway_StaticSPA(t *testing.T) {
 
 	if resp2.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200 OK on client route fallback, got %d", resp2.StatusCode)
+	}
+}
+
+func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
+	_, baseURL, store, _, cleanup := setupTestGateway(t)
+	defer cleanup()
+
+	plan := domain.Plan{Slug: "plan-attach", Title: "Attach Plan", RepoPath: "/repo", Status: "ACTIVE"}
+	task := domain.Task{ID: "task-attach-1", PlanID: "plan-attach", RepoPath: "/repo", Title: "Attach Task", Status: domain.StatusReady}
+	if err := store.SavePlanWithTasks(context.Background(), plan, []domain.Task{task}); err != nil {
+		t.Fatalf("failed to save plan and task: %v", err)
+	}
+
+	// 1. Test POST /api/v1/tasks/{id}/attachments (multipart upload)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "mockup.png")
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	_, _ = part.Write([]byte("fake-png-binary-content"))
+	_ = writer.WriteField("name", "Design Mockup")
+	_ = writer.Close()
+
+	uploadReq, _ := http.NewRequest("POST", baseURL+"/api/v1/tasks/task-attach-1/attachments", &body)
+	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
+
+	uploadResp, err := http.DefaultClient.Do(uploadReq)
+	if err != nil {
+		t.Fatalf("failed to upload attachment: %v", err)
+	}
+	defer uploadResp.Body.Close()
+
+	if uploadResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d", uploadResp.StatusCode)
+	}
+
+	var createdArt domain.Artifact
+	if err := json.NewDecoder(uploadResp.Body).Decode(&createdArt); err != nil {
+		t.Fatalf("failed to decode created artifact: %v", err)
+	}
+	if createdArt.Role != domain.ArtifactRoleInput || createdArt.Name != "Design Mockup" {
+		t.Errorf("unexpected artifact payload: %+v", createdArt)
+	}
+
+	// 2. Test GET /api/v1/tasks/{id}/artifacts
+	listResp, err := http.Get(baseURL + "/api/v1/tasks/task-attach-1/artifacts")
+	if err != nil {
+		t.Fatalf("failed to list artifacts: %v", err)
+	}
+	defer listResp.Body.Close()
+
+	var artList []domain.Artifact
+	if err := json.NewDecoder(listResp.Body).Decode(&artList); err != nil {
+		t.Fatalf("failed to decode artifact list: %v", err)
+	}
+	if len(artList) != 1 || artList[0].ID != createdArt.ID {
+		t.Errorf("expected 1 artifact in list, got %+v", artList)
+	}
+
+	// 3. Test GET /api/v1/tasks/{id}/logs
+	logsResp, err := http.Get(baseURL + "/api/v1/tasks/task-attach-1/logs")
+	if err != nil {
+		t.Fatalf("failed to get task logs: %v", err)
+	}
+	defer logsResp.Body.Close()
+
+	if logsResp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200 OK for logs, got %d", logsResp.StatusCode)
 	}
 }

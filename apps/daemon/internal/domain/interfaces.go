@@ -45,6 +45,11 @@ type Scheduler interface {
 	RecordHeartbeat(ctx context.Context, runID string, cursor map[string]any) error
 }
 
+// EventBroadcaster distributes real-time events to connected clients and event stores.
+type EventBroadcaster interface {
+	Broadcast(evt EventMessage)
+}
+
 // StorageEngine provides atomic SQLite WAL operations with connection serialization.
 type StorageEngine interface {
 	// SavePlanWithTasks writes a plan and its tasks in a single atomic transaction.
@@ -83,8 +88,41 @@ type StorageEngine interface {
 	// GetArtifact retrieves artifact metadata by ID.
 	GetArtifact(ctx context.Context, id string) (*Artifact, error)
 
+	// GetArtifactsByTask returns all artifacts associated with a task, optionally filtered by role ("INPUT" | "OUTPUT").
+	GetArtifactsByTask(ctx context.Context, taskID string, role string) ([]Artifact, error)
+
 	// AppendEvent records an audit event in the database.
 	AppendEvent(ctx context.Context, evt EventMessage) error
+
+	// GetTask retrieves a single task by its unique ID.
+	GetTask(ctx context.Context, taskID string) (*Task, error)
+
+	// ClaimTask atomically verifies readiness, sets claim lock (workerID & pid), transitions to RUNNING, and returns ContextPacket.
+	ClaimTask(ctx context.Context, taskID string, workerID string, pid int) (*ContextPacket, error)
+
+	// RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
+	RequestReview(ctx context.Context, taskID string, reason string, details string, options []string) error
+
+	// ResolveReview answers an awaiting review and resumes task back to RUNNING.
+	ResolveReview(ctx context.Context, taskID string, response string) error
+
+	// StageMerge marks a worktree task as complete and transitions it to AWAITING_MERGE.
+	StageMerge(ctx context.Context, taskID string) error
+
+	// MergeTask executes git merge from worktree to target branch, transitioning to COMPLETED or CONFLICT.
+	MergeTask(ctx context.Context, taskID string) (bool, []string, error)
+
+	// GetTaskContextPacket compiles full context packet (task, target files, skill paths, upstream diffs, media).
+	GetTaskContextPacket(ctx context.Context, taskID string) (*ContextPacket, error)
+
+	// UpsertDoc creates or updates a project document or living architecture spec.
+	UpsertDoc(ctx context.Context, doc ProjectDoc) error
+
+	// GetDoc retrieves a project document by repoPath and slug.
+	GetDoc(ctx context.Context, repoPath, slug string) (*ProjectDoc, error)
+
+	// ListDocs lists project documents filtered optionally by category.
+	ListDocs(ctx context.Context, repoPath, category string) ([]ProjectDoc, error)
 
 	// Close safely flushes WAL checkpoints and closes the database connection pool.
 	Close() error

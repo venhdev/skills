@@ -1,11 +1,21 @@
 import React, { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { CheckCircle2, PlayCircle, Clock, AlertCircle, Terminal } from 'lucide-react'
+import {
+  CheckCircle2,
+  PlayCircle,
+  Clock,
+  AlertCircle,
+  Terminal,
+  AlertTriangle,
+  GitMerge,
+  Zap,
+} from 'lucide-react'
 import type { Task, TaskStatus } from '../../types/contracts'
 
 export interface TaskNodeData {
   task: Task
   isSelected: boolean
+  isBlastRadius?: boolean
   onSelect: (task: Task) => void
 }
 
@@ -40,6 +50,27 @@ const statusStyles: Record<
     glow: 'hover:shadow-[0_0_12px_rgba(245,158,11,0.2)]',
     icon: <Clock className="h-3.5 w-3.5 text-amber-400" />,
   },
+  AWAITING_REVIEW: {
+    border: 'border-orange-500/70',
+    bg: 'bg-orange-950/30',
+    text: 'text-orange-400',
+    glow: 'shadow-[0_0_16px_rgba(249,115,22,0.3)] animate-pulse',
+    icon: <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />,
+  },
+  AWAITING_MERGE: {
+    border: 'border-cyan-500/70',
+    bg: 'bg-cyan-950/30',
+    text: 'text-cyan-400',
+    glow: 'shadow-[0_0_16px_rgba(6,182,212,0.3)]',
+    icon: <GitMerge className="h-3.5 w-3.5 text-cyan-400" />,
+  },
+  CONFLICT: {
+    border: 'border-rose-500/80',
+    bg: 'bg-rose-950/40',
+    text: 'text-rose-400',
+    glow: 'shadow-[0_0_16px_rgba(244,63,94,0.4)]',
+    icon: <AlertCircle className="h-3.5 w-3.5 text-rose-400" />,
+  },
   FAILED: {
     border: 'border-rose-500/60',
     bg: 'bg-rose-950/30',
@@ -71,7 +102,7 @@ const statusStyles: Record<
 }
 
 export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
-  const { task, isSelected, onSelect } = data
+  const { task, isSelected, isBlastRadius, onSelect } = data
   const style = statusStyles[task.status] || statusStyles.PENDING
 
   return (
@@ -82,6 +113,8 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
       } ${style.bg} ${style.glow} ${
         isSelected
           ? 'ring-2 ring-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.4)]'
+          : isBlastRadius
+          ? 'ring-1 ring-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.25)] border-amber-500/50'
           : ''
       }`}
     >
@@ -97,11 +130,22 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
           {style.icon}
           <span>{task.id}</span>
         </div>
-        <span
-          className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style.text}`}
-        >
-          {task.status}
-        </span>
+        <div className="flex items-center gap-1">
+          {isBlastRadius && !isSelected && (
+            <span
+              className="flex items-center gap-0.5 rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-bold text-amber-300"
+              title="Downstream Blast Radius (affected if upstream changes)"
+            >
+              <Zap className="h-2.5 w-2.5 text-amber-400" />
+              <span>RADIUS</span>
+            </span>
+          )}
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style.text}`}
+          >
+            {task.status}
+          </span>
+        </div>
       </div>
 
       {/* Title */}

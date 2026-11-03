@@ -1,0 +1,24 @@
+# Air configuration for zenfd live-reloading
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/zenfd ./cmd/zenfd"
+  entrypoint = "./tmp/zenfd"
+  args_bin = ["daemon", "--port", "1123", "--db", "/home/rirong/.zenforge/state.db"]
+  delay = 500
+  exclude_dir = ["bin", "internal/gateway/web_dist", "tmp"]
+  exclude_regex = ["_test\\.go$"]
+  include_ext = ["go"]
+  kill_delay = "500ms"
+  send_interrupt = true
+  stop_on_error = true
+
+[color]
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[misc]
+  clean_on_exit = true

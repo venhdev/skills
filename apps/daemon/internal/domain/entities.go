@@ -9,19 +9,23 @@ import (
 type TaskStatus string
 
 const (
-	StatusPending   TaskStatus = "PENDING"   // Waiting for upstream dependencies
-	StatusReady     TaskStatus = "READY"     // Dependencies fulfilled, ready to claim
-	StatusRunning   TaskStatus = "RUNNING"   // Actively executing under an agent runner
-	StatusBlocked   TaskStatus = "BLOCKED"   // Blocked by upstream failure, environment, or human review
-	StatusCompleted TaskStatus = "COMPLETED" // Verified with exit code 0 and passing tests
-	StatusFailed    TaskStatus = "FAILED"    // Execution failure or test assertion failure
-	StatusCancelled TaskStatus = "CANCELLED" // Terminated via operator abort or -PGID cascade kill
+	StatusPending        TaskStatus = "PENDING"         // Waiting for upstream dependencies
+	StatusReady          TaskStatus = "READY"           // Dependencies fulfilled, ready to claim
+	StatusRunning        TaskStatus = "RUNNING"         // Actively executing under an agent runner
+	StatusAwaitingReview TaskStatus = "AWAITING_REVIEW" // Paused: Plan/scope drift detected, awaiting developer decision
+	StatusAwaitingMerge  TaskStatus = "AWAITING_MERGE"  // Implemented & tested on worktree, staged for git merge
+	StatusConflict       TaskStatus = "CONFLICT"        // Git merge conflict encountered during integration
+	StatusBlocked        TaskStatus = "BLOCKED"         // Blocked by upstream failure, environment, or human review
+	StatusCompleted      TaskStatus = "COMPLETED"       // Verified with exit code 0 and passing tests
+	StatusFailed         TaskStatus = "FAILED"          // Execution failure or test assertion failure
+	StatusCancelled      TaskStatus = "CANCELLED"       // Terminated via operator abort or -PGID cascade kill
 )
 
 // IsValid checks if the status is a known domain status.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case StatusPending, StatusReady, StatusRunning, StatusBlocked,
+	case StatusPending, StatusReady, StatusRunning, StatusAwaitingReview,
+		StatusAwaitingMerge, StatusConflict, StatusBlocked,
 		StatusCompleted, StatusFailed, StatusCancelled:
 		return true
 	default:
@@ -31,7 +35,7 @@ func (s TaskStatus) IsValid() bool {
 
 // IsTerminal returns true if the status represents a final execution state.
 func (s TaskStatus) IsTerminal() bool {
-	return s == StatusCompleted || s == StatusFailed || s == StatusCancelled
+	return s == StatusCompleted || s == StatusCancelled
 }
 
 // CanTransitionTo enforces the state machine transition rules.
@@ -42,8 +46,12 @@ func (s TaskStatus) CanTransitionTo(target TaskStatus) bool {
 	if s == target {
 		return true // No-op idempotent transition
 	}
-	if s.IsTerminal() {
-		return false // Terminal states are immutable
+	if s == StatusCancelled {
+		return false // Cancelled is strictly terminal
+	}
+	if s == StatusCompleted {
+		// Completed tasks can only be transitioned back to READY by explicit operator re-open
+		return target == StatusReady
 	}
 
 	switch s {
@@ -52,13 +60,55 @@ func (s TaskStatus) CanTransitionTo(target TaskStatus) bool {
 	case StatusReady:
 		return target == StatusRunning || target == StatusBlocked || target == StatusCancelled
 	case StatusRunning:
-		return target == StatusCompleted || target == StatusFailed || target == StatusCancelled || target == StatusBlocked
+		return target == StatusAwaitingReview || target == StatusAwaitingMerge ||
+			target == StatusCompleted || target == StatusFailed ||
+			target == StatusCancelled || target == StatusBlocked
+	case StatusAwaitingReview:
+		// Resumed back to RUNNING, or failed/cancelled
+		return target == StatusRunning || target == StatusFailed || target == StatusCancelled
+	case StatusAwaitingMerge:
+		// Merged to COMPLETED, hit CONFLICT, rejected back to RUNNING, or cancelled
+		return target == StatusCompleted || target == StatusConflict ||
+			target == StatusRunning || target == StatusCancelled
+	case StatusConflict:
+		// Assigned back to RUNNING to resolve conflict, or failed/cancelled
+		return target == StatusRunning || target == StatusFailed || target == StatusCancelled
 	case StatusBlocked:
 		return target == StatusReady || target == StatusPending || target == StatusCancelled
+	case StatusFailed:
+		// Allow retry back to READY or directly to RUNNING
+		return target == StatusReady || target == StatusRunning || target == StatusCancelled
 	default:
 		return false
 	}
 }
+
+type TaskPriority string
+
+const (
+	PriorityP0 TaskPriority = "P0"
+	PriorityP1 TaskPriority = "P1"
+	PriorityP2 TaskPriority = "P2"
+	PriorityP3 TaskPriority = "P3"
+)
+
+type TaskComplexity string
+
+const (
+	ComplexityLow    TaskComplexity = "LOW"
+	ComplexityMedium TaskComplexity = "MEDIUM"
+	ComplexityHigh   TaskComplexity = "HIGH"
+	ComplexitySpike  TaskComplexity = "SPIKE"
+)
+
+type TaskRisk string
+
+const (
+	RiskLow      TaskRisk = "LOW"
+	RiskMedium   TaskRisk = "MEDIUM"
+	RiskHigh     TaskRisk = "HIGH"
+	RiskCritical TaskRisk = "CRITICAL"
+)
 
 // Plan represents a living plan dossier and its associated task DAG.
 type Plan struct {
@@ -72,17 +122,43 @@ type Plan struct {
 
 // Task represents an atomic vertical slice of execution in the DAG.
 type Task struct {
-	ID           string     `json:"id"`
-	PlanID       string     `json:"plan_id"`
-	RepoPath     string     `json:"repo_path"`
-	Title        string     `json:"title"`
-	Dependencies []string   `json:"dependencies"` // List of prerequisite Task IDs
-	Harness      string     `json:"harness"`      // claude-code, antigravity, shell-script
-	SkillCommand string     `json:"skill_command"` // e.g. "/forge task-01"
-	WorktreePath string     `json:"worktree_path"` // Isolated git worktree directory
-	Status       TaskStatus `json:"status"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	// 1. Identity & DAG Topology
+	ID           string   `json:"id"`
+	PlanID       string   `json:"plan_id"`
+	RepoPath     string   `json:"repo_path"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description,omitempty"`
+	Dependencies []string `json:"dependencies"` // List of prerequisite Task IDs
+
+	// 2. Triage & Fan-out Attributes
+	Priority             TaskPriority   `json:"priority,omitempty"`
+	Complexity           TaskComplexity `json:"complexity,omitempty"`
+	RiskLevel            TaskRisk       `json:"risk_level,omitempty"`
+	RequiredSkills       []string       `json:"required_skills,omitempty"`
+	RequiredTools        []string       `json:"required_tools,omitempty"`
+	TargetFiles          []string       `json:"target_files,omitempty"`
+	AcceptanceCriteria   []string       `json:"acceptance_criteria,omitempty"`
+	VerificationCommands []string       `json:"verification_commands,omitempty"`
+	Harness              string         `json:"harness"`
+	SkillCommand         string         `json:"skill_command"`
+	WorktreePath         string         `json:"worktree_path,omitempty"`
+
+	// 3. State & Claim Mutual Exclusion
+	Status    TaskStatus `json:"status"`
+	ClaimedBy string     `json:"claimed_by,omitempty"`
+	ClaimedAt *time.Time `json:"claimed_at,omitempty"`
+
+	// 4. Review & Architectural Drift Handshake
+	ReviewReason   string   `json:"review_reason,omitempty"`
+	ReviewDetails  string   `json:"review_details,omitempty"`
+	ReviewOptions  []string `json:"review_options,omitempty"`
+	ReviewResponse string   `json:"review_response,omitempty"`
+
+	// 5. Integration & Merge Gate
+	ConflictFiles []string `json:"conflict_files,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Validate checks task integrity.
@@ -97,6 +173,30 @@ func (t *Task) Validate() error {
 		return fmt.Errorf("invalid task status: %s", t.Status)
 	}
 	return nil
+}
+
+// ProjectDoc represents a living architectural document or schema.
+type ProjectDoc struct {
+	Slug            string    `json:"slug"`
+	RepoPath        string    `json:"repo_path"`
+	GitBranch       string    `json:"git_branch"`
+	Title           string    `json:"title"`
+	Category        string    `json:"category"` // ARCHITECTURE, SCHEMA, ADR, GUIDE, MEMORY
+	ContentMarkdown string    `json:"content_markdown"`
+	MermaidDiagrams []string  `json:"mermaid_diagrams,omitempty"`
+	Version         int       `json:"version"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+// ContextPacket is the prompt-ready manifest delivered to an agent upon claim.
+type ContextPacket struct {
+	Task                 Task       `json:"task"`
+	TargetFiles          []string   `json:"target_files"`
+	SkillPaths           []string   `json:"skill_paths"`
+	UpstreamDiffs        []string   `json:"upstream_diffs"`
+	InputAttachments     []Artifact `json:"input_attachments"`
+	VerificationCommands []string   `json:"verification_commands"`
+	PromptMarkdown       string     `json:"prompt_markdown"`
 }
 
 // Run tracks an individual execution attempt of a task under an agent runner.
@@ -123,24 +223,33 @@ const (
 	ArtifactTypeLog        ArtifactType = "LOG"
 	ArtifactTypeTestResult ArtifactType = "TEST_RESULT"
 	ArtifactTypeMarkdown   ArtifactType = "MARKDOWN"
+	ArtifactTypeDoc        ArtifactType = "DOC"
+	ArtifactTypeFile       ArtifactType = "FILE"
+)
+
+const (
+	ArtifactRoleInput  = "INPUT"
+	ArtifactRoleOutput = "OUTPUT"
 )
 
 // IsValid checks if the artifact type is supported.
 func (a ArtifactType) IsValid() bool {
 	switch a {
 	case ArtifactTypeDiff, ArtifactTypeImage, ArtifactTypeLog,
-		ArtifactTypeTestResult, ArtifactTypeMarkdown:
+		ArtifactTypeTestResult, ArtifactTypeMarkdown, ArtifactTypeDoc, ArtifactTypeFile:
 		return true
 	default:
 		return false
 	}
 }
 
-// Artifact represents a concrete file output tracked via the Claim-Check pattern.
+// Artifact represents a concrete file input or output tracked via the Claim-Check pattern.
 type Artifact struct {
 	ID        string       `json:"id"`
-	RunID     string       `json:"run_id"`
+	RunID     string       `json:"run_id,omitempty"`
 	TaskID    string       `json:"task_id"`
+	Role      string       `json:"role"` // "INPUT" (spec/mockup) or "OUTPUT" (diff/log/result)
+	Name      string       `json:"name"` // Display filename or caption
 	Type      ArtifactType `json:"type"`
 	FilePath  string       `json:"file_path"`
 	MimeType  string       `json:"mime_type"`
