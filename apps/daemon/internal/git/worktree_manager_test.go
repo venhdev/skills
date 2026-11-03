@@ -48,11 +48,11 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	return repoDir, cleanup
 }
 
-func TestLocalWorktreeManager_ResolveBranchName(t *testing.T) {
+func TestLocalWorktreeAdapter_ResolveBranchName(t *testing.T) {
 	repoDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	mgr := git.NewLocalWorktreeManager()
+	mgr := git.NewLocalWorktreeAdapter()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -90,11 +90,11 @@ func TestLocalWorktreeManager_ResolveBranchName(t *testing.T) {
 	}
 }
 
-func TestLocalWorktreeManager_MergeWorktree_Clean(t *testing.T) {
+func TestLocalWorktreeAdapter_MergeWorktree_Clean(t *testing.T) {
 	repoDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	mgr := git.NewLocalWorktreeManager()
+	mgr := git.NewLocalWorktreeAdapter()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -133,11 +133,11 @@ func TestLocalWorktreeManager_MergeWorktree_Clean(t *testing.T) {
 	}
 }
 
-func TestLocalWorktreeManager_MergeWorktree_Conflict(t *testing.T) {
+func TestLocalWorktreeAdapter_MergeWorktree_Conflict(t *testing.T) {
 	repoDir, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	mgr := git.NewLocalWorktreeManager()
+	mgr := git.NewLocalWorktreeAdapter()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -207,8 +207,8 @@ func TestLocalWorktreeManager_MergeWorktree_Conflict(t *testing.T) {
 	}
 }
 
-func TestLocalWorktreeManager_MergeWorktree_Errors(t *testing.T) {
-	mgr := git.NewLocalWorktreeManager()
+func TestLocalWorktreeAdapter_MergeWorktree_Errors(t *testing.T) {
+	mgr := git.NewLocalWorktreeAdapter()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

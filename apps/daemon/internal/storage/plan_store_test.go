@@ -305,7 +305,7 @@ func TestPlanStore_ClaimAndReviewMerge(t *testing.T) {
 	}
 }
 
-type mockWorktreeManager struct {
+type mockWorktreeAdapter struct {
 	merged    bool
 	conflicts []string
 	err       error
@@ -314,18 +314,18 @@ type mockWorktreeManager struct {
 	lastWt    string
 }
 
-func (m *mockWorktreeManager) MergeWorktree(ctx context.Context, repoRoot, worktreePath string) (bool, []string, error) {
+func (m *mockWorktreeAdapter) MergeWorktree(ctx context.Context, repoRoot, worktreePath string) (bool, []string, error) {
 	m.called = true
 	m.lastRepo = repoRoot
 	m.lastWt = worktreePath
 	return m.merged, m.conflicts, m.err
 }
 
-func (m *mockWorktreeManager) ResolveBranchName(ctx context.Context, worktreePath string) (string, error) {
+func (m *mockWorktreeAdapter) ResolveBranchName(ctx context.Context, worktreePath string) (string, error) {
 	return "feature-mock", nil
 }
 
-func TestPlanStore_MergeTask_WithWorktreeManager(t *testing.T) {
+func TestPlanStore_MergeTask_WithWorktreeAdapter(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_wt_merge.db")
 
@@ -366,11 +366,11 @@ func TestPlanStore_MergeTask_WithWorktreeManager(t *testing.T) {
 	}
 
 	// 1. Conflict test: mock returns merged=false with conflicts
-	mockMgr := &mockWorktreeManager{
+	mockAdapter := &mockWorktreeAdapter{
 		merged:    false,
 		conflicts: []string{"file_a.go", "file_b.go"},
 	}
-	store.SetWorktreeManager(mockMgr)
+	store.SetWorktreeAdapter(mockAdapter)
 
 	merged, conflicts, err := store.MergeTask(ctx, "task-wt-conflict")
 	if err != nil {
@@ -379,8 +379,8 @@ func TestPlanStore_MergeTask_WithWorktreeManager(t *testing.T) {
 	if merged {
 		t.Fatal("expected merged == false on conflict")
 	}
-	if !mockMgr.called || mockMgr.lastRepo != "/repo/root" || mockMgr.lastWt != "/repo/worktree-1" {
-		t.Fatalf("mock manager not invoked properly: %+v", mockMgr)
+	if !mockAdapter.called || mockAdapter.lastRepo != "/repo/root" || mockAdapter.lastWt != "/repo/worktree-1" {
+		t.Fatalf("mock adapter not invoked properly: %+v", mockAdapter)
 	}
 	if len(conflicts) != 2 || conflicts[0] != "file_a.go" {
 		t.Fatalf("unexpected conflicts returned: %v", conflicts)
@@ -399,10 +399,10 @@ func TestPlanStore_MergeTask_WithWorktreeManager(t *testing.T) {
 	}
 
 	// 2. Clean merge test: mock returns merged=true
-	mockMgrClean := &mockWorktreeManager{
+	mockAdapterClean := &mockWorktreeAdapter{
 		merged: true,
 	}
-	store.SetWorktreeManager(mockMgrClean)
+	store.SetWorktreeAdapter(mockAdapterClean)
 
 	mergedClean, conflictsClean, err := store.MergeTask(ctx, "task-wt-clean")
 	if err != nil {
@@ -411,8 +411,8 @@ func TestPlanStore_MergeTask_WithWorktreeManager(t *testing.T) {
 	if !mergedClean || len(conflictsClean) > 0 {
 		t.Fatalf("expected clean merge, got merged=%v, conflicts=%v", mergedClean, conflictsClean)
 	}
-	if !mockMgrClean.called || mockMgrClean.lastRepo != "/repo/root" || mockMgrClean.lastWt != "/repo/worktree-2" {
-		t.Fatalf("mock clean manager not invoked properly: %+v", mockMgrClean)
+	if !mockAdapterClean.called || mockAdapterClean.lastRepo != "/repo/root" || mockAdapterClean.lastWt != "/repo/worktree-2" {
+		t.Fatalf("mock clean adapter not invoked properly: %+v", mockAdapterClean)
 	}
 
 	// Verify task in DB is COMPLETED

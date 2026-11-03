@@ -11,7 +11,7 @@ import {
   CircleDashed,
   XCircle,
 } from 'lucide-react'
-import type { TaskStatus } from './contracts'
+import type { TaskStatus } from '../../types/contracts'
 
 export interface TaskStatusMetadata {
   label: string

@@ -8,22 +8,22 @@ import (
 	"strings"
 )
 
-// WorktreeManager abstracts Git worktree and branch merging operations.
-type WorktreeManager interface {
+// WorktreeAdapter abstracts Git worktree and branch merging operations.
+type WorktreeAdapter interface {
 	MergeWorktree(ctx context.Context, repoRoot, worktreePath string) (merged bool, conflicts []string, err error)
 	ResolveBranchName(ctx context.Context, worktreePath string) (string, error)
 }
 
-// LocalWorktreeManager implements WorktreeManager by executing local git CLI commands.
-type LocalWorktreeManager struct{}
+// LocalWorktreeAdapter implements WorktreeAdapter by executing local git CLI commands.
+type LocalWorktreeAdapter struct{}
 
-// NewLocalWorktreeManager constructs a new LocalWorktreeManager.
-func NewLocalWorktreeManager() *LocalWorktreeManager {
-	return &LocalWorktreeManager{}
+// NewLocalWorktreeAdapter constructs a new LocalWorktreeAdapter.
+func NewLocalWorktreeAdapter() *LocalWorktreeAdapter {
+	return &LocalWorktreeAdapter{}
 }
 
 // ResolveBranchName resolves the current branch name checked out at worktreePath.
-func (m *LocalWorktreeManager) ResolveBranchName(ctx context.Context, worktreePath string) (string, error) {
+func (m *LocalWorktreeAdapter) ResolveBranchName(ctx context.Context, worktreePath string) (string, error) {
 	if strings.TrimSpace(worktreePath) == "" {
 		return "", errors.New("worktreePath cannot be empty")
 	}
@@ -45,7 +45,7 @@ func (m *LocalWorktreeManager) ResolveBranchName(ctx context.Context, worktreePa
 // MergeWorktree merges the worktree branch into repoRoot.
 // On clean merge, it creates a merge commit and returns (true, nil, nil).
 // On merge conflict, it aborts the merge and returns (false, conflicts, nil).
-func (m *LocalWorktreeManager) MergeWorktree(ctx context.Context, repoRoot, worktreePath string) (bool, []string, error) {
+func (m *LocalWorktreeAdapter) MergeWorktree(ctx context.Context, repoRoot, worktreePath string) (bool, []string, error) {
 	if strings.TrimSpace(repoRoot) == "" {
 		return false, nil, errors.New("repoRoot cannot be empty")
 	}

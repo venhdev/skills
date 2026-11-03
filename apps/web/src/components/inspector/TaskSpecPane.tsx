@@ -23,7 +23,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import type { Task } from '../../types/contracts'
-import { getTaskStatusStyle } from '../../types/taskStatusStrategy'
+import { getTaskStatusStyle } from '../stage/taskStatusTheme'
 
 interface TaskSpecPaneProps {
   task: Task | null

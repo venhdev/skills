@@ -8,7 +8,7 @@ import {
   Unplug,
 } from 'lucide-react'
 import type { Task } from '../../types/contracts'
-import { TASK_STATUS_CONFIG } from '../../types/taskStatusStrategy'
+import { TASK_STATUS_CONFIG } from './taskStatusTheme'
 
 export interface TaskNodeData {
   task: Task

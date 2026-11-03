@@ -29,17 +29,17 @@ var _ domain.StorageEngine = (*Store)(nil)
 
 // Store implements domain.StorageEngine using the SQLite WAL DB.
 type Store struct {
-	db             *DB
-	worktreeMgr    git.WorktreeManager
-	promptCompiler prompt.Compiler
+	db              *DB
+	worktreeAdapter git.WorktreeAdapter
+	promptCompiler  prompt.Compiler
 }
 
 // NewStore creates a new domain.StorageEngine backed by the SQLite WAL DB.
 func NewStore(db *DB) *Store {
 	return &Store{
-		db:             db,
-		worktreeMgr:    git.NewLocalWorktreeManager(),
-		promptCompiler: prompt.NewCompiler(),
+		db:              db,
+		worktreeAdapter: git.NewLocalWorktreeAdapter(),
+		promptCompiler:  prompt.NewCompiler(),
 	}
 }
 
@@ -55,16 +55,16 @@ func (s *Store) getPromptCompiler() prompt.Compiler {
 	return prompt.NewCompiler()
 }
 
-// SetWorktreeManager overrides the Git worktree manager (used primarily for unit testing).
-func (s *Store) SetWorktreeManager(m git.WorktreeManager) {
-	s.worktreeMgr = m
+// SetWorktreeAdapter overrides the Git worktree adapter (used primarily for unit testing).
+func (s *Store) SetWorktreeAdapter(a git.WorktreeAdapter) {
+	s.worktreeAdapter = a
 }
 
-func (s *Store) getWorktreeManager() git.WorktreeManager {
-	if s.worktreeMgr != nil {
-		return s.worktreeMgr
+func (s *Store) getWorktreeAdapter() git.WorktreeAdapter {
+	if s.worktreeAdapter != nil {
+		return s.worktreeAdapter
 	}
-	return git.NewLocalWorktreeManager()
+	return git.NewLocalWorktreeAdapter()
 }
 
 // Close safely closes the underlying SQLite database connection pool.
@@ -159,6 +159,108 @@ func scanTask(s scanner) (*domain.Task, error) {
 	return &t, nil
 }
 
+const taskUpsertQuery = `
+INSERT INTO tasks (
+	id, plan_id, repo_path, title, description, dependencies,
+	priority, complexity, risk_level, required_skills, required_tools,
+	target_files, acceptance_criteria, verification_commands,
+	harness, skill_command, worktree_path, status, claimed_by, claimed_at,
+	orchestrator_id, worker_role, pid, orchestrator_pid, notes,
+	review_reason, review_details, review_options, review_response, resolved_by,
+	conflict_files, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+	title = excluded.title,
+	description = excluded.description,
+	dependencies = excluded.dependencies,
+	priority = excluded.priority,
+	complexity = excluded.complexity,
+	risk_level = excluded.risk_level,
+	required_skills = excluded.required_skills,
+	required_tools = excluded.required_tools,
+	target_files = excluded.target_files,
+	acceptance_criteria = excluded.acceptance_criteria,
+	verification_commands = excluded.verification_commands,
+	harness = excluded.harness,
+	skill_command = excluded.skill_command,
+	worktree_path = excluded.worktree_path,
+	status = excluded.status,
+	claimed_by = excluded.claimed_by,
+	claimed_at = excluded.claimed_at,
+	orchestrator_id = excluded.orchestrator_id,
+	worker_role = excluded.worker_role,
+	pid = excluded.pid,
+	orchestrator_pid = excluded.orchestrator_pid,
+	notes = excluded.notes,
+	review_reason = excluded.review_reason,
+	review_details = excluded.review_details,
+	review_options = excluded.review_options,
+	review_response = excluded.review_response,
+	resolved_by = excluded.resolved_by,
+	conflict_files = excluded.conflict_files,
+	updated_at = excluded.updated_at
+`
+
+func upsertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, defaultPlanID string, now time.Time) error {
+	if err := task.Validate(); err != nil {
+		return err
+	}
+	if task.CreatedAt.IsZero() {
+		task.CreatedAt = now
+	}
+	task.UpdatedAt = now
+	task.RepoPath = NormalizePath(task.RepoPath)
+
+	planID := task.PlanID
+	if planID == "" {
+		planID = defaultPlanID
+	}
+
+	if task.Status == "" {
+		task.Status = domain.StatusPending
+		if len(task.Dependencies) == 0 {
+			task.Status = domain.StatusReady
+		}
+	}
+
+	depsJSON, _ := json.Marshal(task.Dependencies)
+	skillsJSON, _ := json.Marshal(task.RequiredSkills)
+	toolsJSON, _ := json.Marshal(task.RequiredTools)
+	filesJSON, _ := json.Marshal(task.TargetFiles)
+	criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
+	verifJSON, _ := json.Marshal(task.VerificationCommands)
+	optionsJSON, _ := json.Marshal(task.ReviewOptions)
+	conflictJSON, _ := json.Marshal(task.ConflictFiles)
+
+	priority := string(task.Priority)
+	if priority == "" {
+		priority = string(domain.PriorityP2)
+	}
+	complexity := string(task.Complexity)
+	if complexity == "" {
+		complexity = string(domain.ComplexityMedium)
+	}
+	risk := string(task.RiskLevel)
+	if risk == "" {
+		risk = string(domain.RiskLow)
+	}
+
+	_, err := tx.ExecContext(ctx, taskUpsertQuery,
+		task.ID, planID, task.RepoPath, task.Title, task.Description, string(depsJSON),
+		priority, complexity, risk, string(skillsJSON), string(toolsJSON),
+		string(filesJSON), string(criteriaJSON), string(verifJSON),
+		task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
+		task.ClaimedBy, task.ClaimedAt,
+		task.OrchestratorID, task.WorkerRole, task.PID, task.OrchestratorPID, task.Notes,
+		task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
+		string(conflictJSON), task.CreatedAt, task.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to upsert task %s: %w", task.ID, err)
+	}
+	return nil
+}
+
 // SavePlanWithTasks writes a plan and its tasks in a single atomic transaction.
 func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks []domain.Task) error {
 	if plan.Slug == "" {
@@ -187,92 +289,10 @@ func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks [
 			return fmt.Errorf("failed to upsert plan: %w", err)
 		}
 
-		// Insert or update tasks
-		taskQuery := `
-		INSERT INTO tasks (
-			id, plan_id, repo_path, title, description, dependencies,
-			priority, complexity, risk_level, required_skills, required_tools,
-			target_files, acceptance_criteria, verification_commands,
-			harness, skill_command, worktree_path, status, claimed_by, claimed_at,
-			orchestrator_id, worker_role, pid, orchestrator_pid, notes,
-			review_reason, review_details, review_options, review_response, resolved_by,
-			conflict_files, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			title = excluded.title,
-			description = excluded.description,
-			dependencies = excluded.dependencies,
-			priority = excluded.priority,
-			complexity = excluded.complexity,
-			risk_level = excluded.risk_level,
-			required_skills = excluded.required_skills,
-			required_tools = excluded.required_tools,
-			target_files = excluded.target_files,
-			acceptance_criteria = excluded.acceptance_criteria,
-			verification_commands = excluded.verification_commands,
-			harness = excluded.harness,
-			skill_command = excluded.skill_command,
-			worktree_path = excluded.worktree_path,
-			status = excluded.status,
-			claimed_by = excluded.claimed_by,
-			claimed_at = excluded.claimed_at,
-			orchestrator_id = excluded.orchestrator_id,
-			worker_role = excluded.worker_role,
-			pid = excluded.pid,
-			orchestrator_pid = excluded.orchestrator_pid,
-			notes = excluded.notes,
-			review_reason = excluded.review_reason,
-			review_details = excluded.review_details,
-			review_options = excluded.review_options,
-			review_response = excluded.review_response,
-			resolved_by = excluded.resolved_by,
-			conflict_files = excluded.conflict_files,
-			updated_at = excluded.updated_at
-		`
-
+		// Insert or update tasks via centralized upsertTaskTx
 		for _, task := range tasks {
-			if err := task.Validate(); err != nil {
+			if err := upsertTaskTx(ctx, tx, &task, plan.Slug, now); err != nil {
 				return err
-			}
-			if task.CreatedAt.IsZero() {
-				task.CreatedAt = now
-			}
-			task.UpdatedAt = now
-
-			depsJSON, _ := json.Marshal(task.Dependencies)
-			skillsJSON, _ := json.Marshal(task.RequiredSkills)
-			toolsJSON, _ := json.Marshal(task.RequiredTools)
-			filesJSON, _ := json.Marshal(task.TargetFiles)
-			criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
-			verifJSON, _ := json.Marshal(task.VerificationCommands)
-			optionsJSON, _ := json.Marshal(task.ReviewOptions)
-			conflictJSON, _ := json.Marshal(task.ConflictFiles)
-
-			priority := string(task.Priority)
-			if priority == "" {
-				priority = string(domain.PriorityP2)
-			}
-			complexity := string(task.Complexity)
-			if complexity == "" {
-				complexity = string(domain.ComplexityMedium)
-			}
-			risk := string(task.RiskLevel)
-			if risk == "" {
-				risk = string(domain.RiskLow)
-			}
-
-			_, err = tx.ExecContext(ctx, taskQuery,
-				task.ID, plan.Slug, NormalizePath(task.RepoPath), task.Title, task.Description, string(depsJSON),
-				priority, complexity, risk, string(skillsJSON), string(toolsJSON),
-				string(filesJSON), string(criteriaJSON), string(verifJSON),
-				task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
-				task.ClaimedBy, task.ClaimedAt,
-				task.OrchestratorID, task.WorkerRole, task.PID, task.OrchestratorPID, task.Notes,
-				task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
-				string(conflictJSON), task.CreatedAt, task.UpdatedAt,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to upsert task %s: %w", task.ID, err)
 			}
 		}
 
@@ -495,22 +515,39 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID string, from domain
 			}
 			rows.Close()
 
-			// For each pending task, verify if ALL dependencies are COMPLETED
-			for _, pt := range pendingList {
-				allCompleted := true
-				for _, depID := range pt.deps {
-					var depStatus string
-					err := tx.QueryRowContext(ctx, "SELECT status FROM tasks WHERE id = ?", depID).Scan(&depStatus)
-					if err != nil || domain.TaskStatus(depStatus) != domain.StatusCompleted {
-						allCompleted = false
-						break
+			if len(pendingList) > 0 {
+				// Query all task statuses in this plan in a single query (eliminating N+1 loop)
+				statusRows, err := tx.QueryContext(ctx, "SELECT id, status FROM tasks WHERE plan_id = ?", planID)
+				if err != nil {
+					return err
+				}
+				defer statusRows.Close()
+
+				taskStatuses := make(map[string]domain.TaskStatus)
+				for statusRows.Next() {
+					var id, st string
+					if err := statusRows.Scan(&id, &st); err == nil {
+						taskStatuses[id] = domain.TaskStatus(st)
 					}
 				}
+				statusRows.Close()
 
-				if allCompleted {
-					_, err := tx.ExecContext(ctx, "UPDATE tasks SET status = 'READY', updated_at = ? WHERE id = ?", now, pt.id)
-					if err != nil {
-						return fmt.Errorf("failed to unlock ready task %s: %w", pt.id, err)
+				// For each pending task, verify if ALL dependencies are COMPLETED in memory
+				for _, pt := range pendingList {
+					allCompleted := true
+					for _, depID := range pt.deps {
+						if taskStatuses[depID] != domain.StatusCompleted {
+							allCompleted = false
+							break
+						}
+					}
+
+					if allCompleted {
+						_, err := tx.ExecContext(ctx, "UPDATE tasks SET status = 'READY', updated_at = ? WHERE id = ?", now, pt.id)
+						if err != nil {
+							return fmt.Errorf("failed to unlock ready task %s: %w", pt.id, err)
+						}
+						taskStatuses[pt.id] = domain.StatusReady
 					}
 				}
 			}
@@ -798,9 +835,9 @@ func (s *Store) MergeTask(ctx context.Context, taskID string) (bool, []string, e
 		return false, nil, fmt.Errorf("%w: task %s is not ready to merge (current status: %s)", ErrInvalidState, taskID, t.Status)
 	}
 
-	// If WorktreePath is specified, delegate merge execution to WorktreeManager
+	// If WorktreePath is specified, delegate merge execution to WorktreeAdapter
 	if t.WorktreePath != "" {
-		merged, conflicts, err := s.getWorktreeManager().MergeWorktree(ctx, t.RepoPath, t.WorktreePath)
+		merged, conflicts, err := s.getWorktreeAdapter().MergeWorktree(ctx, t.RepoPath, t.WorktreePath)
 		if err != nil {
 			return false, nil, err
 		}
@@ -1152,81 +1189,8 @@ func (s *Store) DeletePlan(ctx context.Context, slug string) error {
 // CreateTask inserts a single task.
 func (s *Store) CreateTask(ctx context.Context, task domain.Task) error {
 	now := time.Now().UTC()
-	if task.CreatedAt.IsZero() {
-		task.CreatedAt = now
-	}
-	task.UpdatedAt = now
-	task.RepoPath = NormalizePath(task.RepoPath)
-
-	depsJSON, _ := json.Marshal(task.Dependencies)
-	skillsJSON, _ := json.Marshal(task.RequiredSkills)
-	toolsJSON, _ := json.Marshal(task.RequiredTools)
-	filesJSON, _ := json.Marshal(task.TargetFiles)
-	criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
-	verifJSON, _ := json.Marshal(task.VerificationCommands)
-	optionsJSON, _ := json.Marshal(task.ReviewOptions)
-	conflictJSON, _ := json.Marshal(task.ConflictFiles)
-
-	priority := string(task.Priority)
-	if priority == "" {
-		priority = string(domain.PriorityP2)
-	}
-	complexity := string(task.Complexity)
-	if complexity == "" {
-		complexity = string(domain.ComplexityMedium)
-	}
-	risk := string(task.RiskLevel)
-	if risk == "" {
-		risk = string(domain.RiskLow)
-	}
-	if task.Status == "" {
-		task.Status = domain.StatusPending
-		if len(task.Dependencies) == 0 {
-			task.Status = domain.StatusReady
-		}
-	}
-
 	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		query := `
-		INSERT INTO tasks (
-			id, plan_id, repo_path, title, description, dependencies,
-			priority, complexity, risk_level, required_skills, required_tools,
-			target_files, acceptance_criteria, verification_commands,
-			harness, skill_command, worktree_path, status, claimed_by, claimed_at,
-			orchestrator_id, worker_role, pid, orchestrator_pid, notes,
-			review_reason, review_details, review_options, review_response, resolved_by,
-			conflict_files, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			title = excluded.title,
-			description = excluded.description,
-			dependencies = excluded.dependencies,
-			priority = excluded.priority,
-			complexity = excluded.complexity,
-			risk_level = excluded.risk_level,
-			required_skills = excluded.required_skills,
-			required_tools = excluded.required_tools,
-			target_files = excluded.target_files,
-			acceptance_criteria = excluded.acceptance_criteria,
-			verification_commands = excluded.verification_commands,
-			harness = excluded.harness,
-			skill_command = excluded.skill_command,
-			worktree_path = excluded.worktree_path,
-			status = excluded.status,
-			notes = excluded.notes,
-			updated_at = excluded.updated_at
-		`
-		_, err := tx.ExecContext(ctx, query,
-			task.ID, task.PlanID, task.RepoPath, task.Title, task.Description, string(depsJSON),
-			priority, complexity, risk, string(skillsJSON), string(toolsJSON),
-			string(filesJSON), string(criteriaJSON), string(verifJSON),
-			task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
-			task.ClaimedBy, task.ClaimedAt,
-			task.OrchestratorID, task.WorkerRole, task.PID, task.OrchestratorPID, task.Notes,
-			task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
-			string(conflictJSON), task.CreatedAt, task.UpdatedAt,
-		)
-		return err
+		return upsertTaskTx(ctx, tx, &task, task.PlanID, now)
 	})
 }
 
