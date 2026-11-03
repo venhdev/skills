@@ -2,6 +2,8 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -31,7 +34,7 @@ func NewServer(store domain.StorageEngine, repoPath string) *Server {
 		repoPath, _ = os.Getwd()
 	}
 	s := &Server{
-		mcpServer: server.NewMCPServer("zenfd", "2.3.0", server.WithToolCapabilities(true), server.WithResourceCapabilities(true, true)),
+		mcpServer: server.NewMCPServer("zenfd", "2.5.0", server.WithToolCapabilities(true), server.WithResourceCapabilities(true, true)),
 		store:     store,
 		repoPath:  repoPath,
 	}
@@ -53,7 +56,97 @@ func (s *Server) ServeStdio() error {
 }
 
 func (s *Server) registerTools() {
-	// 1. zenfd_push_plan
+	// 1. zenfd_create_plan
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_create_plan",
+			mcp.WithDescription("Creates a new living plan directly in SQLite WAL (SSOT)."),
+			mcp.WithString("slug", mcp.Required(), mcp.Description("Unique plan slug (e.g. 'zenfd' or 'auth-refactor')")),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Human-readable title of the plan")),
+			mcp.WithString("repo_path", mcp.Description("Repository path. Defaults to server working directory")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			slug, err := request.RequireString("slug")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := request.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repoPath := request.GetString("repo_path", s.repoPath)
+			plan := domain.Plan{
+				Slug:      slug,
+				Title:     title,
+				RepoPath:  repoPath,
+				Status:    "ACTIVE",
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			}
+			if err := s.store.CreatePlan(ctx, plan); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create plan: %v", err)), nil
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("Plan '%s' (%s) created successfully in SQLite WAL.", slug, title)), nil
+		},
+	)
+
+	// 1b. zenfd_create_task
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_create_task",
+			mcp.WithDescription("Creates a vertical slice task in a plan DAG directly in SQLite WAL."),
+			mcp.WithString("plan_id", mcp.Required(), mcp.Description("Parent plan slug")),
+			mcp.WithString("id", mcp.Required(), mcp.Description("Unique task ID (e.g. 'P-01')")),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Task title")),
+			mcp.WithString("description", mcp.Description("Detailed task description and context")),
+			mcp.WithArray("dependencies", mcp.Description("List of prerequisite task IDs")),
+			mcp.WithArray("target_files", mcp.Description("Target files for this task")),
+			mcp.WithArray("skills", mcp.Description("Required skill names")),
+			mcp.WithString("priority", mcp.Description("P0, P1, P2, P3")),
+			mcp.WithString("harness", mcp.Description("Execution harness (default 'orchestrator' for agent-driven tasks, or 'shell')")),
+			mcp.WithString("worktree_path", mcp.Description("Optional worktree path")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			planID, err := request.RequireString("plan_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			id, err := request.RequireString("id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := request.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			desc := request.GetString("description", "")
+			deps := request.GetStringSlice("dependencies", []string{})
+			files := request.GetStringSlice("target_files", []string{})
+			skills := request.GetStringSlice("skills", []string{})
+			priority := domain.TaskPriority(request.GetString("priority", "P2"))
+			harness := request.GetString("harness", "orchestrator")
+			worktreePath := request.GetString("worktree_path", "")
+
+			task := domain.Task{
+				ID:             id,
+				PlanID:         planID,
+				RepoPath:       s.repoPath,
+				Title:          title,
+				Description:    desc,
+				Dependencies:   deps,
+				TargetFiles:    files,
+				RequiredSkills: skills,
+				Priority:       priority,
+				WorktreePath:   worktreePath,
+				Harness:        harness,
+				SkillCommand:   fmt.Sprintf("zenfd task claim %s", id),
+			}
+			if err := s.store.CreateTask(ctx, task); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create task: %v", err)), nil
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("Task '%s' created successfully in plan '%s'.", id, planID)), nil
+		},
+	)
+
+	// 1c. zenfd_push_plan (Deprecated living plan markdown ingestion)
 	s.mcpServer.AddTool(
 		mcp.NewTool("zenfd_push_plan",
 			mcp.WithDescription("Ingests a living plan markdown file into SQLite WAL and resolves initial task DAG."),
@@ -91,6 +184,8 @@ func (s *Server) registerTools() {
 			mcp.WithDescription("Atomically claims a READY task with mutual exclusion lock, transitions to RUNNING, and returns its ContextPacket."),
 			mcp.WithString("task_id", mcp.Required(), mcp.Description("Unique task ID to claim")),
 			mcp.WithString("worker_id", mcp.Description("Optional worker or subagent identifier")),
+			mcp.WithString("orchestrator_id", mcp.Description("Optional orchestrator session ID")),
+			mcp.WithString("worker_role", mcp.Description("Optional worker role (e.g. 'CODER', 'TESTER', 'INSPECTOR')")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			taskID, err := request.RequireString("task_id")
@@ -98,12 +193,97 @@ func (s *Server) registerTools() {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			workerID := request.GetString("worker_id", fmt.Sprintf("worker-%d", os.Getpid()))
-			packet, err := s.store.ClaimTask(ctx, taskID, workerID, os.Getpid())
+			orchestratorID := request.GetString("orchestrator_id", "")
+			workerRole := request.GetString("worker_role", "CODER")
+
+			packet, err := s.store.ClaimTaskWithMeta(ctx, taskID, workerID, orchestratorID, workerRole, os.Getpid(), 0)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to claim task %s: %v", taskID, err)), nil
 			}
 			bytes, _ := json.MarshalIndent(packet, "", "  ")
 			return mcp.NewToolResultText(string(bytes)), nil
+		},
+	)
+
+	// 2b. zenfd_reclaim_task
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_reclaim_task",
+			mcp.WithDescription("Re-claims a SUSPENDED task with a new agent, preserving worktree and diff."),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Unique task ID to re-claim")),
+			mcp.WithString("worker_id", mcp.Description("New worker or subagent identifier")),
+			mcp.WithString("orchestrator_id", mcp.Description("New orchestrator session ID")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			taskID, err := request.RequireString("task_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			workerID := request.GetString("worker_id", fmt.Sprintf("worker-%d", os.Getpid()))
+			orchestratorID := request.GetString("orchestrator_id", "")
+
+			packet, err := s.store.ReclaimTask(ctx, taskID, workerID, orchestratorID, os.Getpid())
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to reclaim task %s: %v", taskID, err)), nil
+			}
+			bytes, _ := json.MarshalIndent(packet, "", "  ")
+			return mcp.NewToolResultText(string(bytes)), nil
+		},
+	)
+
+	// 2c. zenfd_evict_task
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_evict_task",
+			mcp.WithDescription("Evicts a hung or stalled subagent from a task, resetting it to READY or CANCELLED."),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID to evict")),
+			mcp.WithString("reason", mcp.Description("Reason for eviction")),
+			mcp.WithString("action", mcp.Description("'RESET_TO_READY' (default) or 'CANCEL'")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			taskID, err := request.RequireString("task_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			reason := request.GetString("reason", "Evicted by orchestrator")
+			action := request.GetString("action", "RESET_TO_READY")
+
+			if err := s.store.EvictTask(ctx, taskID, reason, action); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to evict task: %v", err)), nil
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("Task %s evicted (action: %s).", taskID, action)), nil
+		},
+	)
+
+	// 2d. zenfd_register_session
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_register_session",
+			mcp.WithDescription("Registers an agent session (orchestrator or subagent) in the agent_sessions registry."),
+			mcp.WithString("session_id", mcp.Required(), mcp.Description("Unique session identifier")),
+			mcp.WithString("parent_session_id", mcp.Description("Optional parent session ID (if subagent)")),
+			mcp.WithString("role", mcp.Description("'ORCHESTRATOR' or 'SUBAGENT'")),
+			mcp.WithString("name", mcp.Description("Human-readable agent title")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			sessionID, err := request.RequireString("session_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			parentID := request.GetString("parent_session_id", "")
+			role := request.GetString("role", "ORCHESTRATOR")
+			name := request.GetString("name", "Agent")
+
+			sess := domain.AgentSession{
+				SessionID:       sessionID,
+				ParentSessionID: parentID,
+				Role:            role,
+				Name:            name,
+				PID:             os.Getpid(),
+				Status:          "ACTIVE",
+				ClaimedTasks:    []string{},
+			}
+			if err := s.store.RegisterSession(ctx, sess); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to register session: %v", err)), nil
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("Session '%s' registered with role '%s'.", sessionID, role)), nil
 		},
 	)
 
@@ -140,7 +320,7 @@ func (s *Server) registerTools() {
 	// 4. zenfd_resolve_review
 	s.mcpServer.AddTool(
 		mcp.NewTool("zenfd_resolve_review",
-			mcp.WithDescription("Resolves an AWAITING_REVIEW task by recording developer guidance and transitioning back to RUNNING."),
+			mcp.WithDescription("Resolves an AWAITING_REVIEW task by recording developer guidance and transitioning back to READY for agent claim."),
 			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID currently in AWAITING_REVIEW")),
 			mcp.WithString("response", mcp.Required(), mcp.Description("Developer decision or guidance string")),
 		),
@@ -156,7 +336,7 @@ func (s *Server) registerTools() {
 			if err := s.store.ResolveReview(ctx, taskID, response); err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to resolve review: %v", err)), nil
 			}
-			return mcp.NewToolResultText(fmt.Sprintf("Task %s resumed back to RUNNING with developer decision.", taskID)), nil
+			return mcp.NewToolResultText(fmt.Sprintf("Task %s resolved and transitioned to READY with guidance recorded.", taskID)), nil
 		},
 	)
 
@@ -349,6 +529,194 @@ func (s *Server) registerTools() {
 				}
 			}
 			return mcp.NewToolResultText(fmt.Sprintf("Exported %d docs to %s:\n%s", len(exported), targetDir, strings.Join(exported, "\n"))), nil
+		},
+	)
+
+	// 12. zenfd_upsert_spec
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_upsert_spec",
+			mcp.WithDescription("Upserts a multi-tiered technical specification (Topology, Dynamics, Persistence, Contracts, ADR) directly into SQLite WAL."),
+			mcp.WithString("slug", mcp.Required(), mcp.Description("Unique specification slug (e.g. 'topology-core', 'auth-flow')")),
+			mcp.WithString("title", mcp.Required(), mcp.Description("Human-readable title")),
+			mcp.WithNumber("tier", mcp.Description("Architecture Tier (1: Topology, 2: Dynamics, 3: Data, 4: Contracts, 5: ADR). Defaults to 1")),
+			mcp.WithString("kind", mcp.Description("Specification kind ('CONTEXT', 'FLOWCHART', 'SEQUENCE', 'STATE', 'ERD', 'CONTRACT', 'ADR')")),
+			mcp.WithString("diagram_type", mcp.Description("Diagram syntax ('mermaid:flowchart', 'mermaid:sequenceDiagram', 'mermaid:erDiagram', 'json:schema')")),
+			mcp.WithString("diagram_code", mcp.Description("Pure Mermaid diagram source code or schema text")),
+			mcp.WithString("structured_payload", mcp.Description("Optional JSON object string conveying schema or contract parameters")),
+			mcp.WithString("notes", mcp.Description("Architectural notes, invariants, or rationale")),
+			mcp.WithArray("bound_paths", mcp.Description("List of file or directory path patterns bound to this spec for auto-linking")),
+			mcp.WithString("repo_path", mcp.Description("Optional repository path")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			slug, err := request.RequireString("slug")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := request.RequireString("title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			tierFloat := request.GetFloat("tier", 1.0)
+			tier := int(tierFloat)
+			kind := request.GetString("kind", "CONTEXT")
+			diagramType := request.GetString("diagram_type", "mermaid:flowchart")
+			diagramCode := request.GetString("diagram_code", "")
+			notes := request.GetString("notes", "")
+			boundPaths := request.GetStringSlice("bound_paths", []string{})
+			repo := request.GetString("repo_path", s.repoPath)
+
+			payloadMap := make(map[string]any)
+			payloadStr := request.GetString("structured_payload", "")
+			if payloadStr != "" {
+				_ = json.Unmarshal([]byte(payloadStr), &payloadMap)
+			}
+
+			spec := domain.TechSpec{
+				Slug:              slug,
+				RepoPath:          repo,
+				Tier:              tier,
+				Kind:              kind,
+				Title:             title,
+				DiagramType:       diagramType,
+				DiagramCode:       diagramCode,
+				StructuredPayload: payloadMap,
+				Notes:             notes,
+				BoundPaths:        boundPaths,
+			}
+
+			saved, err := s.store.UpsertSpec(ctx, spec)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to save spec: %v", err)), nil
+			}
+			res := map[string]any{
+				"slug":        saved.Slug,
+				"title":       saved.Title,
+				"tier":        saved.Tier,
+				"kind":        saved.Kind,
+				"version":     saved.Version,
+				"bound_paths": saved.BoundPaths,
+				"status":      "SAVED",
+			}
+			bytes, _ := json.MarshalIndent(res, "", "  ")
+			return mcp.NewToolResultText(string(bytes)), nil
+		},
+	)
+
+	// 13. zenfd_get_spec
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_get_spec",
+			mcp.WithDescription("Retrieves a technical specification by slug from SQLite WAL."),
+			mcp.WithString("slug", mcp.Required(), mcp.Description("Specification slug")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			slug, err := request.RequireString("slug")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			spec, err := s.store.GetSpec(ctx, slug)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("spec not found: %v", err)), nil
+			}
+			bytes, _ := json.MarshalIndent(spec, "", "  ")
+			return mcp.NewToolResultText(string(bytes)), nil
+		},
+	)
+
+	// 14. zenfd_search_specs
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_search_specs",
+			mcp.WithDescription("Full-text FTS5 search across all technical specifications, diagrams, and notes in SQLite WAL."),
+			mcp.WithString("query", mcp.Required(), mcp.Description("Search terms or FTS5 query string")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			query, err := request.RequireString("query")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			specs, err := s.store.SearchSpecs(ctx, query)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("search failed: %v", err)), nil
+			}
+			res := map[string]any{
+				"query":   query,
+				"count":   len(specs),
+				"results": specs,
+			}
+			bytes, _ := json.MarshalIndent(res, "", "  ")
+			return mcp.NewToolResultText(string(bytes)), nil
+		},
+	)
+
+	// 15. zenfd_snapshot_plan
+	s.mcpServer.AddTool(
+		mcp.NewTool("zenfd_snapshot_plan",
+			mcp.WithDescription("Captures an atomic snapshot of a living plan folder into SQLite WAL under a semantic revision tag (e.g. 'v1.0', 'v2.5')."),
+			mcp.WithString("plan_slug", mcp.Required(), mcp.Description("Unique plan slug (e.g. 'zenfd')")),
+			mcp.WithString("folder_path", mcp.Required(), mcp.Description("Disk path of the plan folder to snapshot (e.g. '.agents/scratch/plans/zenfd/')")),
+			mcp.WithString("revision", mcp.Description("Semantic revision string (defaults to 'v1.0')")),
+			mcp.WithString("author", mcp.Description("Author or agent name creating the snapshot")),
+			mcp.WithString("summary", mcp.Description("Brief summary of changes in this revision")),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			planSlug, err := request.RequireString("plan_slug")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			folderPath, err := request.RequireString("folder_path")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if !filepath.IsAbs(folderPath) {
+				folderPath = filepath.Join(s.repoPath, folderPath)
+			}
+			revision := request.GetString("revision", "v1.0")
+			author := request.GetString("author", "agent")
+			summary := request.GetString("summary", "Snapshot captured via MCP")
+
+			var snapshotFiles []domain.SnapshotFile
+			err = filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil || info.IsDir() {
+					return nil
+				}
+				rel, relErr := filepath.Rel(folderPath, path)
+				if relErr != nil {
+					rel = filepath.Base(path)
+				}
+				if strings.HasPrefix(filepath.Base(path), ".") || strings.Contains(path, "node_modules") {
+					return nil
+				}
+				contentBytes, readErr := os.ReadFile(path)
+				if readErr != nil {
+					return nil
+				}
+				h := sha256.Sum256(contentBytes)
+				snapshotFiles = append(snapshotFiles, domain.SnapshotFile{
+					PlanSlug:  planSlug,
+					Revision:  revision,
+					FilePath:  rel,
+					Content:   string(contentBytes),
+					ByteSize:  info.Size(),
+					SHA256:    hex.EncodeToString(h[:]),
+					CreatedAt: time.Now().UTC(),
+				})
+				return nil
+			})
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to read folder %s: %v", folderPath, err)), nil
+			}
+
+			if err := s.store.SavePlanSnapshot(ctx, planSlug, revision, author, summary, snapshotFiles); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to save snapshot: %v", err)), nil
+			}
+
+			res := map[string]any{
+				"plan_slug":   planSlug,
+				"revision":    revision,
+				"files_count": len(snapshotFiles),
+				"status":      "SNAPSHOT_CAPTURED",
+			}
+			bytes, _ := json.MarshalIndent(res, "", "  ")
+			return mcp.NewToolResultText(string(bytes)), nil
 		},
 	)
 }
@@ -547,6 +915,25 @@ func (s *Server) registerResources() {
 					URI:      uri,
 					MIMEType: "text/plain",
 					Text:     diff,
+				},
+			}, nil
+		},
+	)
+
+	// 9. zenfd://global/sessions
+	s.mcpServer.AddResource(
+		mcp.NewResource("zenfd://global/sessions", "Active Agent Sessions", mcp.WithResourceDescription("Active orchestrators and subagents in the local operating environment")),
+		func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			sessions, err := s.store.ListSessions(ctx)
+			if err != nil {
+				return nil, err
+			}
+			bytes, _ := json.MarshalIndent(sessions, "", "  ")
+			return []mcp.ResourceContents{
+				mcp.TextResourceContents{
+					URI:      "zenfd://global/sessions",
+					MIMEType: "application/json",
+					Text:     string(bytes),
 				},
 			}, nil
 		},

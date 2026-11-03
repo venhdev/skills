@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react'
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -8,6 +8,7 @@ import {
   MiniMap,
   type Node,
   type Edge,
+  type Connection,
   MarkerType,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -21,6 +22,7 @@ interface DAGCanvasProps {
   selectedTaskId: string | null
   onSelectTask: (task: Task, source?: 'sidebar' | 'canvas' | 'dock') => void
   focusTarget?: { id: string; timestamp: number } | null
+  onUpdateDependencies?: (taskId: string, dependencies: string[]) => Promise<any>
 }
 
 const nodeTypes = {
@@ -33,18 +35,23 @@ function FlowFocusHandler({
 }: {
   focusTarget?: { id: string; timestamp: number } | null
 }) {
-  const { fitView } = useReactFlow()
+  const { fitView, getNode } = useReactFlow()
 
   useEffect(() => {
     if (!focusTarget?.id) return
-    // Smooth auto-focus onto the selected node: 600ms, maxZoom 1.0, padding 0.3
-    fitView({
-      nodes: [{ id: focusTarget.id }],
-      duration: 600,
-      padding: 0.3,
-      maxZoom: 1.0,
-    })
-  }, [focusTarget, fitView])
+    const timer = setTimeout(() => {
+      const node = getNode(focusTarget.id)
+      if (node && node.measured?.width) {
+        fitView({
+          nodes: [{ id: focusTarget.id }],
+          duration: 400,
+          padding: 0.3,
+          maxZoom: 1.2,
+        })
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [focusTarget, fitView, getNode])
 
   return null
 }
@@ -119,14 +126,17 @@ function computeLayout(tasks: Task[]): { nodes: Node[]; edges: Edge[] } {
             id: `edge-${depId}-${task.id}`,
             source: depId,
             target: task.id,
+            type: 'smoothstep',
             animated: isRunning,
             style: {
-              stroke: isRunning ? '#a855f7' : isDone ? '#10b981' : '#3f3f46',
-              strokeWidth: isRunning ? 2.5 : 1.5,
+              stroke: isRunning ? '#a855f7' : isDone ? '#10b981' : '#52525b',
+              strokeWidth: isRunning ? 2.5 : 2,
             },
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: isRunning ? '#a855f7' : isDone ? '#10b981' : '#52525b',
+              color: isRunning ? '#a855f7' : isDone ? '#10b981' : '#71717a',
+              width: 16,
+              height: 16,
             },
           })
         }
@@ -159,10 +169,50 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
   selectedTaskId,
   onSelectTask,
   focusTarget,
+  onUpdateDependencies,
 }) => {
   const [viewMode, setViewMode] = useState<'dag' | 'swimlanes'>('dag')
   const [isMapActive, setIsMapActive] = useState(false)
   const mapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleConnect = useCallback(
+    (connection: Connection) => {
+      if (!onUpdateDependencies || !connection.source || !connection.target) return
+      if (connection.source === connection.target) return
+      const targetTask = tasks.find((t) => t.id === connection.target)
+      if (!targetTask) return
+      const currentDeps = targetTask.dependencies || []
+      if (!currentDeps.includes(connection.source)) {
+        const newDeps = [...currentDeps, connection.source]
+        onUpdateDependencies(targetTask.id, newDeps)
+      }
+    },
+    [onUpdateDependencies, tasks]
+  )
+
+  const handleEdgesDelete = useCallback(
+    (deletedEdges: Edge[]) => {
+      if (!onUpdateDependencies || deletedEdges.length === 0) return
+      const targetMap = new Map<string, Set<string>>()
+      deletedEdges.forEach((edge) => {
+        if (!targetMap.has(edge.target)) {
+          targetMap.set(edge.target, new Set())
+        }
+        targetMap.get(edge.target)!.add(edge.source)
+      })
+
+      targetMap.forEach((deletedSources, targetId) => {
+        const targetTask = tasks.find((t) => t.id === targetId)
+        if (targetTask) {
+          const newDeps = (targetTask.dependencies || []).filter(
+            (dep) => !deletedSources.has(dep)
+          )
+          onUpdateDependencies(targetTask.id, newDeps)
+        }
+      })
+    },
+    [onUpdateDependencies, tasks]
+  )
 
   const handleMapActivity = () => {
     setIsMapActive(true)
@@ -291,6 +341,8 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            onConnect={handleConnect}
+            onEdgesDelete={handleEdgesDelete}
             fitView
             fitViewOptions={{ padding: 0.25, includeHiddenNodes: false }}
             minZoom={0.1}

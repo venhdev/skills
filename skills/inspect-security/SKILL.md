@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 ### 1. Scope & Tolerability Guardrails (What to Ignore)
 
-- **Mandatory Target Scope**: The user MUST specify an explicit target path (`file`, `directory`, or `subsystem`). If no target scope is provided, halt turn immediately and prompt user: `"Vui lòng chỉ định rõ phạm vi kiểm tra (file, thư mục hoặc subsystem) khi sử dụng /inspect-security."`; forbid speculative full-repository scans.
+- **Mandatory Target Scope**: The user MUST specify an explicit target path (`file`, `directory`, or `subsystem`). If no target scope is provided, halt turn immediately and prompt user: `"Please specify an explicit target scope (file, directory, or subsystem) when invoking /inspect-security."`; forbid speculative full-repository scans.
 - **Vulnerability Debt vs. Linter Nits**: Confine analysis strictly to actionable threat exposure, broken authorization, cryptographic flaws, taint sinks, and concurrency races; defer basic AST formatting, syntax stylistic preferences, and whitespace entirely to native linters.
 - **Governing Reference**: Evaluate security patterns strictly against `references/security-rubric.md`.
 
@@ -48,7 +48,7 @@ disable-model-invocation: true
 
 1. **Intake & Scope Gate**:
    - Ingest target scope (`file`, `directory`, or `subsystem`).
-   - **Enforce Scope Gate**: If no explicit scope is provided, halt turn immediately and prompt user: `"Vui lòng chỉ định rõ phạm vi kiểm tra (file, thư mục hoặc subsystem) khi sử dụng /inspect-security."`
+   - **Enforce Scope Gate**: If no explicit scope is provided, halt turn immediately and prompt user: `"Please specify an explicit target scope (file, directory, or subsystem) when invoking /inspect-security."`
    - Read and ground in `references/security-rubric.md`.
 
 2. **Scale-Adaptive Pragmatic Audit**:

@@ -9,7 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	_ "github.com/ncruces/go-sqlite3/driver"
+	"github.com/ncruces/go-sqlite3/driver"
+	"github.com/ncruces/go-sqlite3/ext/fts5"
 )
 
 // DDL for initializing the SQLite database schema.
@@ -45,10 +46,16 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT NOT NULL,
     claimed_by TEXT NOT NULL DEFAULT '',
     claimed_at DATETIME,
+    orchestrator_id TEXT NOT NULL DEFAULT '',
+    worker_role TEXT NOT NULL DEFAULT '',
+    pid INTEGER NOT NULL DEFAULT 0,
+    orchestrator_pid INTEGER NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
     review_reason TEXT NOT NULL DEFAULT '',
     review_details TEXT NOT NULL DEFAULT '',
     review_options TEXT NOT NULL DEFAULT '[]',
     review_response TEXT NOT NULL DEFAULT '',
+    resolved_by TEXT NOT NULL DEFAULT '',
     conflict_files TEXT NOT NULL DEFAULT '[]',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
@@ -56,6 +63,19 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_plan ON tasks (plan_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_repo_status ON tasks (repo_path, status);
+
+CREATE TABLE IF NOT EXISTS agent_sessions (
+    session_id TEXT PRIMARY KEY,
+    parent_session_id TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT 'SUBAGENT',
+    name TEXT NOT NULL DEFAULT '',
+    pid INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    claimed_tasks TEXT NOT NULL DEFAULT '[]',
+    created_at DATETIME NOT NULL,
+    last_beat_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions (status);
 
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
@@ -115,6 +135,73 @@ CREATE TABLE IF NOT EXISTS project_docs (
     PRIMARY KEY (repo_path, slug)
 );
 CREATE INDEX IF NOT EXISTS idx_project_docs_repo ON project_docs (repo_path, category);
+
+CREATE TABLE IF NOT EXISTS tech_specs (
+    slug TEXT PRIMARY KEY,
+    repo_path TEXT NOT NULL,
+    tier INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    diagram_type TEXT NOT NULL,
+    diagram_code TEXT NOT NULL DEFAULT '',
+    structured_payload TEXT NOT NULL DEFAULT '{}',
+    notes TEXT NOT NULL DEFAULT '',
+    bound_paths TEXT NOT NULL DEFAULT '[]',
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tech_specs_repo_tier ON tech_specs (repo_path, tier, kind);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS tech_specs_fts USING fts5(
+    slug,
+    title,
+    diagram_code,
+    notes,
+    content='tech_specs',
+    content_rowid='rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_tech_specs_ai AFTER INSERT ON tech_specs BEGIN
+  INSERT INTO tech_specs_fts(rowid, slug, title, diagram_code, notes)
+  VALUES (new.rowid, new.slug, new.title, new.diagram_code, new.notes);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tech_specs_ad AFTER DELETE ON tech_specs BEGIN
+  INSERT INTO tech_specs_fts(tech_specs_fts, rowid, slug, title, diagram_code, notes)
+  VALUES ('delete', old.rowid, old.slug, old.title, old.diagram_code, old.notes);
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tech_specs_au AFTER UPDATE ON tech_specs BEGIN
+  INSERT INTO tech_specs_fts(tech_specs_fts, rowid, slug, title, diagram_code, notes)
+  VALUES ('delete', old.rowid, old.slug, old.title, old.diagram_code, old.notes);
+  INSERT INTO tech_specs_fts(rowid, slug, title, diagram_code, notes)
+  VALUES (new.rowid, new.slug, new.title, new.diagram_code, new.notes);
+END;
+
+CREATE TABLE IF NOT EXISTS plan_revisions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plan_slug TEXT NOT NULL,
+    revision TEXT NOT NULL,
+    author TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (plan_slug) REFERENCES plans (slug) ON DELETE CASCADE,
+    UNIQUE (plan_slug, revision)
+);
+CREATE INDEX IF NOT EXISTS idx_plan_revisions_plan ON plan_revisions (plan_slug);
+
+CREATE TABLE IF NOT EXISTS plan_snapshots (
+    plan_slug TEXT NOT NULL,
+    revision TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    content TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (plan_slug, revision, file_path),
+    FOREIGN KEY (plan_slug) REFERENCES plans (slug) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_plan_snapshots_slug_rev ON plan_snapshots (plan_slug, revision);
 `
 
 // DB encapsulates the connection pool and migration runner for SQLite WAL.
@@ -132,9 +219,9 @@ func Open(dbPath string) (*DB, error) {
 	}
 
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)", dbPath)
-	conn, err := sql.Open("sqlite3", dsn)
+	conn, err := driver.Open(dsn, fts5.Register)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
+		return nil, fmt.Errorf("failed to open sqlite database with fts5: %w", err)
 	}
 
 	// Connection pool tuning for SQLite WAL
@@ -188,6 +275,12 @@ func Open(dbPath string) (*DB, error) {
 		"ALTER TABLE tasks ADD COLUMN review_options TEXT NOT NULL DEFAULT '[]';",
 		"ALTER TABLE tasks ADD COLUMN review_response TEXT NOT NULL DEFAULT '';",
 		"ALTER TABLE tasks ADD COLUMN conflict_files TEXT NOT NULL DEFAULT '[]';",
+		"ALTER TABLE tasks ADD COLUMN orchestrator_id TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN worker_role TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN pid INTEGER NOT NULL DEFAULT 0;",
+		"ALTER TABLE tasks ADD COLUMN orchestrator_pid INTEGER NOT NULL DEFAULT 0;",
+		"ALTER TABLE tasks ADD COLUMN notes TEXT NOT NULL DEFAULT '';",
+		"ALTER TABLE tasks ADD COLUMN resolved_by TEXT NOT NULL DEFAULT '';",
 	}
 	for _, colSQL := range taskCols {
 		_, _ = conn.Exec(colSQL)

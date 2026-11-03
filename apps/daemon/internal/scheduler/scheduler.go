@@ -5,16 +5,37 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"zenfd/internal/domain"
 	"zenfd/internal/harness"
 )
+
+// isProcessAlive checks if an OS PID is active using signal 0.
+func isProcessAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, syscall.EPERM) {
+		return true // Exists, insufficient permission
+	}
+	return false
+}
 
 // SchedulerConfig holds operational tuning for the DAG scheduler.
 type SchedulerConfig struct {
@@ -139,6 +160,24 @@ func (s *DAGScheduler) Tick(ctx context.Context) error {
 						Type:      "task:status",
 						TaskID:    run.TaskID,
 						Payload:   fmt.Sprintf(`{"task_id":"%s","status":"%s"}`, run.TaskID, domain.StatusFailed),
+						Timestamp: now,
+					})
+				}
+			}
+		}
+	}
+
+	// 1.5. Audit running tasks for dead worker PIDs -> non-destructively suspend task
+	runningTasks, err := s.storage.ListTasks(ctx, "", domain.StatusRunning)
+	if err == nil {
+		for _, task := range runningTasks {
+			if task.PID > 0 && !isProcessAlive(task.PID) {
+				_ = s.storage.UpdateTaskStatus(ctx, task.ID, domain.StatusRunning, domain.StatusSuspended)
+				if s.broadcaster != nil {
+					s.broadcaster.Broadcast(domain.EventMessage{
+						Type:      "task:status",
+						TaskID:    task.ID,
+						Payload:   fmt.Sprintf(`{"task_id":"%s","status":"%s","reason":"Worker PID disconnected unexpectedly"}`, task.ID, domain.StatusSuspended),
 						Timestamp: now,
 					})
 				}

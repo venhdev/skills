@@ -9,6 +9,9 @@ import {
   AlertTriangle,
   GitMerge,
   Zap,
+  Bot,
+  Crown,
+  Unplug,
 } from 'lucide-react'
 import type { Task, TaskStatus } from '../../types/contracts'
 
@@ -56,6 +59,13 @@ const statusStyles: Record<
     text: 'text-orange-400',
     glow: 'shadow-[0_0_16px_rgba(249,115,22,0.3)] animate-pulse',
     icon: <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />,
+  },
+  SUSPENDED: {
+    border: 'border-amber-600/70',
+    bg: 'bg-amber-950/30',
+    text: 'text-amber-400',
+    glow: 'shadow-[0_0_14px_rgba(217,119,6,0.3)]',
+    icon: <Unplug className="h-3.5 w-3.5 text-amber-500" />,
   },
   AWAITING_MERGE: {
     border: 'border-cyan-500/70',
@@ -153,8 +163,38 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
         {task.title}
       </div>
 
+      {/* Ephemeral Worker & Orchestrator Badges */}
+      {task.status === 'RUNNING' && (
+        <div className="mt-2 space-y-1 border-t border-zinc-800/80 pt-1.5">
+          <div className="flex items-center gap-1 text-[10px] text-violet-300 font-mono truncate">
+            <Bot className="h-3 w-3 text-violet-400 shrink-0" />
+            <span className="truncate">{task.claimed_by || 'Worker'}</span>
+            {task.pid ? <span className="text-[9px] text-zinc-500">({task.pid})</span> : null}
+          </div>
+          {task.orchestrator_id && (
+            <div className="flex items-center gap-1 text-[9px] text-amber-300/80 font-mono truncate">
+              <Crown className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+              <span className="truncate">{task.orchestrator_id}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {task.status === 'SUSPENDED' && (
+        <div className="mt-2 flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-mono text-amber-400 border border-amber-500/20">
+          <Unplug className="h-2.5 w-2.5 shrink-0" />
+          <span className="truncate">PID Disconnected</span>
+        </div>
+      )}
+
+      {task.status === 'COMPLETED' && task.claimed_by && (
+        <div className="mt-2 flex items-center gap-1 text-[9px] text-emerald-400/80 font-mono truncate border-t border-zinc-800/80 pt-1">
+          <span>✓ by {task.claimed_by}</span>
+        </div>
+      )}
+
       {/* Skill Command & Harness */}
-      <div className="mt-2.5 flex items-center justify-between border-t border-zinc-800/80 pt-2 text-[10px] text-zinc-400 font-mono">
+      <div className="mt-2 flex items-center justify-between border-t border-zinc-800/80 pt-1.5 text-[10px] text-zinc-400 font-mono">
         <div className="flex items-center gap-1 truncate max-w-[150px]">
           <Terminal className="h-3 w-3 text-zinc-500 shrink-0" />
           <span className="truncate text-zinc-300">{task.skill_command}</span>

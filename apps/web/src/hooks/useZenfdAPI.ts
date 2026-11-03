@@ -1,9 +1,167 @@
 import { useState, useCallback } from 'react'
-import type { Plan, Task, Artifact, ProjectDoc, ContextPacket } from '../types/contracts'
+import type {
+  Plan,
+  Task,
+  Artifact,
+  ProjectDoc,
+  ContextPacket,
+  AgentSession,
+  TechSpec,
+  PlanRevision,
+  SnapshotFile,
+  FileDiff,
+} from '../types/contracts'
 
 export function useZenfdAPI() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const fetchProjects = useCallback(async (): Promise<string[]> => {
+    try {
+      const res = await fetch('/api/v1/projects')
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.projects || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const fetchPlans = useCallback(async (repoPath?: string): Promise<string[]> => {
+    try {
+      const url = repoPath ? `/api/v1/plans?repo_path=${encodeURIComponent(repoPath)}` : '/api/v1/plans'
+      const res = await fetch(url)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.plans || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const createPlan = useCallback(async (slug: string, title: string, repoPath?: string): Promise<boolean> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/v1/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, title, repo_path: repoPath || '', tasks: [] }),
+      })
+      if (!res.ok) throw new Error(`Failed to create plan: ${res.statusText}`)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const deletePlan = useCallback(async (slug: string): Promise<boolean> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/v1/plans/${encodeURIComponent(slug)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error(`Failed to delete plan: ${res.statusText}`)
+      return true
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const createTask = useCallback(async (task: Partial<Task>): Promise<Task | null> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/v1/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(task),
+      })
+      if (!res.ok) throw new Error(`Failed to create task: ${res.statusText}`)
+      return await res.json()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const updateTaskDependencies = useCallback(async (taskId: string, dependencies: string[]): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/dependencies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dependencies }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
+  const updateTaskNotes = useCallback(async (taskId: string, notes: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/context`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
+  const reclaimTask = useCallback(async (taskId: string, workerId?: string, orchestratorId?: string): Promise<ContextPacket | null> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/reclaim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worker_id: workerId, orchestrator_id: orchestratorId }),
+      })
+      if (!res.ok) throw new Error(`Failed to reclaim task: ${res.statusText}`)
+      return await res.json()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const evictTask = useCallback(async (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL'): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/evict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason || 'Evicted via Cockpit', action: action || 'RESET_TO_READY' }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
+  const fetchSessions = useCallback(async (): Promise<AgentSession[]> => {
+    try {
+      const res = await fetch('/api/v1/sessions')
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.sessions || []
+    } catch {
+      return []
+    }
+  }, [])
 
   const fetchPlan = useCallback(async (slug: string): Promise<{ plan: Plan; tasks: Task[] } | null> => {
     setLoading(true)
@@ -23,7 +181,7 @@ export function useZenfdAPI() {
     }
   }, [])
 
-  const fetchTasks = useCallback(async (repoPath?: string, status?: string): Promise<Task[]> => {
+  const fetchTasks = useCallback(async (repoPath?: string, status?: string): Promise<Task[] | null> => {
     setLoading(true)
     setError(null)
     try {
@@ -39,7 +197,7 @@ export function useZenfdAPI() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
-      return []
+      return null
     } finally {
       setLoading(false)
     }
@@ -263,9 +421,115 @@ export function useZenfdAPI() {
     }
   }, [])
 
+  const fetchSpecs = useCallback(async (repoPath?: string, tier?: number): Promise<TechSpec[]> => {
+    try {
+      let url = '/api/v1/specs?'
+      if (repoPath) url += `repo_path=${encodeURIComponent(repoPath)}&`
+      if (tier) url += `tier=${tier}`
+      const res = await fetch(url)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.specs || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const fetchSpec = useCallback(async (slug: string): Promise<TechSpec | null> => {
+    try {
+      const res = await fetch(`/api/v1/specs/${encodeURIComponent(slug)}`)
+      if (!res.ok) return null
+      return await res.json()
+    } catch {
+      return null
+    }
+  }, [])
+
+  const searchSpecs = useCallback(async (q: string): Promise<TechSpec[]> => {
+    try {
+      const res = await fetch(`/api/v1/specs/search?q=${encodeURIComponent(q)}`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.results || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const upsertSpec = useCallback(async (spec: TechSpec): Promise<TechSpec | null> => {
+    try {
+      const res = await fetch('/api/v1/specs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(spec),
+      })
+      if (!res.ok) return null
+      return await res.json()
+    } catch {
+      return null
+    }
+  }, [])
+
+  const fetchPlanRevisions = useCallback(async (slug: string): Promise<PlanRevision[]> => {
+    try {
+      const res = await fetch(`/api/v1/plans/${encodeURIComponent(slug)}/revisions`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.revisions || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const fetchPlanSnapshot = useCallback(async (slug: string, rev?: string): Promise<SnapshotFile[]> => {
+    try {
+      const url = rev ? `/api/v1/plans/${encodeURIComponent(slug)}/snapshot?rev=${encodeURIComponent(rev)}` : `/api/v1/plans/${encodeURIComponent(slug)}/snapshot`
+      const res = await fetch(url)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.files || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const fetchPlanDiff = useCallback(async (slug: string, fromRev: string, toRev: string): Promise<FileDiff[]> => {
+    try {
+      const res = await fetch(`/api/v1/plans/${encodeURIComponent(slug)}/diff?from=${encodeURIComponent(fromRev)}&to=${encodeURIComponent(toRev)}`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.diffs || []
+    } catch {
+      return []
+    }
+  }, [])
+
+  const savePlanSnapshot = useCallback(async (slug: string, payload: any): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/v1/plans/${encodeURIComponent(slug)}/snapshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   return {
     loading,
     error,
+    fetchProjects,
+    fetchPlans,
+    createPlan,
+    deletePlan,
+    createTask,
+    updateTaskDependencies,
+    updateTaskNotes,
+    reclaimTask,
+    evictTask,
+    fetchSessions,
     fetchPlan,
     fetchTasks,
     uploadAttachment,
@@ -279,5 +543,13 @@ export function useZenfdAPI() {
     exportDocs,
     fetchGlobalEnv,
     fetchTaskContext,
+    fetchSpecs,
+    fetchSpec,
+    searchSpecs,
+    upsertSpec,
+    fetchPlanRevisions,
+    fetchPlanSnapshot,
+    fetchPlanDiff,
+    savePlanSnapshot,
   }
 }

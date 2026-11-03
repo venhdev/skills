@@ -11,7 +11,10 @@ interface InspectionDockProps {
   onSelectTaskId?: (taskId: string) => void
   onResolveReview?: (taskId: string, response: string) => Promise<void>
   onMergeTask?: (taskId: string) => Promise<void>
-  onUploadAttachment?: (file: File) => Promise<void>
+  onUploadAttachment?: (taskId: string, file: File, name?: string) => Promise<any>
+  onUpdateNotes?: (taskId: string, notes: string) => Promise<any>
+  onReclaimTask?: (taskId: string) => Promise<any>
+  onEvictTask?: (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => Promise<any>
   collapsed: boolean
   onToggleCollapse: () => void
 }
@@ -24,6 +27,9 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
   onResolveReview,
   onMergeTask,
   onUploadAttachment,
+  onUpdateNotes,
+  onReclaimTask,
+  onEvictTask,
   collapsed,
   onToggleCollapse,
 }) => {
@@ -93,6 +99,10 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
               onSelectTaskId={onSelectTaskId}
               onResolveReview={onResolveReview}
               onMergeTask={onMergeTask}
+              onUploadAttachment={onUploadAttachment}
+              onUpdateNotes={onUpdateNotes}
+              onReclaimTask={onReclaimTask}
+              onEvictTask={onEvictTask}
               isMaximized={activePane === 'spec'}
               onToggleMaximize={() =>
                 setActivePane(activePane === 'spec' ? 'split' : 'spec')
@@ -107,7 +117,11 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
               taskId={selectedTask?.id}
               taskStatus={selectedTask?.status}
               artifacts={artifacts}
-              onUploadAttachment={onUploadAttachment}
+              onUploadAttachment={
+                onUploadAttachment && selectedTask
+                  ? (file) => onUploadAttachment(selectedTask.id, file)
+                  : undefined
+              }
             />
           </div>
         )}

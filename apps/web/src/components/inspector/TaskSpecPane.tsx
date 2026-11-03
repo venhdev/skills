@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Terminal,
   Copy,
@@ -15,6 +15,12 @@ import {
   ShieldAlert,
   FileCode,
   FileCheck,
+  Image,
+  Upload,
+  Save,
+  Unplug,
+  RefreshCw,
+  RotateCcw,
 } from 'lucide-react'
 import type { Task, TaskStatus } from '../../types/contracts'
 
@@ -24,6 +30,10 @@ interface TaskSpecPaneProps {
   onSelectTaskId?: (taskId: string) => void
   onResolveReview?: (taskId: string, response: string) => Promise<void>
   onMergeTask?: (taskId: string) => Promise<void>
+  onUploadAttachment?: (taskId: string, file: File, name?: string) => Promise<any>
+  onUpdateNotes?: (taskId: string, notes: string) => Promise<any>
+  onReclaimTask?: (taskId: string) => Promise<any>
+  onEvictTask?: (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => Promise<any>
   isMaximized?: boolean
   onToggleMaximize?: () => void
 }
@@ -34,6 +44,10 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   onSelectTaskId,
   onResolveReview,
   onMergeTask,
+  onUploadAttachment,
+  onUpdateNotes,
+  onReclaimTask,
+  onEvictTask,
   isMaximized = false,
   onToggleMaximize,
 }) => {
@@ -42,6 +56,49 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   const [reviewResponseInput, setReviewResponseInput] = useState('')
   const [isResolvingReview, setIsResolvingReview] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
+  const [notesInput, setNotesInput] = useState('')
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
+  const [savedNotesSuccess, setSavedNotesSuccess] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [isReclaiming, setIsReclaiming] = useState(false)
+
+  useEffect(() => {
+    if (task) {
+      setNotesInput(task.notes || '')
+    }
+  }, [task?.id, task?.notes])
+
+  // Clipboard paste listener for images when task is READY
+  useEffect(() => {
+    if (!task || task.status !== 'READY' || !onUploadAttachment) return
+
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const blob = items[i].getAsFile()
+          if (blob) {
+            setIsUploading(true)
+            try {
+              const filename = `paste_${Date.now()}.png`
+              const file = new File([blob], filename, { type: blob.type })
+              await onUploadAttachment(task.id, file, 'Pasted Screenshot')
+              setUploadSuccess(true)
+              setTimeout(() => setUploadSuccess(false), 2500)
+            } finally {
+              setIsUploading(false)
+            }
+          }
+        }
+      }
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [task?.id, task?.status, onUploadAttachment])
 
   if (!task) {
     return (
@@ -99,6 +156,46 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     }
   }
 
+  const handleSaveNotesSubmit = async () => {
+    if (!onUpdateNotes) return
+    setIsSavingNotes(true)
+    try {
+      await onUpdateNotes(task.id, notesInput)
+      setSavedNotesSuccess(true)
+      setTimeout(() => setSavedNotesSuccess(false), 2000)
+    } finally {
+      setIsSavingNotes(false)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !onUploadAttachment) return
+    setIsUploading(true)
+    try {
+      await onUploadAttachment(task.id, file, file.name)
+      setUploadSuccess(true)
+      setTimeout(() => setUploadSuccess(false), 2500)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleReclaimSubmit = async () => {
+    if (!onReclaimTask) return
+    setIsReclaiming(true)
+    try {
+      await onReclaimTask(task.id)
+    } finally {
+      setIsReclaiming(false)
+    }
+  }
+
+  const handleEvictSubmit = async () => {
+    if (!onEvictTask) return
+    await onEvictTask(task.id, 'Reset by operator', 'RESET_TO_READY')
+  }
+
   const getStatusBadgeStyle = (status: TaskStatus) => {
     switch (status) {
       case 'COMPLETED':
@@ -109,6 +206,8 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
         return 'border-amber-500/40 bg-amber-500/10 text-amber-400'
       case 'AWAITING_REVIEW':
         return 'border-orange-500/40 bg-orange-500/15 text-orange-400 animate-pulse'
+      case 'SUSPENDED':
+        return 'border-amber-600/50 bg-amber-600/15 text-amber-400 font-bold'
       case 'AWAITING_MERGE':
         return 'border-cyan-500/40 bg-cyan-500/15 text-cyan-400'
       case 'CONFLICT':
@@ -175,15 +274,114 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
           {/* Worker Badge */}
           {task.claimed_by && (
-            <div className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-[11px] text-zinc-300">
-              <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Claimed by: <strong className="text-zinc-200 font-mono">{task.claimed_by}</strong></span>
-              {task.claimed_at && (
-                <span className="text-[10px] text-zinc-500">({new Date(task.claimed_at).toLocaleTimeString()})</span>
+            <div className="flex items-center justify-between gap-2 rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-[11px] text-zinc-300">
+              <div className="flex items-center gap-1.5 truncate">
+                <UserCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                <span>Claimed by: <strong className="text-zinc-200 font-mono">{task.claimed_by}</strong></span>
+                {task.pid ? <span className="text-[10px] text-zinc-500 font-mono">PID {task.pid}</span> : null}
+              </div>
+              {task.status === 'RUNNING' && onEvictTask && (
+                <button
+                  onClick={handleEvictSubmit}
+                  className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-300 hover:bg-rose-500/20 transition shrink-0"
+                  title="Evict hung subagent and reset task to READY"
+                >
+                  Evict Worker
+                </button>
               )}
             </div>
           )}
         </div>
+
+        {/* INTERACTIVE GATE 1: Developer Seeding Hub (When READY) */}
+        {task.status === 'READY' && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-950/15 p-3.5 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+              <Image className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>Developer Context & Media Seeding Hub</span>
+            </div>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              Enrich this task before an agent claims it. Upload visual UI mockups, screenshots, or paste (Ctrl+V) directly from clipboard.
+            </p>
+
+            {/* Drag & Drop / Paste / File Input */}
+            <div className="relative flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700 hover:border-amber-500/50 bg-black/30 p-3 transition text-center cursor-pointer group">
+              <input
+                type="file"
+                accept="image/*,.pdf,.txt,.md,.json"
+                onChange={handleFileUpload}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                disabled={isUploading}
+              />
+              <Upload className="h-5 w-5 text-zinc-500 group-hover:text-amber-400 mb-1" />
+              <span className="text-[11px] font-medium text-zinc-300 group-hover:text-white">
+                {isUploading ? 'Uploading Attachment...' : 'Drop screenshots / mockups or click to browse'}
+              </span>
+              <span className="text-[10px] text-zinc-500 mt-0.5">
+                Tip: You can also paste screenshots directly with <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400 font-mono">Ctrl+V</kbd>
+              </span>
+              {uploadSuccess && (
+                <span className="text-[11px] font-bold text-emerald-400 mt-1">✓ Attachment uploaded to ContextPacket!</span>
+              )}
+            </div>
+
+            {/* Supplemental Architectural Notes */}
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                Supplemental Architectural Hints & Notes:
+              </label>
+              <textarea
+                value={notesInput}
+                onChange={(e) => setNotesInput(e.target.value)}
+                placeholder="Type guidance, constraints, or gotchas for the agent..."
+                rows={2}
+                className="w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none resize-none"
+              />
+              <button
+                onClick={handleSaveNotesSubmit}
+                disabled={isSavingNotes}
+                className="flex items-center justify-center gap-1.5 rounded border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-medium py-1 px-3 text-xs transition disabled:opacity-50"
+              >
+                <Save className="h-3 w-3" />
+                <span>{savedNotesSuccess ? '✓ Notes Saved!' : isSavingNotes ? 'Saving...' : 'Save Notes to Task'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* INTERACTIVE GATE 2: Suspended Recovery Handshake */}
+        {task.status === 'SUSPENDED' && (
+          <div className="rounded-lg border border-amber-600/50 bg-amber-950/25 p-3.5 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+              <Unplug className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>Worker PID Disconnected (Suspended)</span>
+            </div>
+            <p className="text-[11px] text-zinc-300">
+              The assigned agent runner terminated unexpectedly. Worktree files, git diff, and logs are preserved.
+            </p>
+            <div className="flex gap-2 pt-1">
+              {onReclaimTask && (
+                <button
+                  onClick={handleReclaimSubmit}
+                  disabled={isReclaiming}
+                  className="flex-1 flex items-center justify-center gap-1.5 rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold py-1.5 text-xs transition disabled:opacity-50 shadow-md shadow-violet-950/50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isReclaiming ? 'animate-spin' : ''}`} />
+                  <span>{isReclaiming ? 'Re-claiming...' : 'Re-claim with New Agent'}</span>
+                </button>
+              )}
+              {onEvictTask && (
+                <button
+                  onClick={handleEvictSubmit}
+                  className="flex items-center justify-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-1.5 px-3 text-xs transition"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-zinc-400" />
+                  <span>Reset to READY</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* INTERACTIVE GATE: Awaiting Review Handshake */}
         {task.status === 'AWAITING_REVIEW' && (
@@ -231,7 +429,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
               <textarea
                 value={reviewResponseInput}
                 onChange={(e) => setReviewResponseInput(e.target.value)}
-                placeholder="Type guidance to unblock executing agent..."
+                placeholder="Type guidance to resolve review (resumes task to READY)..."
                 rows={2}
                 className="w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-200 focus:border-orange-500 focus:outline-none resize-none"
               />
@@ -241,7 +439,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
                 className="w-full flex items-center justify-center gap-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-semibold py-1.5 text-xs transition disabled:opacity-50"
               >
                 <Check className="h-3.5 w-3.5" />
-                <span>{isResolvingReview ? 'Resuming Agent...' : 'Submit Decision & Resume Execution'}</span>
+                <span>{isResolvingReview ? 'Resuming...' : 'Submit Decision & Set READY'}</span>
               </button>
             </div>
           </div>

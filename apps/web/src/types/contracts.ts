@@ -3,6 +3,7 @@ export type TaskStatus =
   | 'READY'
   | 'RUNNING'
   | 'AWAITING_REVIEW'
+  | 'SUSPENDED'
   | 'AWAITING_MERGE'
   | 'CONFLICT'
   | 'COMPLETED'
@@ -43,14 +44,32 @@ export interface Task {
   worktree_path?: string
   status: TaskStatus
   claimed_by?: string
+  orchestrator_id?: string
+  worker_role?: string
+  pid?: number
+  orchestrator_pid?: number
   claimed_at?: string
+  notes?: string
   review_reason?: string
   review_details?: string
   review_options?: string[]
   review_response?: string
+  resolved_by?: string
   conflict_files?: string[]
   created_at: string
   updated_at: string
+}
+
+export interface AgentSession {
+  session_id: string
+  parent_session_id?: string
+  role: 'ORCHESTRATOR' | 'SUBAGENT' | string
+  name: string
+  pid: number
+  status: 'ACTIVE' | 'DISCONNECTED' | 'TERMINATED' | string
+  claimed_tasks: string[]
+  created_at: string
+  last_beat_at: string
 }
 
 export interface ProjectDoc {
@@ -117,4 +136,55 @@ export interface EventMessage {
 export interface WindowSize {
   rows: number
   cols: number
+}
+
+export type SpecTier = 1 | 2 | 3 | 4 | 5
+
+export interface TechSpec {
+  slug: string
+  repo_path: string
+  tier: SpecTier
+  kind: 'CONTEXT' | 'FLOWCHART' | 'SEQUENCE' | 'STATE' | 'ERD' | 'CONTRACT' | 'ADR' | string
+  title: string
+  diagram_type: 'mermaid:flowchart' | 'mermaid:sequenceDiagram' | 'mermaid:erDiagram' | 'json:schema' | string
+  diagram_code: string
+  structured_payload: Record<string, any>
+  notes: string
+  bound_paths: string[]
+  version: number
+  updated_at: string
+}
+
+export interface CompactSpecPayload {
+  slug: string
+  kind: string
+  title: string
+  diagram_code: string
+  payload: Record<string, any>
+}
+
+export interface PlanRevision {
+  id: number
+  plan_slug: string
+  revision: string
+  author: string
+  summary: string
+  created_at: string
+}
+
+export interface SnapshotFile {
+  plan_slug: string
+  revision: string
+  file_path: string
+  content: string
+  byte_size: number
+  sha256: string
+  created_at: string
+}
+
+export interface FileDiff {
+  file_path: string
+  change_type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'IDENTICAL'
+  old_content?: string
+  new_content?: string
 }

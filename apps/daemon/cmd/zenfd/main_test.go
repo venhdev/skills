@@ -91,10 +91,10 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 	mdContent := `
 # Plan Dossier: e2e-system · ACTIVE
 
-| Task ID | Description | Dependencies | Status |
-| :--- | :--- | :--- | :--- |
-| **SLICE-01** | Root Slice | - | **READY** |
-| **SLICE-02** | Dependent Slice | SLICE-01 | **PLANNED** |
+| Task ID | Description | Dependencies | Status | Harness |
+| :--- | :--- | :--- | :--- | :--- |
+| **SLICE-01** | Root Slice | - | **READY** | orchestrator |
+| **SLICE-02** | Dependent Slice | SLICE-01 | **PLANNED** | orchestrator |
 `
 	if err := os.WriteFile(planFile, []byte(mdContent), 0644); err != nil {
 		t.Fatalf("failed to write plan file: %v", err)

@@ -97,13 +97,52 @@ type StorageEngine interface {
 	// GetTask retrieves a single task by its unique ID.
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 
+	// ListProjects returns all distinct repo_paths known to the store.
+	ListProjects(ctx context.Context) ([]string, error)
+
+	// CreatePlan inserts a single plan.
+	CreatePlan(ctx context.Context, plan Plan) error
+
+	// DeletePlan deletes a plan and cascades to its tasks, runs, artifacts, and docs.
+	DeletePlan(ctx context.Context, slug string) error
+
+	// CreateTask inserts a single task.
+	CreateTask(ctx context.Context, task Task) error
+
+	// UpdateTaskDependencies updates the task dependency list.
+	UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error
+
+	// UpdateTaskNotes updates developer supplemental notes.
+	UpdateTaskNotes(ctx context.Context, taskID string, notes string) error
+
+	// AddInputAttachment adds an input artifact (media, screenshot, or spec) to a task.
+	AddInputAttachment(ctx context.Context, taskID string, name string, filePath string, mimeType string, byteSize int64, sha256 string) (*Artifact, error)
+
 	// ClaimTask atomically verifies readiness, sets claim lock (workerID & pid), transitions to RUNNING, and returns ContextPacket.
 	ClaimTask(ctx context.Context, taskID string, workerID string, pid int) (*ContextPacket, error)
+
+	// ClaimTaskWithMeta atomically claims a ready task with full metadata.
+	ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string, pid int, orchestratorPID int) (*ContextPacket, error)
+
+	// ReclaimTask re-claims a SUSPENDED task with new worker and orchestrator.
+	ReclaimTask(ctx context.Context, taskID string, newWorkerID string, newOrchestratorID string, newPID int) (*ContextPacket, error)
+
+	// EvictTask evicts a running or suspended task, resetting it to READY or cancelling it.
+	EvictTask(ctx context.Context, taskID string, reason string, action string) error
+
+	// RegisterSession registers or updates an agent session.
+	RegisterSession(ctx context.Context, session AgentSession) error
+
+	// ListSessions returns all active or recently seen sessions.
+	ListSessions(ctx context.Context) ([]AgentSession, error)
+
+	// HeartbeatSession updates the last heartbeat timestamp for a session.
+	HeartbeatSession(ctx context.Context, sessionID string) error
 
 	// RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
 	RequestReview(ctx context.Context, taskID string, reason string, details string, options []string) error
 
-	// ResolveReview answers an awaiting review and resumes task back to RUNNING.
+	// ResolveReview answers an awaiting review, records resolution, and transitions task back to READY.
 	ResolveReview(ctx context.Context, taskID string, response string) error
 
 	// StageMerge marks a worktree task as complete and transitions it to AWAITING_MERGE.
@@ -123,6 +162,33 @@ type StorageEngine interface {
 
 	// ListDocs lists project documents filtered optionally by category.
 	ListDocs(ctx context.Context, repoPath, category string) ([]ProjectDoc, error)
+
+	// UpsertSpec creates or updates a multi-tiered technical specification.
+	UpsertSpec(ctx context.Context, spec TechSpec) (*TechSpec, error)
+
+	// GetSpec retrieves a technical spec by slug.
+	GetSpec(ctx context.Context, slug string) (*TechSpec, error)
+
+	// ListSpecs lists technical specs filtered optionally by repoPath and/or tier.
+	ListSpecs(ctx context.Context, repoPath string, tier int) ([]TechSpec, error)
+
+	// SearchSpecs performs a full-text FTS5 search across all technical specs.
+	SearchSpecs(ctx context.Context, query string) ([]TechSpec, error)
+
+	// AutoLinkSpecs evaluates targetFiles against bound_paths of all registered specs.
+	AutoLinkSpecs(ctx context.Context, targetFiles []string) ([]string, error)
+
+	// SavePlanSnapshot saves an atomic directory snapshot for a plan at a given revision.
+	SavePlanSnapshot(ctx context.Context, planSlug, revision, author, summary string, files []SnapshotFile) error
+
+	// GetPlanSnapshot retrieves all snapshot files for a plan at a given revision.
+	GetPlanSnapshot(ctx context.Context, planSlug, revision string) ([]SnapshotFile, error)
+
+	// ListPlanRevisions lists all revision records for a given plan.
+	ListPlanRevisions(ctx context.Context, planSlug string) ([]PlanRevision, error)
+
+	// GetPlanDiff computes differences between two plan revisions.
+	GetPlanDiff(ctx context.Context, planSlug, fromRev, toRev string) ([]FileDiff, error)
 
 	// Close safely flushes WAL checkpoints and closes the database connection pool.
 	Close() error

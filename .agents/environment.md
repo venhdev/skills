@@ -24,7 +24,7 @@ Infrastructure, toolchain manifest, and execution environment specification.
 
 - **Backend Daemon Tests**: `cd apps/daemon && go test -v -race ./...`
 - **Frontend Dashboard Build**: `cd apps/web && pnpm build`
-- **Single-Binary Monorepo Build**: `cd apps/daemon && make build` (tự động build web/dist -> embed vào Go binary)
+- **Single-Binary Monorepo Build**: `cd apps/daemon && make build` (automatically builds web/dist -> embeds into Go binary)
 - **Plumbing Spike Suite**: `cd .agents/scratch/spike-zenfd && go test -v -race ./...`
 
 ## 4. Safety, Secrets & Ephemeral Storage Boundary
@@ -36,13 +36,13 @@ Infrastructure, toolchain manifest, and execution environment specification.
 
 ## 5. Development Mode & Live-Reload Workflow
 
-#### Terminal 1: Backend Daemon (Go Auto-Reload qua air)
+#### Terminal 1: Backend Daemon (Go Auto-Reload via air)
 
 ```bash
 make -C apps/daemon dev
 ```
 
-(Bất cứ khi nào bạn sửa bất kỳ file `.go` nào trong `apps/daemon`, `air` sẽ tự compile lại và khởi động lại `zenfd` tức thì mà không cần bạn bấm `Ctrl+C`).
+(Whenever any `.go` file in `apps/daemon` is modified, `air` automatically recompiles and restarts `zenfd` without requiring `Ctrl+C`).
 
 #### Terminal 2: Frontend Dashboard (Vite HMR)
 
@@ -50,5 +50,5 @@ make -C apps/daemon dev
 cd apps/web && pnpm dev
 ```
 
-(Khởi chạy Vite dev server tại `http://localhost:5173` với Instant HMR và reverse proxy tự động chuyển tiếp API/SSE/WebSocket về daemon cổng 1123).
+(Starts Vite dev server at `http://localhost:5173` with Instant HMR and automated reverse proxy forwarding API/SSE/WebSocket traffic to daemon port 1123).
 

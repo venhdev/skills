@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -80,26 +81,53 @@ func (s *Server) SetWebFS(f fs.FS) {
 
 // setupRoutes registers all HTTP, SSE, and WebSocket endpoints using Go 1.22+ routing syntax.
 func (s *Server) setupRoutes() {
+	// Projects API
+	s.mux.HandleFunc("GET /api/v1/projects", s.handleListProjects)
+
 	// Plan APIs
+	s.mux.HandleFunc("GET /api/v1/plans", s.handleListPlans)
 	s.mux.HandleFunc("POST /api/v1/plans", s.handleCreatePlan)
+	s.mux.HandleFunc("DELETE /api/v1/plans/{slug}", s.handleDeletePlan)
 	s.mux.HandleFunc("GET /api/v1/plans/{slug}", s.handleGetPlan)
 
 	// Task APIs
 	s.mux.HandleFunc("GET /api/v1/tasks", s.handleListTasks)
+	s.mux.HandleFunc("POST /api/v1/tasks", s.handleCreateTask)
 	s.mux.HandleFunc("POST /api/v1/tasks/{id}/status", s.handleUpdateTaskStatus)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/dependencies", s.handleUpdateTaskDependencies)
+	s.mux.HandleFunc("PATCH /api/v1/tasks/{id}/context", s.handleUpdateTaskContext)
 	s.mux.HandleFunc("POST /api/v1/tasks/{id}/claim", s.handleClaimTask)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/reclaim", s.handleReclaimTask)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/evict", s.handleEvictTask)
 	s.mux.HandleFunc("POST /api/v1/tasks/{id}/review", s.handleRequestReview)
 	s.mux.HandleFunc("POST /api/v1/tasks/{id}/resolve", s.handleResolveReview)
+	s.mux.HandleFunc("POST /api/v1/tasks/{id}/resolve-review", s.handleResolveReview)
 	s.mux.HandleFunc("POST /api/v1/tasks/{id}/merge", s.handleMergeTask)
 	s.mux.HandleFunc("POST /api/v1/tasks/{id}/attachments", s.handleUploadTaskAttachment)
 	s.mux.HandleFunc("GET /api/v1/tasks/{id}/artifacts", s.handleListTaskArtifacts)
 	s.mux.HandleFunc("GET /api/v1/tasks/{id}/logs", s.handleGetTaskLogs)
+
+	// Agent Sessions API
+	s.mux.HandleFunc("GET /api/v1/sessions", s.handleListSessions)
+	s.mux.HandleFunc("POST /api/v1/sessions", s.handleRegisterSession)
 
 	// Living Architecture & Project Docs APIs
 	s.mux.HandleFunc("GET /api/v1/docs", s.handleListDocs)
 	s.mux.HandleFunc("POST /api/v1/docs", s.handleUpsertDoc)
 	s.mux.HandleFunc("POST /api/v1/docs/export", s.handleExportDocs)
 	s.mux.HandleFunc("GET /api/v1/docs/{slug}", s.handleGetDoc)
+
+	// Blueprint & Technical Specs APIs
+	s.mux.HandleFunc("GET /api/v1/specs", s.handleListSpecs)
+	s.mux.HandleFunc("POST /api/v1/specs", s.handleUpsertSpec)
+	s.mux.HandleFunc("GET /api/v1/specs/search", s.handleSearchSpecs)
+	s.mux.HandleFunc("GET /api/v1/specs/{slug}", s.handleGetSpec)
+
+	// Plan Dossier Snapshots & Revisions APIs
+	s.mux.HandleFunc("POST /api/v1/plans/{slug}/snapshot", s.handleSavePlanSnapshot)
+	s.mux.HandleFunc("GET /api/v1/plans/{slug}/snapshot", s.handleGetPlanSnapshot)
+	s.mux.HandleFunc("GET /api/v1/plans/{slug}/revisions", s.handleListPlanRevisions)
+	s.mux.HandleFunc("GET /api/v1/plans/{slug}/diff", s.handleGetPlanDiff)
 
 	// Global Environment & Toolchains API
 	s.mux.HandleFunc("GET /api/v1/env/global", s.handleGetGlobalEnv)
@@ -315,22 +343,30 @@ func (s *Server) handleUpdateTaskStatus(w http.ResponseWriter, r *http.Request) 
 	}
 
 	fromStatus := req.From
-	if fromStatus == "" {
+	getCurrentStatus := func() domain.TaskStatus {
 		tasks, err := s.storage.ListTasks(r.Context(), "", "")
 		if err == nil {
 			for _, t := range tasks {
 				if t.ID == taskID {
-					fromStatus = t.Status
-					break
+					return t.Status
 				}
 			}
 		}
-	}
-	if fromStatus == "" {
-		fromStatus = domain.StatusReady
+		return domain.StatusReady
 	}
 
-	if err := s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status); err != nil {
+	if fromStatus == "" {
+		fromStatus = getCurrentStatus()
+	}
+
+	err := s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status)
+	if err != nil && req.From == "" {
+		// Retry once with the latest status in case of concurrent scheduler dispatch
+		fromStatus = getCurrentStatus()
+		err = s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status)
+	}
+
+	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to transition task status: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -850,12 +886,12 @@ func (s *Server) handleResolveReview(w http.ResponseWriter, r *http.Request) {
 	s.Broadcast(domain.EventMessage{
 		TaskID:    taskID,
 		Type:      "task:status",
-		Payload:   string(domain.StatusRunning),
+		Payload:   string(domain.StatusReady),
 		Timestamp: time.Now().UTC(),
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"status": domain.StatusRunning})
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": domain.StatusReady})
 }
 
 // POST /api/v1/tasks/{id}/merge
@@ -998,6 +1034,7 @@ func (s *Server) handleGetGlobalEnv(w http.ResponseWriter, r *http.Request) {
 	}
 
 	envData := map[string]any{
+		"version":     "2.5.0",
 		"os":          runtime.GOOS,
 		"arch":        runtime.GOARCH,
 		"num_cpu":     runtime.NumCPU(),
@@ -1008,4 +1045,472 @@ func (s *Server) handleGetGlobalEnv(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(envData)
+}
+
+// GET /api/v1/projects
+func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
+	projects, err := s.storage.ListProjects(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list projects: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if projects == nil {
+		projects = []string{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"projects": projects})
+}
+
+// GET /api/v1/plans
+func (s *Server) handleListPlans(w http.ResponseWriter, r *http.Request) {
+	repoPath := r.URL.Query().Get("repo_path")
+	tasks, err := s.storage.ListTasks(r.Context(), repoPath, "")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list tasks: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	planMap := make(map[string]bool)
+	for _, t := range tasks {
+		if t.PlanID != "" {
+			planMap[t.PlanID] = true
+		}
+	}
+	var plans []string
+	for p := range planMap {
+		plans = append(plans, p)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"plans": plans})
+}
+
+// DELETE /api/v1/plans/{slug}
+func (s *Server) handleDeletePlan(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	if slug == "" {
+		http.Error(w, "missing plan slug", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.DeletePlan(r.Context(), slug); err != nil {
+		http.Error(w, fmt.Sprintf("failed to delete plan: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		Type:      "plan:deleted",
+		Payload:   fmt.Sprintf(`{"slug":"%s"}`, slug),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// POST /api/v1/tasks
+func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
+	var task domain.Task
+	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
+		http.Error(w, fmt.Sprintf("invalid task payload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if task.ID == "" || task.PlanID == "" {
+		http.Error(w, "task ID and PlanID are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.CreateTask(r.Context(), task); err != nil {
+		http.Error(w, fmt.Sprintf("failed to create task: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    task.ID,
+		Type:      "task:created",
+		Payload:   fmt.Sprintf(`{"id":"%s","plan_id":"%s"}`, task.ID, task.PlanID),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(task)
+}
+
+// POST /api/v1/tasks/{id}/dependencies
+func (s *Server) handleUpdateTaskDependencies(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Dependencies []string `json:"dependencies"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.UpdateTaskDependencies(r.Context(), taskID, req.Dependencies); err != nil {
+		http.Error(w, fmt.Sprintf("failed to update dependencies: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:dependencies_updated",
+		Payload:   fmt.Sprintf(`{"id":"%s"}`, taskID),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"id": taskID, "dependencies": req.Dependencies})
+}
+
+// PATCH /api/v1/tasks/{id}/context
+func (s *Server) handleUpdateTaskContext(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Notes string `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.UpdateTaskNotes(r.Context(), taskID, req.Notes); err != nil {
+		http.Error(w, fmt.Sprintf("failed to update task notes: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:notes_updated",
+		Payload:   fmt.Sprintf(`{"id":"%s"}`, taskID),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"id": taskID, "notes": req.Notes})
+}
+
+// POST /api/v1/tasks/{id}/reclaim
+func (s *Server) handleReclaimTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		WorkerID       string `json:"worker_id"`
+		OrchestratorID string `json:"orchestrator_id"`
+		PID            int    `json:"pid"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	packet, err := s.storage.ReclaimTask(r.Context(), taskID, req.WorkerID, req.OrchestratorID, req.PID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to reclaim task: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:status",
+		Payload:   string(domain.StatusRunning),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(packet)
+}
+
+// POST /api/v1/tasks/{id}/evict
+func (s *Server) handleEvictTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("id")
+	if taskID == "" {
+		http.Error(w, "missing task id", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+		Action string `json:"action"` // "RESET_TO_READY" | "CANCEL"
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.Action == "" {
+		req.Action = "RESET_TO_READY"
+	}
+
+	if err := s.storage.EvictTask(r.Context(), taskID, req.Reason, req.Action); err != nil {
+		http.Error(w, fmt.Sprintf("failed to evict task: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	targetStatus := domain.StatusReady
+	if req.Action == "CANCEL" {
+		targetStatus = domain.StatusCancelled
+	}
+
+	s.Broadcast(domain.EventMessage{
+		TaskID:    taskID,
+		Type:      "task:status",
+		Payload:   string(targetStatus),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"id": taskID, "status": targetStatus})
+}
+
+// GET /api/v1/sessions
+func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
+	sessions, err := s.storage.ListSessions(r.Context())
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list sessions: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if sessions == nil {
+		sessions = []domain.AgentSession{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"sessions": sessions})
+}
+
+// POST /api/v1/sessions
+func (s *Server) handleRegisterSession(w http.ResponseWriter, r *http.Request) {
+	var sess domain.AgentSession
+	if err := json.NewDecoder(r.Body).Decode(&sess); err != nil {
+		http.Error(w, fmt.Sprintf("invalid session payload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if sess.SessionID == "" {
+		http.Error(w, "missing session_id", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.storage.RegisterSession(r.Context(), sess); err != nil {
+		http.Error(w, fmt.Sprintf("failed to register session: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		Type:      "session:registered",
+		Payload:   fmt.Sprintf(`{"session_id":"%s","role":"%s"}`, sess.SessionID, sess.Role),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(sess)
+}
+
+// GET /api/v1/specs
+func (s *Server) handleListSpecs(w http.ResponseWriter, r *http.Request) {
+	repoPath := r.URL.Query().Get("repo_path")
+	tierStr := r.URL.Query().Get("tier")
+	tier := 0
+	if tierStr != "" {
+		tier, _ = strconv.Atoi(tierStr)
+	}
+
+	specs, err := s.storage.ListSpecs(r.Context(), repoPath, tier)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list specs: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if specs == nil {
+		specs = []domain.TechSpec{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"specs": specs})
+}
+
+// POST /api/v1/specs
+func (s *Server) handleUpsertSpec(w http.ResponseWriter, r *http.Request) {
+	var spec domain.TechSpec
+	if err := json.NewDecoder(r.Body).Decode(&spec); err != nil {
+		http.Error(w, fmt.Sprintf("invalid spec payload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	saved, err := s.storage.UpsertSpec(r.Context(), spec)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to save spec: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		Type:      "spec:upserted",
+		Payload:   fmt.Sprintf(`{"slug":"%s","tier":%d,"version":%d}`, saved.Slug, saved.Tier, saved.Version),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(saved)
+}
+
+// GET /api/v1/specs/{slug}
+func (s *Server) handleGetSpec(w http.ResponseWriter, r *http.Request) {
+	slug := r.PathValue("slug")
+	spec, err := s.storage.GetSpec(r.Context(), slug)
+	if err != nil {
+		http.Error(w, "spec not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(spec)
+}
+
+// GET /api/v1/specs/search
+func (s *Server) handleSearchSpecs(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	results, err := s.storage.SearchSpecs(r.Context(), q)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("search failed: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []domain.TechSpec{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"results": results})
+}
+
+// POST /api/v1/plans/{slug}/snapshot
+func (s *Server) handleSavePlanSnapshot(w http.ResponseWriter, r *http.Request) {
+	planSlug := r.PathValue("slug")
+	var req struct {
+		Revision   string                `json:"revision"`
+		Author     string                `json:"author"`
+		Summary    string                `json:"summary"`
+		FolderPath string                `json:"folder_path"`
+		Files      []domain.SnapshotFile `json:"files"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("invalid snapshot payload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	if req.Revision == "" {
+		req.Revision = "v1.0"
+	}
+
+	// If folder_path is specified, snapshot all readable text files recursively
+	if req.FolderPath != "" && len(req.Files) == 0 {
+		err := filepath.Walk(req.FolderPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			rel, relErr := filepath.Rel(req.FolderPath, path)
+			if relErr != nil {
+				rel = filepath.Base(path)
+			}
+			// Skip hidden files or vendor directories
+			if strings.HasPrefix(filepath.Base(path), ".") || strings.Contains(path, "node_modules") {
+				return nil
+			}
+			contentBytes, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return nil
+			}
+			h := sha256.Sum256(contentBytes)
+			req.Files = append(req.Files, domain.SnapshotFile{
+				PlanSlug:  planSlug,
+				Revision:  req.Revision,
+				FilePath:  rel,
+				Content:   string(contentBytes),
+				ByteSize:  info.Size(),
+				SHA256:    hex.EncodeToString(h[:]),
+				CreatedAt: time.Now().UTC(),
+			})
+			return nil
+		})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to read folder: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if err := s.storage.SavePlanSnapshot(r.Context(), planSlug, req.Revision, req.Author, req.Summary, req.Files); err != nil {
+		http.Error(w, fmt.Sprintf("failed to save snapshot: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	s.Broadcast(domain.EventMessage{
+		Type:      "plan:snapshot_saved",
+		Payload:   fmt.Sprintf(`{"plan_slug":"%s","revision":"%s","files_count":%d}`, planSlug, req.Revision, len(req.Files)),
+		Timestamp: time.Now().UTC(),
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"plan_slug":   planSlug,
+		"revision":    req.Revision,
+		"files_count": len(req.Files),
+		"status":      "SNAPSHOT_SAVED",
+	})
+}
+
+// GET /api/v1/plans/{slug}/snapshot
+func (s *Server) handleGetPlanSnapshot(w http.ResponseWriter, r *http.Request) {
+	planSlug := r.PathValue("slug")
+	revision := r.URL.Query().Get("rev")
+	if revision == "" {
+		revision = "v1.0"
+	}
+	files, err := s.storage.GetPlanSnapshot(r.Context(), planSlug, revision)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to get snapshot: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if files == nil {
+		files = []domain.SnapshotFile{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"files": files, "revision": revision, "plan_slug": planSlug})
+}
+
+// GET /api/v1/plans/{slug}/revisions
+func (s *Server) handleListPlanRevisions(w http.ResponseWriter, r *http.Request) {
+	planSlug := r.PathValue("slug")
+	revs, err := s.storage.ListPlanRevisions(r.Context(), planSlug)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to list revisions: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if revs == nil {
+		revs = []domain.PlanRevision{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"revisions": revs})
+}
+
+// GET /api/v1/plans/{slug}/diff
+func (s *Server) handleGetPlanDiff(w http.ResponseWriter, r *http.Request) {
+	planSlug := r.PathValue("slug")
+	fromRev := r.URL.Query().Get("from")
+	toRev := r.URL.Query().Get("to")
+	if fromRev == "" || toRev == "" {
+		http.Error(w, "missing 'from' or 'to' revision query params", http.StatusBadRequest)
+		return
+	}
+
+	diffs, err := s.storage.GetPlanDiff(r.Context(), planSlug, fromRev, toRev)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to compute diff: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if diffs == nil {
+		diffs = []domain.FileDiff{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"diffs": diffs, "from": fromRev, "to": toRev})
 }

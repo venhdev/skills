@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -260,17 +261,23 @@ func TestPlanStore_ClaimAndReviewMerge(t *testing.T) {
 		t.Errorf("Unexpected review details: %+v", t1)
 	}
 
-	// 3. Resolve Review
+	// 3. Resolve Review: transitions to READY for clean agent re-claim
 	err = store.ResolveReview(ctx, "task-claim-01", "Option A: Table Migration selected")
 	if err != nil {
 		t.Fatalf("ResolveReview failed: %v", err)
 	}
 	t2, _ := store.GetTask(ctx, "task-claim-01")
-	if t2.Status != domain.StatusRunning {
-		t.Fatalf("Expected status resumed to RUNNING, got: %s", t2.Status)
+	if t2.Status != domain.StatusReady {
+		t.Fatalf("Expected status resumed to READY, got: %s", t2.Status)
 	}
 	if t2.ReviewResponse != "Option A: Table Migration selected" {
 		t.Errorf("Unexpected review response: %s", t2.ReviewResponse)
+	}
+
+	// Re-claim after review resolution to put back into RUNNING
+	_, err = store.ClaimTask(ctx, "task-claim-01", "subagent-coder-2", 48292)
+	if err != nil {
+		t.Fatalf("Re-claiming task failed: %v", err)
 	}
 
 	// 4. Stage Merge (worktree complete)
@@ -364,5 +371,342 @@ func TestPlanStore_ProjectDocs(t *testing.T) {
 	archDocs, err := store.ListDocs(ctx, repoPath, "ARCHITECTURE")
 	if err != nil || len(archDocs) != 1 || archDocs[0].Slug != "architecture-overview" {
 		t.Fatalf("ListDocs filtered failed: count=%d, err=%v", len(archDocs), err)
+	}
+}
+
+func TestPlanStore_V24_ProjectsAndCRUD(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_v24_crud.db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx := context.Background()
+
+	// 1. Create Plan via CreatePlan
+	plan := domain.Plan{
+		Slug:     "plan-v24",
+		Title:    "V2.4 Living Plan",
+		RepoPath: "/test/v24-repo",
+		Status:   "ACTIVE",
+	}
+	if err := store.CreatePlan(ctx, plan); err != nil {
+		t.Fatalf("CreatePlan failed: %v", err)
+	}
+
+	// 2. Create Task via CreateTask
+	task := domain.Task{
+		ID:           "P24-01",
+		PlanID:       "plan-v24",
+		RepoPath:     "/test/v24-repo",
+		Title:        "First Slice",
+		Status:       domain.StatusReady,
+		Dependencies: []string{},
+	}
+	if err := store.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	// 3. Verify ListProjects
+	projects, err := store.ListProjects(ctx)
+	if err != nil || len(projects) != 1 || projects[0] != "/test/v24-repo" {
+		t.Fatalf("Expected project /test/v24-repo, got: %v (err=%v)", projects, err)
+	}
+
+	// 4. Update dependencies and notes
+	if err := store.UpdateTaskDependencies(ctx, "P24-01", []string{"P24-00"}); err != nil {
+		t.Fatalf("UpdateTaskDependencies failed: %v", err)
+	}
+	if err := store.UpdateTaskNotes(ctx, "P24-01", "Supplemental notes from developer"); err != nil {
+		t.Fatalf("UpdateTaskNotes failed: %v", err)
+	}
+	tUpdated, _ := store.GetTask(ctx, "P24-01")
+	if len(tUpdated.Dependencies) != 1 || tUpdated.Notes != "Supplemental notes from developer" {
+		t.Errorf("Unexpected task update: %+v", tUpdated)
+	}
+
+	// 5. DeletePlan (cascading)
+	if err := store.DeletePlan(ctx, "plan-v24"); err != nil {
+		t.Fatalf("DeletePlan failed: %v", err)
+	}
+	_, err = store.GetPlan(ctx, "plan-v24")
+	if !errors.Is(err, storage.ErrNotFound) {
+		t.Errorf("Expected ErrNotFound after delete, got: %v", err)
+	}
+	tasks, _ := store.GetTasksByPlan(ctx, "plan-v24")
+	if len(tasks) != 0 {
+		t.Errorf("Expected 0 tasks after cascading plan delete, got: %d", len(tasks))
+	}
+}
+
+func TestPlanStore_V24_ReclaimAndEvict(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_v24_reclaim.db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx := context.Background()
+
+	plan := domain.Plan{Slug: "plan-reclaim", Title: "Reclaim Plan", RepoPath: "/test/reclaim"}
+	_ = store.CreatePlan(ctx, plan)
+
+	task := domain.Task{
+		ID:       "task-rec-01",
+		PlanID:   "plan-reclaim",
+		RepoPath: "/test/reclaim",
+		Title:    "Reclaimable Task",
+		Status:   domain.StatusReady,
+	}
+	_ = store.CreateTask(ctx, task)
+
+	// Claim with metadata
+	packet, err := store.ClaimTaskWithMeta(ctx, "task-rec-01", "worker-1", "orch-1", "CODER", 1234, 1000)
+	if err != nil || packet == nil {
+		t.Fatalf("ClaimTaskWithMeta failed: %v", err)
+	}
+
+	tClaimed, _ := store.GetTask(ctx, "task-rec-01")
+	if tClaimed.Status != domain.StatusRunning || tClaimed.OrchestratorID != "orch-1" || tClaimed.PID != 1234 {
+		t.Errorf("Unexpected claimed task meta: %+v", tClaimed)
+	}
+
+	// Evict task back to READY
+	if err := store.EvictTask(ctx, "task-rec-01", "Subagent hung", "RESET_TO_READY"); err != nil {
+		t.Fatalf("EvictTask failed: %v", err)
+	}
+	tEvicted, _ := store.GetTask(ctx, "task-rec-01")
+	if tEvicted.Status != domain.StatusReady || tEvicted.ClaimedBy != "" {
+		t.Errorf("Expected task back to READY and unassigned, got: %+v", tEvicted)
+	}
+
+	// Re-claim with new worker
+	packet2, err := store.ReclaimTask(ctx, "task-rec-01", "worker-2", "orch-2", 5678)
+	if err != nil || packet2 == nil {
+		t.Fatalf("ReclaimTask failed: %v", err)
+	}
+	tReclaimed, _ := store.GetTask(ctx, "task-rec-01")
+	if tReclaimed.Status != domain.StatusRunning || tReclaimed.ClaimedBy != "worker-2" || tReclaimed.OrchestratorID != "orch-2" {
+		t.Errorf("Unexpected reclaimed task meta: %+v", tReclaimed)
+	}
+}
+
+func TestPlanStore_V24_AgentSessions(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_v24_sessions.db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx := context.Background()
+
+	sess1 := domain.AgentSession{
+		SessionID: "orch-root-01",
+		Role:      "ORCHESTRATOR",
+		Name:      "Lead Architect",
+		PID:       48100,
+	}
+	sess2 := domain.AgentSession{
+		SessionID:       "worker-sub-01",
+		ParentSessionID: "orch-root-01",
+		Role:            "SUBAGENT",
+		Name:            "Coder 1",
+		PID:             48105,
+		ClaimedTasks:    []string{"P-01"},
+	}
+
+	if err := store.RegisterSession(ctx, sess1); err != nil {
+		t.Fatalf("RegisterSession 1 failed: %v", err)
+	}
+	if err := store.RegisterSession(ctx, sess2); err != nil {
+		t.Fatalf("RegisterSession 2 failed: %v", err)
+	}
+
+	sessions, err := store.ListSessions(ctx)
+	if err != nil || len(sessions) != 2 {
+		t.Fatalf("ListSessions failed: len=%d, err=%v", len(sessions), err)
+	}
+
+	if err := store.HeartbeatSession(ctx, "orch-root-01"); err != nil {
+		t.Fatalf("HeartbeatSession failed: %v", err)
+	}
+}
+
+func TestPlanStore_TechSpecs_CRUD_FTS5(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_specs_fts.db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx := context.Background()
+
+	// 1. Upsert Spec
+	spec1 := domain.TechSpec{
+		Slug:              "spec-auth-flow",
+		RepoPath:          "/home/user/repo",
+		Tier:              2, // Dynamics
+		Kind:              "SEQUENCE",
+		Title:             "Authentication Flow Sequence",
+		DiagramType:       "mermaid:sequenceDiagram",
+		DiagramCode:       "sequenceDiagram\nClient->>Server: POST /login\nServer-->>Client: 200 OK JWT",
+		StructuredPayload: map[string]any{"timeout_ms": 5000, "algorithm": "RS256"},
+		Notes:             "Governs auth subsystem",
+		BoundPaths:        []string{"internal/auth/", "cmd/login"},
+	}
+
+	saved, err := store.UpsertSpec(ctx, spec1)
+	if err != nil {
+		t.Fatalf("UpsertSpec failed: %v", err)
+	}
+	if saved.Version != 1 {
+		t.Fatalf("expected version 1, got %d", saved.Version)
+	}
+
+	// 2. Update Spec -> in-place version bump
+	spec1.Notes = "Updated auth subsystem governance with refresh tokens"
+	spec1.StructuredPayload["refresh_enabled"] = true
+	updated, err := store.UpsertSpec(ctx, spec1)
+	if err != nil {
+		t.Fatalf("UpsertSpec update failed: %v", err)
+	}
+	if updated.Version != 2 {
+		t.Fatalf("expected version 2, got %d", updated.Version)
+	}
+
+	// 3. FTS5 Search
+	results, err := store.SearchSpecs(ctx, "refresh")
+	if err != nil {
+		t.Fatalf("SearchSpecs failed: %v", err)
+	}
+	if len(results) != 1 || results[0].Slug != "spec-auth-flow" {
+		t.Fatalf("expected 1 result matching 'refresh', got %d", len(results))
+	}
+
+	// 4. AutoLink by target files
+	targetFiles := []string{"internal/auth/handler.go", "pkg/utils.go"}
+	linked, err := store.AutoLinkSpecs(ctx, targetFiles)
+	if err != nil {
+		t.Fatalf("AutoLinkSpecs failed: %v", err)
+	}
+	if len(linked) != 1 || linked[0] != "spec-auth-flow" {
+		t.Fatalf("expected auto-linked spec 'spec-auth-flow', got %v", linked)
+	}
+
+	// 5. Zero-Round-Trip claim test
+	plan := domain.Plan{Slug: "plan-auth", Title: "Auth Plan", RepoPath: "/home/user/repo", Status: "ACTIVE"}
+	task := domain.Task{
+		ID:          "AUTH-01",
+		PlanID:      plan.Slug,
+		RepoPath:    plan.RepoPath,
+		Title:       "Implement Auth Handler",
+		TargetFiles: targetFiles,
+		Status:      domain.StatusReady,
+	}
+	_ = store.CreatePlan(ctx, plan)
+	_ = store.CreateTask(ctx, task)
+
+	packet, err := store.ClaimTask(ctx, "AUTH-01", "worker-1", 1234)
+	if err != nil {
+		t.Fatalf("ClaimTask failed: %v", err)
+	}
+	if len(packet.LinkedSpecs) != 1 {
+		t.Fatalf("expected 1 linked spec in ContextPacket, got %d", len(packet.LinkedSpecs))
+	}
+	if packet.LinkedSpecs[0].Slug != "spec-auth-flow" {
+		t.Fatalf("expected spec 'spec-auth-flow', got %s", packet.LinkedSpecs[0].Slug)
+	}
+	if packet.LinkedSpecs[0].Kind != "SEQUENCE" {
+		t.Fatalf("expected kind 'SEQUENCE', got %s", packet.LinkedSpecs[0].Kind)
+	}
+}
+
+func TestPlanStore_PlanSnapshots_Revisions_Diff(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_snapshots.db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx := context.Background()
+
+	plan := domain.Plan{Slug: "plan-diff-test", Title: "Snapshot Test", RepoPath: "/repo", Status: "ACTIVE"}
+	if err := store.CreatePlan(ctx, plan); err != nil {
+		t.Fatalf("CreatePlan failed: %v", err)
+	}
+
+	// 1. Save Snapshot v1.0
+	v1Files := []domain.SnapshotFile{
+		{FilePath: "README.md", Content: "# Plan v1.0\nInitial plan."},
+		{FilePath: "01-contracts.md", Content: "type API struct {}"},
+	}
+	err = store.SavePlanSnapshot(ctx, plan.Slug, "v1.0", "Architect", "Initial baseline", v1Files)
+	if err != nil {
+		t.Fatalf("SavePlanSnapshot v1.0 failed: %v", err)
+	}
+
+	// 2. Save Snapshot v2.0
+	v2Files := []domain.SnapshotFile{
+		{FilePath: "README.md", Content: "# Plan v2.0\nExpanded scope."},
+		{FilePath: "02-ui.md", Content: "UI Layout spec"},
+	}
+	err = store.SavePlanSnapshot(ctx, plan.Slug, "v2.0", "Architect", "V2 revision", v2Files)
+	if err != nil {
+		t.Fatalf("SavePlanSnapshot v2.0 failed: %v", err)
+	}
+
+	// 3. List Revisions
+	revs, err := store.ListPlanRevisions(ctx, plan.Slug)
+	if err != nil || len(revs) != 2 {
+		t.Fatalf("ListPlanRevisions failed: len=%d, err=%v", len(revs), err)
+	}
+	if revs[0].Revision != "v1.0" || revs[1].Revision != "v2.0" {
+		t.Fatalf("unexpected revisions order: %v", revs)
+	}
+
+	// 4. Get Snapshot Files
+	loadedV1, err := store.GetPlanSnapshot(ctx, plan.Slug, "v1.0")
+	if err != nil || len(loadedV1) != 2 {
+		t.Fatalf("GetPlanSnapshot v1.0 failed: len=%d, err=%v", len(loadedV1), err)
+	}
+
+	// 5. Get Diff between v1.0 and v2.0
+	diffs, err := store.GetPlanDiff(ctx, plan.Slug, "v1.0", "v2.0")
+	if err != nil {
+		t.Fatalf("GetPlanDiff failed: %v", err)
+	}
+
+	// Expect:
+	// 01-contracts.md -> DELETED
+	// 02-ui.md -> ADDED
+	// README.md -> MODIFIED
+	diffMap := make(map[string]domain.FileDiff)
+	for _, d := range diffs {
+		diffMap[d.FilePath] = d
+	}
+
+	if d, ok := diffMap["01-contracts.md"]; !ok || d.ChangeType != "DELETED" {
+		t.Fatalf("expected 01-contracts.md DELETED, got %v", d)
+	}
+	if d, ok := diffMap["02-ui.md"]; !ok || d.ChangeType != "ADDED" {
+		t.Fatalf("expected 02-ui.md ADDED, got %v", d)
+	}
+	if d, ok := diffMap["README.md"]; !ok || d.ChangeType != "MODIFIED" {
+		t.Fatalf("expected README.md MODIFIED, got %v", d)
 	}
 }

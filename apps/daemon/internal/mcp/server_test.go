@@ -119,8 +119,23 @@ func TestMCPServer_ToolsAndResources(t *testing.T) {
 	}
 
 	t2, _ := store.GetTask(ctx, "task-mcp-01")
-	if t2.Status != domain.StatusRunning {
-		t.Fatalf("Expected status RUNNING, got: %s", t2.Status)
+	if t2.Status != domain.StatusReady {
+		t.Fatalf("Expected status READY after review resolution, got: %s", t2.Status)
+	}
+
+	// Re-claim task to resume execution
+	claimReq2 := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "zenfd_claim_task",
+			Arguments: map[string]any{
+				"task_id":   "task-mcp-01",
+				"worker_id": "subagent-coder-2",
+			},
+		},
+	}
+	claimRes2, err := claimTool.Handler(ctx, claimReq2)
+	if err != nil || (claimRes2 != nil && claimRes2.IsError) {
+		t.Fatalf("Re-claim task failed: %v", err)
 	}
 
 	// 4. Test zenfd_complete_task
@@ -200,5 +215,84 @@ func TestMCPServer_ToolsAndResources(t *testing.T) {
 	}
 	if envData["os"] == "" {
 		t.Errorf("Expected os in env data, got: %+v", envData)
+	}
+
+	// 7. Test zenfd_upsert_spec
+	upsertTool := mcpServer.GetTool("zenfd_upsert_spec")
+	if upsertTool == nil {
+		t.Fatal("Tool zenfd_upsert_spec not registered")
+	}
+	upsertRes, err := upsertTool.Handler(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "zenfd_upsert_spec",
+			Arguments: map[string]any{
+				"slug":         "topology-mcp-test",
+				"title":        "Topology MCP Test",
+				"tier":         1.0,
+				"kind":         "CONTEXT",
+				"diagram_type": "mermaid:flowchart",
+				"diagram_code": "flowchart TD\nA-->B",
+				"notes":        "Test spec via MCP",
+				"bound_paths":  []string{"internal/mcp/"},
+			},
+		},
+	})
+	if err != nil || (upsertRes != nil && upsertRes.IsError) {
+		t.Fatalf("zenfd_upsert_spec failed: err=%v, res=%+v", err, upsertRes)
+	}
+
+	// 8. Test zenfd_get_spec
+	getSpecTool := mcpServer.GetTool("zenfd_get_spec")
+	if getSpecTool == nil {
+		t.Fatal("Tool zenfd_get_spec not registered")
+	}
+	getSpecRes, err := getSpecTool.Handler(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "zenfd_get_spec",
+			Arguments: map[string]any{
+				"slug": "topology-mcp-test",
+			},
+		},
+	})
+	if err != nil || (getSpecRes != nil && getSpecRes.IsError) {
+		t.Fatalf("zenfd_get_spec failed: err=%v, res=%+v", err, getSpecRes)
+	}
+
+	// 9. Test zenfd_search_specs
+	searchTool := mcpServer.GetTool("zenfd_search_specs")
+	if searchTool == nil {
+		t.Fatal("Tool zenfd_search_specs not registered")
+	}
+	searchRes, err := searchTool.Handler(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "zenfd_search_specs",
+			Arguments: map[string]any{
+				"query": "Topology",
+			},
+		},
+	})
+	if err != nil || (searchRes != nil && searchRes.IsError) {
+		t.Fatalf("zenfd_search_specs failed: err=%v, res=%+v", err, searchRes)
+	}
+
+	// 10. Test zenfd_snapshot_plan
+	snapshotTool := mcpServer.GetTool("zenfd_snapshot_plan")
+	if snapshotTool == nil {
+		t.Fatal("Tool zenfd_snapshot_plan not registered")
+	}
+	snapshotRes, err := snapshotTool.Handler(ctx, mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "zenfd_snapshot_plan",
+			Arguments: map[string]any{
+				"plan_slug":   plan.Slug,
+				"folder_path": tempDir,
+				"revision":    "v1.0",
+				"author":      "agent-test",
+				"summary":     "Initial test snapshot",
+			},
+		},
+	})
+	if err != nil || (snapshotRes != nil && snapshotRes.IsError) {
+		t.Fatalf("zenfd_snapshot_plan failed: err=%v, res=%+v", err, snapshotRes)
 	}
 }

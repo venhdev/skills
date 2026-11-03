@@ -2,13 +2,16 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,7 +46,8 @@ id, plan_id, repo_path, title, description, dependencies,
 priority, complexity, risk_level, required_skills, required_tools,
 target_files, acceptance_criteria, verification_commands,
 harness, skill_command, worktree_path, status, claimed_by, claimed_at,
-review_reason, review_details, review_options, review_response,
+orchestrator_id, worker_role, pid, orchestrator_pid, notes,
+review_reason, review_details, review_options, review_response, resolved_by,
 conflict_files, created_at, updated_at
 `
 
@@ -62,7 +66,8 @@ func scanTask(s scanner) (*domain.Task, error) {
 		&priorityStr, &complexityStr, &riskStr, &skillsJSON, &toolsJSON,
 		&filesJSON, &criteriaJSON, &verifJSON,
 		&t.Harness, &t.SkillCommand, &t.WorktreePath, &statusStr, &t.ClaimedBy, &claimedAt,
-		&t.ReviewReason, &t.ReviewDetails, &optionsJSON, &t.ReviewResponse,
+		&t.OrchestratorID, &t.WorkerRole, &t.PID, &t.OrchestratorPID, &t.Notes,
+		&t.ReviewReason, &t.ReviewDetails, &optionsJSON, &t.ReviewResponse, &t.ResolvedBy,
 		&conflictJSON, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
@@ -158,9 +163,10 @@ func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks [
 			priority, complexity, risk_level, required_skills, required_tools,
 			target_files, acceptance_criteria, verification_commands,
 			harness, skill_command, worktree_path, status, claimed_by, claimed_at,
-			review_reason, review_details, review_options, review_response,
+			orchestrator_id, worker_role, pid, orchestrator_pid, notes,
+			review_reason, review_details, review_options, review_response, resolved_by,
 			conflict_files, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			description = excluded.description,
@@ -179,10 +185,16 @@ func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks [
 			status = excluded.status,
 			claimed_by = excluded.claimed_by,
 			claimed_at = excluded.claimed_at,
+			orchestrator_id = excluded.orchestrator_id,
+			worker_role = excluded.worker_role,
+			pid = excluded.pid,
+			orchestrator_pid = excluded.orchestrator_pid,
+			notes = excluded.notes,
 			review_reason = excluded.review_reason,
 			review_details = excluded.review_details,
 			review_options = excluded.review_options,
 			review_response = excluded.review_response,
+			resolved_by = excluded.resolved_by,
 			conflict_files = excluded.conflict_files,
 			updated_at = excluded.updated_at
 		`
@@ -219,12 +231,13 @@ func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks [
 			}
 
 			_, err = tx.ExecContext(ctx, taskQuery,
-				task.ID, plan.Slug, task.RepoPath, task.Title, task.Description, string(depsJSON),
+				task.ID, plan.Slug, NormalizePath(task.RepoPath), task.Title, task.Description, string(depsJSON),
 				priority, complexity, risk, string(skillsJSON), string(toolsJSON),
 				string(filesJSON), string(criteriaJSON), string(verifJSON),
 				task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
 				task.ClaimedBy, task.ClaimedAt,
-				task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse,
+				task.OrchestratorID, task.WorkerRole, task.PID, task.OrchestratorPID, task.Notes,
+				task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
 				string(conflictJSON), task.CreatedAt, task.UpdatedAt,
 			)
 			if err != nil {
@@ -510,6 +523,11 @@ func (s *Store) UpdateTaskStatus(ctx context.Context, taskID string, from domain
 
 // ClaimTask atomically verifies readiness, sets claim lock (workerID & pid), transitions to RUNNING, and returns ContextPacket.
 func (s *Store) ClaimTask(ctx context.Context, taskID string, workerID string, pid int) (*domain.ContextPacket, error) {
+	return s.ClaimTaskWithMeta(ctx, taskID, workerID, "", "", pid, 0)
+}
+
+// ClaimTaskWithMeta atomically claims a ready task with full metadata.
+func (s *Store) ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string, pid int, orchestratorPID int) (*domain.ContextPacket, error) {
 	if workerID == "" {
 		workerID = fmt.Sprintf("worker-%d", time.Now().UnixNano())
 	}
@@ -531,12 +549,12 @@ func (s *Store) ClaimTask(ctx context.Context, taskID string, workerID string, p
 			return fmt.Errorf("%w: task %s is not in READY status (current: %s)", ErrConflictStatus, taskID, t.Status)
 		}
 
-		// Update to RUNNING with claim lock
+		// Update to RUNNING with claim lock and metadata
 		res, err := tx.ExecContext(ctx, `
 			UPDATE tasks
-			SET status = 'RUNNING', claimed_by = ?, claimed_at = ?, updated_at = ?
+			SET status = 'RUNNING', claimed_by = ?, orchestrator_id = ?, worker_role = ?, pid = ?, orchestrator_pid = ?, claimed_at = ?, updated_at = ?
 			WHERE id = ? AND status = 'READY'
-		`, workerID, now, now, taskID)
+		`, workerID, orchestratorID, workerRole, pid, orchestratorPID, now, now, taskID)
 		if err != nil {
 			return fmt.Errorf("failed to claim task: %w", err)
 		}
@@ -550,6 +568,10 @@ func (s *Store) ClaimTask(ctx context.Context, taskID string, workerID string, p
 
 		t.Status = domain.StatusRunning
 		t.ClaimedBy = workerID
+		t.OrchestratorID = orchestratorID
+		t.WorkerRole = workerRole
+		t.PID = pid
+		t.OrchestratorPID = orchestratorPID
 		t.ClaimedAt = &now
 		t.UpdatedAt = now
 
@@ -571,6 +593,91 @@ func (s *Store) ClaimTask(ctx context.Context, taskID string, workerID string, p
 		return nil, err
 	}
 	return packet, nil
+}
+
+// ReclaimTask re-claims a SUSPENDED or failed task with a new worker and orchestrator.
+func (s *Store) ReclaimTask(ctx context.Context, taskID string, newWorkerID string, newOrchestratorID string, newPID int) (*domain.ContextPacket, error) {
+	if newWorkerID == "" {
+		newWorkerID = fmt.Sprintf("reclaimed-worker-%d", time.Now().UnixNano())
+	}
+	now := time.Now().UTC()
+
+	var packet *domain.ContextPacket
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		query := fmt.Sprintf("SELECT %s FROM tasks WHERE id = ?", taskSelectCols)
+		row := tx.QueryRowContext(ctx, query, taskID)
+		t, err := scanTask(row)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+
+		if t.Status != domain.StatusSuspended && t.Status != domain.StatusReady {
+			return fmt.Errorf("%w: task %s is not SUSPENDED or READY (current: %s)", ErrConflictStatus, taskID, t.Status)
+		}
+
+		res, err := tx.ExecContext(ctx, `
+			UPDATE tasks
+			SET status = 'RUNNING', claimed_by = ?, orchestrator_id = ?, pid = ?, claimed_at = ?, updated_at = ?
+			WHERE id = ? AND (status = 'SUSPENDED' OR status = 'READY')
+		`, newWorkerID, newOrchestratorID, newPID, now, now, taskID)
+		if err != nil {
+			return err
+		}
+		rows, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return fmt.Errorf("%w: failed to reclaim task %s", ErrConflictStatus, taskID)
+		}
+
+		t.Status = domain.StatusRunning
+		t.ClaimedBy = newWorkerID
+		t.OrchestratorID = newOrchestratorID
+		t.PID = newPID
+		t.ClaimedAt = &now
+		t.UpdatedAt = now
+
+		p, err := s.buildContextPacket(ctx, tx, *t)
+		if err != nil {
+			return err
+		}
+		packet = p
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return packet, nil
+}
+
+// EvictTask evicts a running or suspended task, resetting it to READY or cancelling it.
+func (s *Store) EvictTask(ctx context.Context, taskID string, reason string, action string) error {
+	now := time.Now().UTC()
+	targetStatus := domain.StatusReady
+	if action == "CANCEL" {
+		targetStatus = domain.StatusCancelled
+	}
+
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `
+			UPDATE tasks
+			SET status = ?, claimed_by = '', pid = 0, notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END, updated_at = ?
+			WHERE id = ? AND (status = 'RUNNING' OR status = 'SUSPENDED')
+		`, string(targetStatus), "Eviction: "+reason, "Eviction: "+reason, now, taskID)
+		if err != nil {
+			return err
+		}
+		rows, _ := res.RowsAffected()
+		if rows == 0 {
+			return fmt.Errorf("%w: task %s is not in RUNNING or SUSPENDED status", ErrConflictStatus, taskID)
+		}
+		return nil
+	})
 }
 
 // RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
@@ -611,7 +718,7 @@ func (s *Store) RequestReview(ctx context.Context, taskID string, reason string,
 	})
 }
 
-// ResolveReview answers an awaiting review and resumes task back to RUNNING.
+// ResolveReview answers an awaiting review, records resolution, and transitions task back to READY.
 func (s *Store) ResolveReview(ctx context.Context, taskID string, response string) error {
 	now := time.Now().UTC()
 	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
@@ -630,7 +737,7 @@ func (s *Store) ResolveReview(ctx context.Context, taskID string, response strin
 
 		res, err := tx.ExecContext(ctx, `
 			UPDATE tasks
-			SET status = 'RUNNING', review_response = ?, updated_at = ?
+			SET status = 'READY', review_response = ?, claimed_by = '', pid = 0, resolved_by = 'operator', updated_at = ?
 			WHERE id = ? AND status = 'AWAITING_REVIEW'
 		`, response, now, taskID)
 		if err != nil {
@@ -638,7 +745,7 @@ func (s *Store) ResolveReview(ctx context.Context, taskID string, response strin
 		}
 		rows, _ := res.RowsAffected()
 		if rows == 0 {
-			return fmt.Errorf("%w: failed to transition task %s to RUNNING", ErrConflictStatus, taskID)
+			return fmt.Errorf("%w: failed to resolve review for task %s", ErrConflictStatus, taskID)
 		}
 		return nil
 	})
@@ -767,6 +874,39 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 		}
 	}
 
+	// 3.5. Resolve Linked Specs (Zero-Round-Trip Context Injection)
+	packet.LinkedSpecs = []domain.CompactSpecPayload{}
+	var linkedSlugs []string
+	if tx != nil {
+		linkedSlugs, _ = s.autoLinkSpecsTx(ctx, tx, task.TargetFiles)
+		for _, slug := range linkedSlugs {
+			spec, err := s.getSpecTx(ctx, tx, slug)
+			if err == nil && spec != nil {
+				packet.LinkedSpecs = append(packet.LinkedSpecs, domain.CompactSpecPayload{
+					Slug:        spec.Slug,
+					Kind:        spec.Kind,
+					Title:       spec.Title,
+					DiagramCode: spec.DiagramCode,
+					Payload:     spec.StructuredPayload,
+				})
+			}
+		}
+	} else {
+		linkedSlugs, _ = s.AutoLinkSpecs(ctx, task.TargetFiles)
+		for _, slug := range linkedSlugs {
+			spec, err := s.GetSpec(ctx, slug)
+			if err == nil && spec != nil {
+				packet.LinkedSpecs = append(packet.LinkedSpecs, domain.CompactSpecPayload{
+					Slug:        spec.Slug,
+					Kind:        spec.Kind,
+					Title:       spec.Title,
+					DiagramCode: spec.DiagramCode,
+					Payload:     spec.StructuredPayload,
+				})
+			}
+		}
+	}
+
 	// 4. Generate Structured Prompt Markdown
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("# Task Assignment: %s (%s)\n\n", task.Title, task.ID))
@@ -780,6 +920,17 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 		sb.WriteString(task.Description + "\n\n")
 	} else {
 		sb.WriteString("Execute the implementation according to plan specifications.\n\n")
+	}
+
+	if len(packet.LinkedSpecs) > 0 {
+		sb.WriteString("## 1.5. Linked Architectural Blueprints & Contracts (SSOT)\n")
+		for _, ls := range packet.LinkedSpecs {
+			sb.WriteString(fmt.Sprintf("### Spec `%s`: %s (%s)\n", ls.Slug, ls.Title, ls.Kind))
+			if ls.DiagramCode != "" {
+				sb.WriteString(fmt.Sprintf("```mermaid\n%s\n```\n", ls.DiagramCode))
+			}
+		}
+		sb.WriteString("\n")
 	}
 
 	if len(task.AcceptanceCriteria) > 0 {
@@ -807,9 +958,10 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 		sb.WriteString("```\n\n")
 	}
 
-	sb.WriteString("## 5. Execution Protocol\n")
-	sb.WriteString("- If scope or architectural drift is encountered, invoke `zenfd_request_review` with your questions and options.\n")
-	sb.WriteString("- Once all acceptance criteria are met and verification commands pass, invoke `zenfd_complete_task`.\n")
+	sb.WriteString("## 5. MCP Tool Handshake Protocol\n")
+	sb.WriteString(fmt.Sprintf("- **Claim**: Call `zenfd_claim_task(task_id=\"%s\", worker_role=\"CODER\", pid=$PID)` before editing files.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Architectural Drift / Blocked**: Call `zenfd_yield_review(task_id=\"%s\", reason=\"...\", details=\"...\", options=[\"...\"])` and exit immediately.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Stage Merge**: Once all verification commands pass with exit code 0, call `zenfd_stage_merge(task_id=\"%s\")`.\n", task.ID))
 
 	packet.PromptMarkdown = sb.String()
 	return packet, nil
@@ -922,4 +1074,676 @@ func (s *Store) ListDocs(ctx context.Context, repoPath, category string) ([]doma
 		docs = append(docs, doc)
 	}
 	return docs, rows.Err()
+}
+
+// NormalizePath converts Windows or UNC paths to POSIX Linux paths for WSL compatibility.
+func NormalizePath(p string) string {
+	if p == "" {
+		return ""
+	}
+	p = strings.TrimSpace(p)
+	p = strings.ReplaceAll(p, "\\", "/")
+
+	// 1. Check for UNC WSL format: //wsl.localhost/Ubuntu/path or //wsl$/Ubuntu/path
+	if strings.HasPrefix(p, "//wsl.localhost/") || strings.HasPrefix(p, "//wsl$/") {
+		clean := strings.TrimPrefix(strings.TrimPrefix(p, "//wsl.localhost/"), "//wsl$/")
+		idx := strings.Index(clean, "/")
+		if idx != -1 {
+			return filepath.Clean(clean[idx:])
+		}
+	}
+
+	// 2. Check for Windows Drive letter: C:/path or D:/path
+	if len(p) >= 3 && p[1] == ':' && p[2] == '/' {
+		drive := strings.ToLower(string(p[0]))
+		return filepath.Clean("/mnt/" + drive + "/" + p[3:])
+	}
+
+	return filepath.Clean(p)
+}
+
+// ListProjects returns all distinct repo_paths known to the store.
+func (s *Store) ListProjects(ctx context.Context) ([]string, error) {
+	query := `
+	SELECT DISTINCT repo_path FROM plans WHERE repo_path != ''
+	UNION
+	SELECT DISTINCT repo_path FROM tasks WHERE repo_path != ''
+	ORDER BY repo_path ASC
+	`
+	rows, err := s.db.sqlDB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query projects: %w", err)
+	}
+	defer rows.Close()
+
+	var projects []string
+	seen := make(map[string]bool)
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err == nil && path != "" {
+			norm := NormalizePath(path)
+			if !seen[norm] {
+				seen[norm] = true
+				projects = append(projects, norm)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// If no projects in database yet, automatically discover current daemon working directory
+	if len(projects) == 0 {
+		if cwd, err := os.Getwd(); err == nil && cwd != "" {
+			projects = append(projects, NormalizePath(cwd))
+		}
+	}
+
+	return projects, nil
+}
+
+// CreatePlan inserts a single plan.
+func (s *Store) CreatePlan(ctx context.Context, plan domain.Plan) error {
+	now := time.Now().UTC()
+	if plan.CreatedAt.IsZero() {
+		plan.CreatedAt = now
+	}
+	plan.UpdatedAt = now
+	if plan.Status == "" {
+		plan.Status = "ACTIVE"
+	}
+	plan.RepoPath = NormalizePath(plan.RepoPath)
+
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		query := `
+		INSERT INTO plans (slug, title, repo_path, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(slug) DO UPDATE SET
+			title = excluded.title,
+			repo_path = excluded.repo_path,
+			status = excluded.status,
+			updated_at = excluded.updated_at
+		`
+		_, err := tx.ExecContext(ctx, query, plan.Slug, plan.Title, plan.RepoPath, plan.Status, plan.CreatedAt, plan.UpdatedAt)
+		return err
+	})
+}
+
+// DeletePlan deletes a plan and cascades to its tasks, runs, artifacts, and docs.
+func (s *Store) DeletePlan(ctx context.Context, slug string) error {
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, "DELETE FROM plans WHERE slug = ?", slug)
+		if err != nil {
+			return err
+		}
+		rows, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+// CreateTask inserts a single task.
+func (s *Store) CreateTask(ctx context.Context, task domain.Task) error {
+	now := time.Now().UTC()
+	if task.CreatedAt.IsZero() {
+		task.CreatedAt = now
+	}
+	task.UpdatedAt = now
+	task.RepoPath = NormalizePath(task.RepoPath)
+
+	depsJSON, _ := json.Marshal(task.Dependencies)
+	skillsJSON, _ := json.Marshal(task.RequiredSkills)
+	toolsJSON, _ := json.Marshal(task.RequiredTools)
+	filesJSON, _ := json.Marshal(task.TargetFiles)
+	criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
+	verifJSON, _ := json.Marshal(task.VerificationCommands)
+	optionsJSON, _ := json.Marshal(task.ReviewOptions)
+	conflictJSON, _ := json.Marshal(task.ConflictFiles)
+
+	priority := string(task.Priority)
+	if priority == "" {
+		priority = string(domain.PriorityP2)
+	}
+	complexity := string(task.Complexity)
+	if complexity == "" {
+		complexity = string(domain.ComplexityMedium)
+	}
+	risk := string(task.RiskLevel)
+	if risk == "" {
+		risk = string(domain.RiskLow)
+	}
+	if task.Status == "" {
+		task.Status = domain.StatusPending
+		if len(task.Dependencies) == 0 {
+			task.Status = domain.StatusReady
+		}
+	}
+
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		query := `
+		INSERT INTO tasks (
+			id, plan_id, repo_path, title, description, dependencies,
+			priority, complexity, risk_level, required_skills, required_tools,
+			target_files, acceptance_criteria, verification_commands,
+			harness, skill_command, worktree_path, status, claimed_by, claimed_at,
+			orchestrator_id, worker_role, pid, orchestrator_pid, notes,
+			review_reason, review_details, review_options, review_response, resolved_by,
+			conflict_files, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			title = excluded.title,
+			description = excluded.description,
+			dependencies = excluded.dependencies,
+			priority = excluded.priority,
+			complexity = excluded.complexity,
+			risk_level = excluded.risk_level,
+			required_skills = excluded.required_skills,
+			required_tools = excluded.required_tools,
+			target_files = excluded.target_files,
+			acceptance_criteria = excluded.acceptance_criteria,
+			verification_commands = excluded.verification_commands,
+			harness = excluded.harness,
+			skill_command = excluded.skill_command,
+			worktree_path = excluded.worktree_path,
+			status = excluded.status,
+			notes = excluded.notes,
+			updated_at = excluded.updated_at
+		`
+		_, err := tx.ExecContext(ctx, query,
+			task.ID, task.PlanID, task.RepoPath, task.Title, task.Description, string(depsJSON),
+			priority, complexity, risk, string(skillsJSON), string(toolsJSON),
+			string(filesJSON), string(criteriaJSON), string(verifJSON),
+			task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
+			task.ClaimedBy, task.ClaimedAt,
+			task.OrchestratorID, task.WorkerRole, task.PID, task.OrchestratorPID, task.Notes,
+			task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
+			string(conflictJSON), task.CreatedAt, task.UpdatedAt,
+		)
+		return err
+	})
+}
+
+// UpdateTaskDependencies updates the task dependency list.
+func (s *Store) UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error {
+	now := time.Now().UTC()
+	depsJSON, _ := json.Marshal(deps)
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, "UPDATE tasks SET dependencies = ?, updated_at = ? WHERE id = ?", string(depsJSON), now, taskID)
+		return err
+	})
+}
+
+// UpdateTaskNotes updates developer supplemental notes.
+func (s *Store) UpdateTaskNotes(ctx context.Context, taskID string, notes string) error {
+	now := time.Now().UTC()
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, "UPDATE tasks SET notes = ?, updated_at = ? WHERE id = ?", notes, now, taskID)
+		return err
+	})
+}
+
+// AddInputAttachment adds an input artifact (media, screenshot, or spec) to a task.
+func (s *Store) AddInputAttachment(ctx context.Context, taskID string, name string, filePath string, mimeType string, byteSize int64, sha256 string) (*domain.Artifact, error) {
+	now := time.Now().UTC()
+	artID := fmt.Sprintf("art-%s-%d", taskID, now.UnixNano())
+	artType := domain.ArtifactTypeImage
+	if !strings.HasPrefix(mimeType, "image/") {
+		artType = domain.ArtifactTypeDoc
+	}
+
+	art := domain.Artifact{
+		ID:        artID,
+		TaskID:    taskID,
+		Role:      domain.ArtifactRoleInput,
+		Name:      name,
+		Type:      artType,
+		FilePath:  filePath,
+		MimeType:  mimeType,
+		ByteSize:  byteSize,
+		Sha256:    sha256,
+		CreatedAt: now,
+	}
+
+	err := s.RecordArtifact(ctx, art)
+	if err != nil {
+		return nil, err
+	}
+	return &art, nil
+}
+
+// UpsertSpec saves a technical specification, incrementing version on update.
+func (s *Store) UpsertSpec(ctx context.Context, spec domain.TechSpec) (*domain.TechSpec, error) {
+	if spec.Slug == "" {
+		return nil, fmt.Errorf("spec slug cannot be empty")
+	}
+	if spec.Title == "" {
+		return nil, fmt.Errorf("spec title cannot be empty")
+	}
+	if spec.Tier < 1 || spec.Tier > 5 {
+		spec.Tier = 1
+	}
+	if spec.StructuredPayload == nil {
+		spec.StructuredPayload = make(map[string]any)
+	}
+	if spec.BoundPaths == nil {
+		spec.BoundPaths = []string{}
+	}
+
+	payloadBytes, err := json.Marshal(spec.StructuredPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal structured_payload: %w", err)
+	}
+	boundBytes, err := json.Marshal(spec.BoundPaths)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal bound_paths: %w", err)
+	}
+
+	now := time.Now().UTC()
+	var result *domain.TechSpec
+
+	err = s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		var existingVersion int
+		query := `SELECT version FROM tech_specs WHERE slug = ?`
+		err := tx.QueryRowContext(ctx, query, spec.Slug).Scan(&existingVersion)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			spec.Version = 1
+			spec.UpdatedAt = now
+			insertSQL := `
+			INSERT INTO tech_specs (slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			_, err = tx.ExecContext(ctx, insertSQL,
+				spec.Slug, spec.RepoPath, spec.Tier, spec.Kind, spec.Title,
+				spec.DiagramType, spec.DiagramCode, string(payloadBytes), spec.Notes,
+				string(boundBytes), spec.Version, spec.UpdatedAt)
+			if err != nil {
+				return err
+			}
+			result = &spec
+			return nil
+		} else if err != nil {
+			return err
+		}
+
+		spec.Version = existingVersion + 1
+		spec.UpdatedAt = now
+		updateSQL := `
+		UPDATE tech_specs 
+		SET repo_path=?, tier=?, kind=?, title=?, diagram_type=?, diagram_code=?, structured_payload=?, notes=?, bound_paths=?, version=?, updated_at=?
+		WHERE slug=?`
+		_, err = tx.ExecContext(ctx, updateSQL,
+			spec.RepoPath, spec.Tier, spec.Kind, spec.Title,
+			spec.DiagramType, spec.DiagramCode, string(payloadBytes), spec.Notes,
+			string(boundBytes), spec.Version, spec.UpdatedAt, spec.Slug)
+		if err != nil {
+			return err
+		}
+		result = &spec
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetSpec fetches a spec by slug.
+func (s *Store) GetSpec(ctx context.Context, slug string) (*domain.TechSpec, error) {
+	var spec *domain.TechSpec
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		var err error
+		spec, err = s.getSpecTx(ctx, tx, slug)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return spec, nil
+}
+
+func (s *Store) getSpecTx(ctx context.Context, tx *sql.Tx, slug string) (*domain.TechSpec, error) {
+	query := `
+	SELECT slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at
+	FROM tech_specs WHERE slug = ?`
+
+	var spec domain.TechSpec
+	var payloadStr, boundStr string
+	err := tx.QueryRowContext(ctx, query, slug).Scan(
+		&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
+		&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
+		&boundStr, &spec.Version, &spec.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
+	_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
+	return &spec, nil
+}
+
+// ListSpecs lists specs filtered optionally by repoPath and/or tier.
+func (s *Store) ListSpecs(ctx context.Context, repoPath string, tier int) ([]domain.TechSpec, error) {
+	query := `
+	SELECT slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at
+	FROM tech_specs WHERE 1=1`
+	var args []any
+
+	if repoPath != "" {
+		query += " AND repo_path = ?"
+		args = append(args, repoPath)
+	}
+	if tier > 0 {
+		query += " AND tier = ?"
+		args = append(args, tier)
+	}
+	query += " ORDER BY tier ASC, slug ASC"
+
+	var specs []domain.TechSpec
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var spec domain.TechSpec
+			var payloadStr, boundStr string
+			if err := rows.Scan(
+				&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
+				&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
+				&boundStr, &spec.Version, &spec.UpdatedAt); err != nil {
+				return err
+			}
+			_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
+			_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
+			specs = append(specs, spec)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return specs, nil
+}
+
+// SearchSpecs executes an FTS5 full-text query across tech_specs_fts.
+func (s *Store) SearchSpecs(ctx context.Context, query string) ([]domain.TechSpec, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return s.ListSpecs(ctx, "", 0)
+	}
+
+	sqlQuery := `
+	SELECT t.slug, t.repo_path, t.tier, t.kind, t.title, t.diagram_type, t.diagram_code, t.structured_payload, t.notes, t.bound_paths, t.version, t.updated_at
+	FROM tech_specs_fts f
+	JOIN tech_specs t ON f.rowid = t.rowid
+	WHERE tech_specs_fts MATCH ?`
+
+	var results []domain.TechSpec
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, sqlQuery, query)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var spec domain.TechSpec
+			var payloadStr, boundStr string
+			if err := rows.Scan(
+				&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
+				&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
+				&boundStr, &spec.Version, &spec.UpdatedAt); err != nil {
+				return err
+			}
+			_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
+			_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
+			results = append(results, spec)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// AutoLinkSpecs matches target files against bound paths of all registered specs.
+func (s *Store) AutoLinkSpecs(ctx context.Context, targetFiles []string) ([]string, error) {
+	var matched []string
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		var err error
+		matched, err = s.autoLinkSpecsTx(ctx, tx, targetFiles)
+		return err
+	})
+	return matched, err
+}
+
+func (s *Store) autoLinkSpecsTx(ctx context.Context, tx *sql.Tx, targetFiles []string) ([]string, error) {
+	if len(targetFiles) == 0 {
+		return nil, nil
+	}
+
+	rows, err := tx.QueryContext(ctx, `SELECT slug, bound_paths FROM tech_specs`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	matchedSlugsMap := make(map[string]bool)
+	for rows.Next() {
+		var slug, boundStr string
+		if err := rows.Scan(&slug, &boundStr); err != nil {
+			continue
+		}
+		var boundPaths []string
+		_ = json.Unmarshal([]byte(boundStr), &boundPaths)
+
+		for _, targetFile := range targetFiles {
+			for _, bound := range boundPaths {
+				if bound != "" && (strings.HasPrefix(targetFile, bound) || strings.Contains(targetFile, bound)) {
+					matchedSlugsMap[slug] = true
+					break
+				}
+			}
+		}
+	}
+
+	var matched []string
+	for slug := range matchedSlugsMap {
+		matched = append(matched, slug)
+	}
+	sort.Strings(matched)
+	return matched, nil
+}
+
+// SavePlanSnapshot saves an atomic directory snapshot for a plan at a given revision.
+func (s *Store) SavePlanSnapshot(ctx context.Context, planSlug, revision, author, summary string, files []domain.SnapshotFile) error {
+	if planSlug == "" {
+		return fmt.Errorf("plan_slug cannot be empty")
+	}
+	if revision == "" {
+		revision = "v1.0"
+	}
+	now := time.Now().UTC()
+
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		// 1. Insert or update plan revision record
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO plan_revisions (plan_slug, revision, author, summary, created_at)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(plan_slug, revision) DO UPDATE SET
+				author = excluded.author,
+				summary = excluded.summary,
+				created_at = excluded.created_at
+		`, planSlug, revision, author, summary, now)
+		if err != nil {
+			return fmt.Errorf("failed to save plan revision: %w", err)
+		}
+
+		// 2. Clear previous snapshot files for this exact (plan_slug, revision) to support in-place re-push
+		_, _ = tx.ExecContext(ctx, `DELETE FROM plan_snapshots WHERE plan_slug = ? AND revision = ?`, planSlug, revision)
+
+		// 3. Insert each file
+		insertFileStmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO plan_snapshots (plan_slug, revision, file_path, content, byte_size, sha256, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)
+		`)
+		if err != nil {
+			return err
+		}
+		defer insertFileStmt.Close()
+
+		for _, f := range files {
+			h := sha256.Sum256([]byte(f.Content))
+			shaStr := hex.EncodeToString(h[:])
+			byteSize := int64(len(f.Content))
+			_, err = insertFileStmt.ExecContext(ctx, planSlug, revision, f.FilePath, f.Content, byteSize, shaStr, now)
+			if err != nil {
+				return fmt.Errorf("failed to save snapshot file %s: %w", f.FilePath, err)
+			}
+		}
+
+		return nil
+	})
+}
+
+// GetPlanSnapshot retrieves all snapshot files for a plan at a given revision.
+func (s *Store) GetPlanSnapshot(ctx context.Context, planSlug, revision string) ([]domain.SnapshotFile, error) {
+	var files []domain.SnapshotFile
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT plan_slug, revision, file_path, content, byte_size, sha256, created_at
+			FROM plan_snapshots
+			WHERE plan_slug = ? AND revision = ?
+			ORDER BY file_path ASC
+		`, planSlug, revision)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var f domain.SnapshotFile
+			if err := rows.Scan(&f.PlanSlug, &f.Revision, &f.FilePath, &f.Content, &f.ByteSize, &f.SHA256, &f.CreatedAt); err != nil {
+				return err
+			}
+			files = append(files, f)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+// ListPlanRevisions lists all revision records for a given plan.
+func (s *Store) ListPlanRevisions(ctx context.Context, planSlug string) ([]domain.PlanRevision, error) {
+	var revs []domain.PlanRevision
+	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, `
+			SELECT id, plan_slug, revision, author, summary, created_at
+			FROM plan_revisions
+			WHERE plan_slug = ?
+			ORDER BY id ASC
+		`, planSlug)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var r domain.PlanRevision
+			if err := rows.Scan(&r.ID, &r.PlanSlug, &r.Revision, &r.Author, &r.Summary, &r.CreatedAt); err != nil {
+				return err
+			}
+			revs = append(revs, r)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return revs, nil
+}
+
+// GetPlanDiff computes differences between two plan revisions.
+func (s *Store) GetPlanDiff(ctx context.Context, planSlug, fromRev, toRev string) ([]domain.FileDiff, error) {
+	fromFiles, err := s.GetPlanSnapshot(ctx, planSlug, fromRev)
+	if err != nil {
+		return nil, err
+	}
+	toFiles, err := s.GetPlanSnapshot(ctx, planSlug, toRev)
+	if err != nil {
+		return nil, err
+	}
+
+	fromMap := make(map[string]string)
+	for _, f := range fromFiles {
+		fromMap[f.FilePath] = f.Content
+	}
+
+	toMap := make(map[string]string)
+	for _, f := range toFiles {
+		toMap[f.FilePath] = f.Content
+	}
+
+	var diffs []domain.FileDiff
+
+	// Check modified and added files
+	for path, newContent := range toMap {
+		if oldContent, exists := fromMap[path]; exists {
+			if oldContent == newContent {
+				diffs = append(diffs, domain.FileDiff{
+					FilePath:   path,
+					ChangeType: "IDENTICAL",
+					OldContent: oldContent,
+					NewContent: newContent,
+				})
+			} else {
+				diffs = append(diffs, domain.FileDiff{
+					FilePath:   path,
+					ChangeType: "MODIFIED",
+					OldContent: oldContent,
+					NewContent: newContent,
+				})
+			}
+		} else {
+			diffs = append(diffs, domain.FileDiff{
+				FilePath:   path,
+				ChangeType: "ADDED",
+				OldContent: "",
+				NewContent: newContent,
+			})
+		}
+	}
+
+	// Check deleted files
+	for path, oldContent := range fromMap {
+		if _, exists := toMap[path]; !exists {
+			diffs = append(diffs, domain.FileDiff{
+				FilePath:   path,
+				ChangeType: "DELETED",
+				OldContent: oldContent,
+				NewContent: "",
+			})
+		}
+	}
+
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].FilePath < diffs[j].FilePath
+	})
+
+	return diffs, nil
 }

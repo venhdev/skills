@@ -1,5 +1,5 @@
 import React from 'react'
-import { Terminal, CheckCircle2, PlayCircle, Clock, AlertCircle } from 'lucide-react'
+import { Terminal, CheckCircle2, PlayCircle, Clock, AlertCircle, AlertTriangle, Unplug } from 'lucide-react'
 import type { Task, TaskStatus } from '../../types/contracts'
 
 interface SwimlanesViewProps {
@@ -11,6 +11,8 @@ interface SwimlanesViewProps {
 const columns: { status: TaskStatus; label: string; color: string }[] = [
   { status: 'READY', label: 'Ready for Dispatch', color: 'text-amber-400' },
   { status: 'RUNNING', label: 'Actively Running', color: 'text-violet-400' },
+  { status: 'AWAITING_REVIEW', label: 'Awaiting Review', color: 'text-orange-400' },
+  { status: 'SUSPENDED', label: 'Suspended (Lost PID)', color: 'text-amber-500' },
   { status: 'COMPLETED', label: 'Verified & Done', color: 'text-emerald-400' },
   { status: 'PENDING', label: 'Prerequisites Pending', color: 'text-zinc-500' },
   { status: 'FAILED', label: 'Failed / Drifted', color: 'text-rose-400' },
@@ -32,6 +34,10 @@ export const SwimlanesView: React.FC<SwimlanesViewProps> = ({
         return <PlayCircle className="h-3.5 w-3.5 text-violet-400 animate-spin" />
       case 'READY':
         return <Clock className="h-3.5 w-3.5 text-amber-400" />
+      case 'AWAITING_REVIEW':
+        return <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
+      case 'SUSPENDED':
+        return <Unplug className="h-3.5 w-3.5 text-amber-500" />
       case 'FAILED':
         return <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
       default:

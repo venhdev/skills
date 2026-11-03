@@ -21,10 +21,10 @@ description: "Distill dense context, verbose explanations, or complex topics int
 - *Usable*: State the concrete takeaway or operational action directly in context.
 
 ### 2. Word Choice Guidance (Smell vs. Remedy)
-- *Smell (English)*: "We decided to carry out an asynchronous refactoring of the authentication pipeline."
+- *Smell (Bureaucratic/Nominalized)*: "We decided to carry out an asynchronous refactoring of the authentication pipeline."
 - *Remedy*: "We split `AuthService` into two background tasks. This prevents login timeouts."
-- *Smell (Vietnamese)*: "Chúng tôi đã tiến hành triển khai thực hiện việc tái cấu trúc bất đồng bộ đối với luồng xác thực."
-- *Remedy*: "Hệ thống tách `AuthService` thành hai tác vụ nền để ngăn lỗi timeout đăng nhập."
+- *Smell (Passive/Vague)*: "It was observed that degradation of response latencies occurred due to excessive query iterations."
+- *Remedy*: "Unindexed nested queries slowed response times by 300ms."
 
 ## Canonical Output Contract
 

@@ -48,7 +48,7 @@ disable-model-invocation: true
 
 1. **Intake & Scope Gate**:
    - Ingest target scope (`file`, `directory`, or `subsystem`).
-   - **Enforce Scope Gate**: If no explicit scope is provided, halt turn immediately and prompt user: `"Vui lòng chỉ định rõ phạm vi kiểm tra (file, thư mục hoặc subsystem) khi sử dụng /inspect-perf."`
+   - **Enforce Scope Gate**: If no explicit scope is provided, halt turn immediately and prompt user: `"Please specify an explicit target scope (file, directory, or subsystem) when invoking /inspect-perf."`
    - Read and ground in `references/performance-rubric.md`.
 
 2. **Scale-Adaptive Pragmatic Audit**:

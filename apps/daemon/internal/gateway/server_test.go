@@ -368,3 +368,126 @@ func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
 		t.Errorf("expected 200 OK for logs, got %d", logsResp.StatusCode)
 	}
 }
+
+func TestGateway_SpecsAndSnapshots(t *testing.T) {
+	_, baseURL, store, _, cleanup := setupTestGateway(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	plan := domain.Plan{Slug: "plan-gw-test", Title: "GW Test", RepoPath: "/repo", Status: "ACTIVE"}
+	_ = store.CreatePlan(ctx, plan)
+
+	// 1. POST /api/v1/specs
+	specPayload := domain.TechSpec{
+		Slug:        "spec-gw-topology",
+		RepoPath:    "/repo",
+		Tier:        1,
+		Kind:        "CONTEXT",
+		Title:       "Gateway Core Topology",
+		DiagramType: "mermaid:flowchart",
+		DiagramCode: "flowchart TD\nGW-->DB",
+		Notes:       "Core topology spec",
+		BoundPaths:  []string{"internal/gateway/"},
+	}
+	specBytes, _ := json.Marshal(specPayload)
+	specResp, err := http.Post(baseURL+"/api/v1/specs", "application/json", bytes.NewReader(specBytes))
+	if err != nil {
+		t.Fatalf("POST /specs failed: %v", err)
+	}
+	defer specResp.Body.Close()
+	if specResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", specResp.StatusCode)
+	}
+
+	// 2. GET /api/v1/specs
+	listResp, err := http.Get(baseURL + "/api/v1/specs")
+	if err != nil {
+		t.Fatalf("GET /specs failed: %v", err)
+	}
+	defer listResp.Body.Close()
+	var listData struct {
+		Specs []domain.TechSpec `json:"specs"`
+	}
+	_ = json.NewDecoder(listResp.Body).Decode(&listData)
+	if len(listData.Specs) != 1 || listData.Specs[0].Slug != "spec-gw-topology" {
+		t.Fatalf("unexpected specs list: %+v", listData.Specs)
+	}
+
+	// 3. GET /api/v1/specs/search?q=Gateway
+	searchResp, err := http.Get(baseURL + "/api/v1/specs/search?q=Gateway")
+	if err != nil {
+		t.Fatalf("GET /specs/search failed: %v", err)
+	}
+	defer searchResp.Body.Close()
+	var searchData struct {
+		Results []domain.TechSpec `json:"results"`
+	}
+	_ = json.NewDecoder(searchResp.Body).Decode(&searchData)
+	if len(searchData.Results) != 1 {
+		t.Fatalf("expected 1 search result, got %d", len(searchData.Results))
+	}
+
+	// 4. POST /api/v1/plans/plan-gw-test/snapshot (v1.0)
+	snap1Payload := map[string]any{
+		"revision": "v1.0",
+		"author":   "test-agent",
+		"summary":  "Initial snapshot",
+		"files": []map[string]any{
+			{"file_path": "README.md", "content": "# Plan v1"},
+		},
+	}
+	snap1Bytes, _ := json.Marshal(snap1Payload)
+	snapResp, err := http.Post(baseURL+"/api/v1/plans/plan-gw-test/snapshot", "application/json", bytes.NewReader(snap1Bytes))
+	if err != nil {
+		t.Fatalf("POST /snapshot failed: %v", err)
+	}
+	defer snapResp.Body.Close()
+	if snapResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", snapResp.StatusCode)
+	}
+
+	// 5. POST /api/v1/plans/plan-gw-test/snapshot (v2.0)
+	snap2Payload := map[string]any{
+		"revision": "v2.0",
+		"author":   "test-agent",
+		"summary":  "Updated snapshot",
+		"files": []map[string]any{
+			{"file_path": "README.md", "content": "# Plan v2 (Changed)"},
+			{"file_path": "01-contracts.md", "content": "interface Foo {}"},
+		},
+	}
+	snap2Bytes, _ := json.Marshal(snap2Payload)
+	snap2Resp, err := http.Post(baseURL+"/api/v1/plans/plan-gw-test/snapshot", "application/json", bytes.NewReader(snap2Bytes))
+	if err != nil {
+		t.Fatalf("POST /snapshot v2 failed: %v", err)
+	}
+	defer snap2Resp.Body.Close()
+
+	// 6. GET /api/v1/plans/plan-gw-test/revisions
+	revsResp, err := http.Get(baseURL + "/api/v1/plans/plan-gw-test/revisions")
+	if err != nil {
+		t.Fatalf("GET /revisions failed: %v", err)
+	}
+	defer revsResp.Body.Close()
+	var revsData struct {
+		Revisions []domain.PlanRevision `json:"revisions"`
+	}
+	_ = json.NewDecoder(revsResp.Body).Decode(&revsData)
+	if len(revsData.Revisions) != 2 {
+		t.Fatalf("expected 2 revisions, got %d", len(revsData.Revisions))
+	}
+
+	// 7. GET /api/v1/plans/plan-gw-test/diff?from=v1.0&to=v2.0
+	diffResp, err := http.Get(baseURL + "/api/v1/plans/plan-gw-test/diff?from=v1.0&to=v2.0")
+	if err != nil {
+		t.Fatalf("GET /diff failed: %v", err)
+	}
+	defer diffResp.Body.Close()
+	var diffData struct {
+		Diffs []domain.FileDiff `json:"diffs"`
+	}
+	_ = json.NewDecoder(diffResp.Body).Decode(&diffData)
+	if len(diffData.Diffs) != 2 {
+		t.Fatalf("expected 2 diff items, got %d", len(diffData.Diffs))
+	}
+}

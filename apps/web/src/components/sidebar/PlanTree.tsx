@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   GitMerge,
   FolderGit2,
+  Unplug,
 } from 'lucide-react'
 import type { Task, TaskStatus } from '../../types/contracts'
 
@@ -36,6 +37,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
       ALL: tasks.length,
       RUNNING: 0,
       READY: 0,
+      SUSPENDED: 0,
       AWAITING_REVIEW: 0,
       AWAITING_MERGE: 0,
       CONFLICT: 0,
@@ -72,6 +74,8 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
         return <Clock className="h-3.5 w-3.5 text-amber-400" />
       case 'AWAITING_REVIEW':
         return <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
+      case 'SUSPENDED':
+        return <Unplug className="h-3.5 w-3.5 text-amber-500" />
       case 'AWAITING_MERGE':
         return <GitMerge className="h-3.5 w-3.5 text-cyan-400" />
       case 'CONFLICT':

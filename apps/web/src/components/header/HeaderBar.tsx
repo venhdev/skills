@@ -2,14 +2,18 @@ import React from 'react'
 import {
   Zap,
   Activity,
-  AlertOctagon,
-  Pause,
-  Play,
   GitFork,
   BookOpen,
   Cpu,
+  FolderGit2,
+  Trash2,
+  Bot,
+  Layers,
+  FolderArchive,
 } from 'lucide-react'
 import type { Plan } from '../../types/contracts'
+
+export type CockpitView = 'dag' | 'blueprint' | 'dossier' | 'docs' | 'env'
 
 interface HeaderBarProps {
   connected: boolean
@@ -17,12 +21,14 @@ interface HeaderBarProps {
   plans: string[]
   onSelectPlan: (slug: string) => void
   activeWorkers: number
-  maxWorkers: number
-  onKillAll?: () => void
-  isPaused?: boolean
-  onTogglePause?: () => void
-  currentView?: 'dag' | 'docs' | 'env'
-  onChangeView?: (view: 'dag' | 'docs' | 'env') => void
+  projects?: string[]
+  activeProject?: string
+  onSelectProject?: (repo: string) => void
+  onDeletePlanClick?: () => void
+  onToggleSwarmDrawer?: () => void
+  isSwarmOpen?: boolean
+  currentView?: CockpitView
+  onChangeView?: (view: CockpitView) => void
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -31,44 +37,88 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   plans,
   onSelectPlan,
   activeWorkers,
-  maxWorkers,
-  onKillAll,
-  isPaused = false,
-  onTogglePause,
+  projects = [],
+  activeProject = '',
+  onSelectProject,
+  onDeletePlanClick,
+  onToggleSwarmDrawer,
+  isSwarmOpen = false,
   currentView = 'dag',
   onChangeView,
 }) => {
   return (
     <header className="flex h-14 w-full items-center justify-between border-b border-zinc-800 bg-zinc-900/90 px-4 backdrop-blur select-none">
-      {/* Brand & Plan Selector */}
-      <div className="flex items-center gap-4">
+      {/* Brand & Project / Plan Selector */}
+      <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 font-mono text-sm font-semibold tracking-wider text-zinc-100">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30">
             <Zap className="h-4 w-4 fill-emerald-400" />
           </div>
           <span>ZenForge</span>
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 font-sans">
-            CONTROL PLANE
+            V2.5
           </span>
         </div>
 
         <div className="h-4 w-[1px] bg-zinc-800" />
 
-        {/* Plan Selector */}
-        <div className="flex items-center gap-2">
+        {/* Project Switcher */}
+        <div className="flex items-center gap-1.5">
+          <FolderGit2 className="h-3.5 w-3.5 text-zinc-400" />
+          <select
+            value={activeProject}
+            onChange={(e) => onSelectProject?.(e.target.value)}
+            disabled={projects.length === 0 && !activeProject}
+            className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs font-mono font-medium text-zinc-300 outline-none hover:border-zinc-700 focus:border-violet-500 max-w-[160px] truncate disabled:opacity-50"
+            title={activeProject || 'No projects registered in DB. Create living plan via Main Agent.'}
+          >
+            {activeProject && !projects.includes(activeProject) && (
+              <option value={activeProject}>
+                {activeProject.split('/').pop() || activeProject}
+              </option>
+            )}
+            {projects.map((proj) => (
+              <option key={proj} value={proj}>
+                {proj.split('/').pop() || proj}
+              </option>
+            ))}
+            {projects.length === 0 && !activeProject && (
+              <option value="">(No projects - via agent)</option>
+            )}
+          </select>
+        </div>
+
+        <div className="h-4 w-[1px] bg-zinc-800" />
+
+        {/* Plan Selector & Actions */}
+        <div className="flex items-center gap-1.5">
           <span className="text-xs text-zinc-400">Plan:</span>
           <select
             value={activePlan?.slug || ''}
             onChange={(e) => onSelectPlan(e.target.value)}
-            className="rounded border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-xs font-mono font-medium text-zinc-200 outline-none hover:border-zinc-700 focus:border-violet-500"
+            className="rounded border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-xs font-mono font-medium text-zinc-200 outline-none hover:border-zinc-700 focus:border-violet-500 max-w-[150px] truncate"
           >
+            {activePlan && !plans.includes(activePlan.slug) && (
+              <option value={activePlan.slug}>{activePlan.slug}</option>
+            )}
             {plans.map((p) => (
               <option key={p} value={p}>
                 {p}
               </option>
             ))}
-            {plans.length === 0 && <option value="">(No active plans)</option>}
+            {plans.length === 0 && !activePlan && <option value="">(No active plans)</option>}
           </select>
+
+          {activePlan && onDeletePlanClick && (
+            <button
+              onClick={onDeletePlanClick}
+              className="rounded border border-zinc-800 bg-zinc-950 p-1 text-zinc-500 hover:border-rose-900/50 hover:bg-rose-950/20 hover:text-rose-400"
+              title={`Delete plan '${activePlan.slug}' and cascading tasks`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           {activePlan && (
             <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-500/20">
               {activePlan.status}
@@ -77,7 +127,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         </div>
       </div>
 
-      {/* Top 3-Tab Cockpit View Switcher */}
+      {/* Top Cockpit View Switcher */}
       {onChangeView && (
         <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-950 p-0.5 text-xs shadow-inner">
           <button
@@ -89,7 +139,29 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             }`}
           >
             <GitFork className="h-3.5 w-3.5" />
-            <span>DAG Flow Canvas</span>
+            <span>DAG Canvas</span>
+          </button>
+          <button
+            onClick={() => onChangeView('blueprint')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
+              currentView === 'blueprint'
+                ? 'bg-zinc-800 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 text-violet-400" />
+            <span>Blueprint Studio</span>
+          </button>
+          <button
+            onClick={() => onChangeView('dossier')}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
+              currentView === 'dossier'
+                ? 'bg-zinc-800 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <FolderArchive className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Dossier Vault</span>
           </button>
           <button
             onClick={() => onChangeView('docs')}
@@ -100,7 +172,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             }`}
           >
             <BookOpen className="h-3.5 w-3.5" />
-            <span>Architecture & Docs</span>
+            <span>Docs</span>
           </button>
           <button
             onClick={() => onChangeView('env')}
@@ -111,33 +183,33 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             }`}
           >
             <Cpu className="h-3.5 w-3.5" />
-            <span>Global & Dev Env</span>
+            <span>Env</span>
           </button>
         </div>
       )}
 
-      {/* Worker Slots, SSE Status & Controls */}
-      <div className="flex items-center gap-5">
-        {/* Worker Pool Utilization Gauge */}
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-zinc-400">Worker Pool:</span>
-          <div className="flex items-center gap-1">
-            {Array.from({ length: maxWorkers }).map((_, i) => (
-              <div
-                key={i}
-                className={`h-2.5 w-2 rounded-sm transition-colors ${
-                  i < activeWorkers
-                    ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.6)]'
-                    : 'bg-zinc-800'
-                }`}
-                title={`Slot ${i + 1}: ${i < activeWorkers ? 'Occupied' : 'Idle'}`}
-              />
-            ))}
+      {/* Active Ephemeral Workers Badge & SSE Health Status */}
+      <div className="flex items-center gap-4">
+        {/* Active Ephemeral Workers Badge (Click opens Swarm Drawer) */}
+        {onToggleSwarmDrawer ? (
+          <button
+            onClick={onToggleSwarmDrawer}
+            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-mono transition-all ${
+              activeWorkers > 0
+                ? 'border-violet-500/50 bg-violet-500/10 text-violet-300 shadow-[0_0_12px_rgba(139,92,246,0.3)] hover:bg-violet-500/20'
+                : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+            } ${isSwarmOpen ? 'ring-1 ring-violet-400' : ''}`}
+            title="Click to toggle Active Agent Swarm Drawer"
+          >
+            <Bot className={`h-3.5 w-3.5 ${activeWorkers > 0 ? 'text-violet-400 animate-pulse' : 'text-zinc-500'}`} />
+            <span>Active: {activeWorkers}</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-400">
+            <Bot className="h-3.5 w-3.5 text-zinc-500" />
+            <span>Active: {activeWorkers}</span>
           </div>
-          <span className="font-mono text-xs font-medium text-zinc-300">
-            {activeWorkers}/{maxWorkers}
-          </span>
-        </div>
+        )}
 
         <div className="h-4 w-[1px] bg-zinc-800" />
 
@@ -154,39 +226,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             {connected ? 'Port 1123 Active' : 'Connecting...'}
           </span>
           <Activity className="h-3.5 w-3.5 text-zinc-500" />
-        </div>
-
-        <div className="h-4 w-[1px] bg-zinc-800" />
-
-        {/* Controls */}
-        <div className="flex items-center gap-2">
-          {onTogglePause && (
-            <button
-              onClick={onTogglePause}
-              className="flex items-center gap-1 rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-white"
-            >
-              {isPaused ? (
-                <>
-                  <Play className="h-3 w-3 text-emerald-400" /> Resume
-                </>
-              ) : (
-                <>
-                  <Pause className="h-3 w-3 text-amber-400" /> Pause
-                </>
-              )}
-            </button>
-          )}
-
-          {onKillAll && (
-            <button
-              onClick={onKillAll}
-              className="flex items-center gap-1 rounded bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-400 ring-1 ring-rose-500/20 hover:bg-rose-500 hover:text-white transition-all"
-              title="Send cascade SIGKILL to all active runner process groups"
-            >
-              <AlertOctagon className="h-3 w-3" />
-              Kill All
-            </button>
-          )}
         </div>
       </div>
     </header>

@@ -53,10 +53,13 @@ func resolveHomePath(path string) string {
 	return path
 }
 
+const Version = "2.5.0"
+
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "zenfd",
-		Short: "ZenForge Daemon (zenfd) - Background Agent Execution & Orchestration Daemon",
+		Use:     "zenfd",
+		Version: Version,
+		Short:   "ZenForge Daemon (zenfd) - Background Agent Execution & Orchestration Daemon",
 		Long: `zenfd is the single-binary control plane for ZenForge.
 It manages POSIX process groups, PTY sessions, DAG scheduler execution, 
 SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
@@ -74,7 +77,7 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 				return fmt.Errorf("failed to create state directory: %w", err)
 			}
 
-			fmt.Printf("ZenForge Daemon (zenfd) starting...\n")
+			fmt.Printf("ZenForge Daemon (zenfd) v%s starting...\n", Version)
 			fmt.Printf("  • Port:     %d\n", defaultPort)
 			fmt.Printf("  • Database: %s (SQLite WAL)\n", dbPath)
 			fmt.Printf("  • Workers:  %d concurrent\n", defaultWorkers)
@@ -539,6 +542,86 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 	mcpCmd.Flags().StringVarP(&mcpDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
 	mcpCmd.Flags().StringVarP(&mcpRepoPath, "repo", "r", "", "Repository root path (defaults to CWD)")
 	rootCmd.AddCommand(mcpCmd)
+
+	// Subcommands for MCP: check and setup
+	var checkClient string
+	var checkConfig string
+	var checkJSON bool
+	mcpCheckCmd := &cobra.Command{
+		Use:   "check",
+		Short: "Audit client MCP configuration for zenfd",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			res, err := zenfdmcp.CheckMCP(zenfdmcp.ClientType(checkClient), checkConfig)
+			if err != nil {
+				return fmt.Errorf("mcp check failed: %w", err)
+			}
+			if checkJSON {
+				byt, _ := json.MarshalIndent(res, "", "  ")
+				fmt.Println(string(byt))
+				return nil
+			}
+			if res.Configured && res.BinaryExists {
+				fmt.Printf("[OK] zenfd MCP is configured and valid in %s (binary: %s)\n", res.ConfigPath, res.BinaryPath)
+				return nil
+			}
+			fmt.Printf("[NOT_CONFIGURED] %s\n", res.StatusMessage)
+			return nil
+		},
+	}
+	mcpCheckCmd.Flags().StringVarP(&checkClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor")
+	mcpCheckCmd.Flags().StringVar(&checkConfig, "config", "", "Override client config file path")
+	mcpCheckCmd.Flags().BoolVar(&checkJSON, "json", false, "Output result as JSON")
+	mcpCmd.AddCommand(mcpCheckCmd)
+
+	var setupClient string
+	var setupConfig string
+	var setupDB string
+	var setupBinary string
+	var setupForce bool
+	var setupDryRun bool
+	mcpSetupCmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Configure zenfd MCP server in client configuration (default: agy)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			res, err := zenfdmcp.SetupMCP(zenfdmcp.SetupOptions{
+				Client:     zenfdmcp.ClientType(setupClient),
+				ConfigPath: setupConfig,
+				DBPath:     setupDB,
+				BinaryPath: setupBinary,
+				Force:      setupForce,
+				DryRun:     setupDryRun,
+			})
+			if err != nil {
+				return fmt.Errorf("mcp setup failed: %w", err)
+			}
+
+			if res.Action == "dry_run" {
+				fmt.Printf("[DRY-RUN] Previewing configuration for %s at %s:\n\n%s\n", res.Client, res.ConfigPath, res.WrittenJSON)
+				return nil
+			}
+
+			if res.Action == "already_configured" {
+				fmt.Printf("[ALREADY_CONFIGURED] zenfd MCP is already configured in %s (binary: %s)\n", res.ConfigPath, res.BinaryPath)
+				return nil
+			}
+
+			fmt.Printf("[SUCCESS] Configured zenfd MCP server for %s in %s\n", res.Client, res.ConfigPath)
+			if res.BackupPath != "" {
+				fmt.Printf("Backup saved to: %s\n", res.BackupPath)
+			}
+			fmt.Printf("Binary: %s\n", res.BinaryPath)
+			fmt.Printf("Database: %s\n", res.DBPath)
+			fmt.Println("Please restart your AI client session (e.g. agy) to load the zenfd MCP tools.")
+			return nil
+		},
+	}
+	mcpSetupCmd.Flags().StringVarP(&setupClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor")
+	mcpSetupCmd.Flags().StringVar(&setupConfig, "config", "", "Override client config file path")
+	mcpSetupCmd.Flags().StringVarP(&setupDB, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
+	mcpSetupCmd.Flags().StringVarP(&setupBinary, "binary", "b", "", "Path to zenfd binary (auto-detected if omitted)")
+	mcpSetupCmd.Flags().BoolVarP(&setupForce, "force", "f", false, "Force overwrite existing entry")
+	mcpSetupCmd.Flags().BoolVar(&setupDryRun, "dry-run", false, "Preview configuration changes without writing")
+	mcpCmd.AddCommand(mcpSetupCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
