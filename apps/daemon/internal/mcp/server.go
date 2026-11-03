@@ -34,7 +34,7 @@ func NewServer(store domain.StorageEngine, repoPath string) *Server {
 		repoPath, _ = os.Getwd()
 	}
 	s := &Server{
-		mcpServer: server.NewMCPServer("zenfd", "2.5.0", server.WithToolCapabilities(true), server.WithResourceCapabilities(true, true)),
+		mcpServer: server.NewMCPServer("zenfd", "0.1.0", server.WithToolCapabilities(true), server.WithResourceCapabilities(true, true)),
 		store:     store,
 		repoPath:  repoPath,
 	}

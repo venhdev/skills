@@ -2,12 +2,16 @@ package storage_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"zenfd/internal/domain"
+	"zenfd/internal/domain/prompt"
 	"zenfd/internal/storage"
 )
 
@@ -298,6 +302,126 @@ func TestPlanStore_ClaimAndReviewMerge(t *testing.T) {
 	t4, _ := store.GetTask(ctx, "task-claim-01")
 	if t4.Status != domain.StatusCompleted {
 		t.Fatalf("Expected status COMPLETED, got: %s", t4.Status)
+	}
+}
+
+type mockWorktreeManager struct {
+	merged    bool
+	conflicts []string
+	err       error
+	called    bool
+	lastRepo  string
+	lastWt    string
+}
+
+func (m *mockWorktreeManager) MergeWorktree(ctx context.Context, repoRoot, worktreePath string) (bool, []string, error) {
+	m.called = true
+	m.lastRepo = repoRoot
+	m.lastWt = worktreePath
+	return m.merged, m.conflicts, m.err
+}
+
+func (m *mockWorktreeManager) ResolveBranchName(ctx context.Context, worktreePath string) (string, error) {
+	return "feature-mock", nil
+}
+
+func TestPlanStore_MergeTask_WithWorktreeManager(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_wt_merge.db")
+
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open DB: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	plan := domain.Plan{
+		Slug:  "wt-merge-plan",
+		Title: "Worktree Merge Plan",
+	}
+	tasks := []domain.Task{
+		{
+			ID:           "task-wt-conflict",
+			PlanID:       plan.Slug,
+			RepoPath:     "/repo/root",
+			WorktreePath: "/repo/worktree-1",
+			Title:        "Conflict Task",
+			Status:       domain.StatusRunning,
+		},
+		{
+			ID:           "task-wt-clean",
+			PlanID:       plan.Slug,
+			RepoPath:     "/repo/root",
+			WorktreePath: "/repo/worktree-2",
+			Title:        "Clean Task",
+			Status:       domain.StatusAwaitingMerge,
+		},
+	}
+	if err := store.SavePlanWithTasks(ctx, plan, tasks); err != nil {
+		t.Fatalf("SavePlanWithTasks failed: %v", err)
+	}
+
+	// 1. Conflict test: mock returns merged=false with conflicts
+	mockMgr := &mockWorktreeManager{
+		merged:    false,
+		conflicts: []string{"file_a.go", "file_b.go"},
+	}
+	store.SetWorktreeManager(mockMgr)
+
+	merged, conflicts, err := store.MergeTask(ctx, "task-wt-conflict")
+	if err != nil {
+		t.Fatalf("unexpected error on conflict: %v", err)
+	}
+	if merged {
+		t.Fatal("expected merged == false on conflict")
+	}
+	if !mockMgr.called || mockMgr.lastRepo != "/repo/root" || mockMgr.lastWt != "/repo/worktree-1" {
+		t.Fatalf("mock manager not invoked properly: %+v", mockMgr)
+	}
+	if len(conflicts) != 2 || conflicts[0] != "file_a.go" {
+		t.Fatalf("unexpected conflicts returned: %v", conflicts)
+	}
+
+	// Verify task in DB is CONFLICT and has conflict_files saved
+	tConflict, err := store.GetTask(ctx, "task-wt-conflict")
+	if err != nil {
+		t.Fatalf("failed to get task: %v", err)
+	}
+	if tConflict.Status != domain.StatusConflict {
+		t.Fatalf("expected status CONFLICT, got: %s", tConflict.Status)
+	}
+	if len(tConflict.ConflictFiles) != 2 || tConflict.ConflictFiles[0] != "file_a.go" {
+		t.Fatalf("unexpected conflict files stored: %v", tConflict.ConflictFiles)
+	}
+
+	// 2. Clean merge test: mock returns merged=true
+	mockMgrClean := &mockWorktreeManager{
+		merged: true,
+	}
+	store.SetWorktreeManager(mockMgrClean)
+
+	mergedClean, conflictsClean, err := store.MergeTask(ctx, "task-wt-clean")
+	if err != nil {
+		t.Fatalf("unexpected error on clean merge: %v", err)
+	}
+	if !mergedClean || len(conflictsClean) > 0 {
+		t.Fatalf("expected clean merge, got merged=%v, conflicts=%v", mergedClean, conflictsClean)
+	}
+	if !mockMgrClean.called || mockMgrClean.lastRepo != "/repo/root" || mockMgrClean.lastWt != "/repo/worktree-2" {
+		t.Fatalf("mock clean manager not invoked properly: %+v", mockMgrClean)
+	}
+
+	// Verify task in DB is COMPLETED
+	tClean, err := store.GetTask(ctx, "task-wt-clean")
+	if err != nil {
+		t.Fatalf("failed to get clean task: %v", err)
+	}
+	if tClean.Status != domain.StatusCompleted {
+		t.Fatalf("expected status COMPLETED, got: %s", tClean.Status)
 	}
 }
 
@@ -710,3 +834,259 @@ func TestPlanStore_PlanSnapshots_Revisions_Diff(t *testing.T) {
 		t.Fatalf("expected README.md MODIFIED, got %v", d)
 	}
 }
+
+func TestConcurrentReadWrite(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_concurrent_read_write.db")
+
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Seed initial data: plan, revision, snapshot, spec
+	plan := domain.Plan{
+		Slug:     "plan-concurrent",
+		Title:    "Concurrent Plan",
+		RepoPath: "/workspace/concurrent",
+		Status:   "ACTIVE",
+	}
+	if err := store.CreatePlan(ctx, plan); err != nil {
+		t.Fatalf("CreatePlan failed: %v", err)
+	}
+
+	snapFiles := []domain.SnapshotFile{
+		{FilePath: "main.go", Content: "package main"},
+	}
+	if err := store.SavePlanSnapshot(ctx, plan.Slug, "v1.0", "Author", "Initial", snapFiles); err != nil {
+		t.Fatalf("SavePlanSnapshot failed: %v", err)
+	}
+
+	spec := domain.TechSpec{
+		Slug:              "spec-concurrent",
+		RepoPath:          "/workspace/concurrent",
+		Tier:              1,
+		Kind:              "ARCHITECTURE",
+		Title:             "Concurrent Spec",
+		DiagramType:       "mermaid:flowchart",
+		DiagramCode:       "graph TD; A-->B;",
+		StructuredPayload: map[string]any{"key": "value"},
+		Notes:             "Testing concurrency",
+		BoundPaths:        []string{"main.go"},
+	}
+	if _, err := store.UpsertSpec(ctx, spec); err != nil {
+		t.Fatalf("UpsertSpec failed: %v", err)
+	}
+
+	// 1. Proof of non-blocking: While a writer transaction is open and holding writeMu,
+	// concurrent readers query GetSpec, ListSpecs, and ListPlanRevisions.
+	writerHolding := make(chan struct{})
+	readerDone := make(chan struct{})
+	writerDone := make(chan error, 1)
+
+	go func() {
+		writerDone <- db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+			// Write something in the transaction
+			_, err := tx.ExecContext(ctx, "UPDATE plans SET title = 'Concurrent In-Progress' WHERE slug = ?", plan.Slug)
+			if err != nil {
+				return err
+			}
+
+			// Signal writer has transaction open and writeMu acquired
+			close(writerHolding)
+
+			// Wait for reader to perform its queries concurrently
+			select {
+			case <-readerDone:
+				return nil
+			case <-time.After(3 * time.Second):
+				return errors.New("timed out waiting for readers - likely deadlock on writeMu")
+			}
+		})
+	}()
+
+	// Wait for writer to enter transaction and acquire writeMu
+	select {
+	case <-writerHolding:
+	case <-time.After(2 * time.Second):
+		t.Fatal("writer did not enter transaction in time")
+	}
+
+	// Now writer holds writeMu and has an open write transaction.
+	// Concurrent readers MUST succeed without deadlock.
+	retrievedSpec, err := store.GetSpec(ctx, "spec-concurrent")
+	if err != nil {
+		t.Fatalf("GetSpec failed while writer active: %v", err)
+	}
+	if retrievedSpec.Slug != "spec-concurrent" {
+		t.Errorf("expected spec-concurrent, got: %s", retrievedSpec.Slug)
+	}
+
+	specs, err := store.ListSpecs(ctx, "/workspace/concurrent", 0)
+	if err != nil {
+		t.Fatalf("ListSpecs failed while writer active: %v", err)
+	}
+	if len(specs) != 1 {
+		t.Errorf("expected 1 spec, got: %d", len(specs))
+	}
+
+	revs, err := store.ListPlanRevisions(ctx, plan.Slug)
+	if err != nil {
+		t.Fatalf("ListPlanRevisions failed while writer active: %v", err)
+	}
+	if len(revs) != 1 || revs[0].Revision != "v1.0" {
+		t.Errorf("unexpected revisions: %v", revs)
+	}
+
+	// Signal writer that reader is done
+	close(readerDone)
+
+	// Wait for writer goroutine to complete
+	select {
+	case err := <-writerDone:
+		if err != nil {
+			t.Fatalf("writer failed: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("writer did not complete in time")
+	}
+
+	// 2. High-concurrency stress test with multiple goroutines
+	const numWriters = 3
+	const numReaders = 8
+	const iterations = 20
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, numWriters+numReaders)
+
+	// Writers
+	for w := 0; w < numWriters; w++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				task := domain.Task{
+					ID:       fmt.Sprintf("stress-task-%d-%d", workerID, i),
+					PlanID:   plan.Slug,
+					RepoPath: plan.RepoPath,
+					Title:    fmt.Sprintf("Stress Task %d %d", workerID, i),
+					Status:   domain.StatusReady,
+				}
+				if err := store.CreateTask(ctx, task); err != nil {
+					errCh <- fmt.Errorf("writer %d CreateTask failed: %w", workerID, err)
+					return
+				}
+			}
+		}(w)
+	}
+
+	// Readers
+	for r := 0; r < numReaders; r++ {
+		wg.Add(1)
+		go func(readerID int) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				if _, err := store.GetSpec(ctx, "spec-concurrent"); err != nil {
+					errCh <- fmt.Errorf("reader %d GetSpec failed: %w", readerID, err)
+					return
+				}
+				if _, err := store.ListSpecs(ctx, "", 0); err != nil {
+					errCh <- fmt.Errorf("reader %d ListSpecs failed: %w", readerID, err)
+					return
+				}
+				if _, err := store.ListPlanRevisions(ctx, plan.Slug); err != nil {
+					errCh <- fmt.Errorf("reader %d ListPlanRevisions failed: %w", readerID, err)
+					return
+				}
+			}
+		}(r)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Fatalf("concurrent test error: %v", err)
+	}
+}
+
+var _ prompt.Compiler = (*mockPromptCompiler)(nil)
+
+type mockPromptCompiler struct {
+	called           bool
+	task             domain.Task
+	upstreamDiffs    []string
+	inputAttachments []domain.Artifact
+	specSnippets     []string
+}
+
+func (m *mockPromptCompiler) Compile(ctx context.Context, task domain.Task, upstreamDiffs []string, inputAttachments []domain.Artifact, specSnippets []string) (*domain.ContextPacket, error) {
+	m.called = true
+	m.task = task
+	m.upstreamDiffs = upstreamDiffs
+	m.inputAttachments = inputAttachments
+	m.specSnippets = specSnippets
+	return &domain.ContextPacket{
+		Task:           task,
+		TargetFiles:    task.TargetFiles,
+		PromptMarkdown: fmt.Sprintf("# MOCK PROMPT: %s", task.Title),
+	}, nil
+}
+
+func TestPlanStore_PromptCompilerDelegation(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_compiler_delegation.db")
+
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	mock := &mockPromptCompiler{}
+	store.SetPromptCompiler(mock)
+
+	plan := domain.Plan{
+		Slug:     "plan-compiler-test",
+		Title:    "Compiler Delegation Plan",
+		RepoPath: "/test/repo",
+		Status:   "ACTIVE",
+	}
+	task := domain.Task{
+		ID:          "T-DELEGATE-01",
+		PlanID:      plan.Slug,
+		RepoPath:    plan.RepoPath,
+		Title:       "Test Compiler Delegation",
+		TargetFiles: []string{"a.go"},
+		Status:      domain.StatusReady,
+	}
+
+	if err := store.SavePlanWithTasks(ctx, plan, []domain.Task{task}); err != nil {
+		t.Fatalf("SavePlanWithTasks failed: %v", err)
+	}
+
+	packet, err := store.GetTaskContextPacket(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("GetTaskContextPacket failed: %v", err)
+	}
+
+	if !mock.called {
+		t.Fatal("expected mock prompt compiler to be called")
+	}
+	if mock.task.ID != "T-DELEGATE-01" {
+		t.Errorf("expected task ID 'T-DELEGATE-01', got: %s", mock.task.ID)
+	}
+	if packet.PromptMarkdown != "# MOCK PROMPT: Test Compiler Delegation" {
+		t.Errorf("unexpected PromptMarkdown: %s", packet.PromptMarkdown)
+	}
+}
+

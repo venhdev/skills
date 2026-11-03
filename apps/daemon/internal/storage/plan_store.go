@@ -9,13 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"zenfd/internal/domain"
+	"zenfd/internal/domain/prompt"
+	"zenfd/internal/git"
 )
 
 var (
@@ -28,12 +29,42 @@ var _ domain.StorageEngine = (*Store)(nil)
 
 // Store implements domain.StorageEngine using the SQLite WAL DB.
 type Store struct {
-	db *DB
+	db             *DB
+	worktreeMgr    git.WorktreeManager
+	promptCompiler prompt.Compiler
 }
 
 // NewStore creates a new domain.StorageEngine backed by the SQLite WAL DB.
 func NewStore(db *DB) *Store {
-	return &Store{db: db}
+	return &Store{
+		db:             db,
+		worktreeMgr:    git.NewLocalWorktreeManager(),
+		promptCompiler: prompt.NewCompiler(),
+	}
+}
+
+// SetPromptCompiler sets or overrides the prompt compiler for the store.
+func (s *Store) SetPromptCompiler(c prompt.Compiler) {
+	s.promptCompiler = c
+}
+
+func (s *Store) getPromptCompiler() prompt.Compiler {
+	if s.promptCompiler != nil {
+		return s.promptCompiler
+	}
+	return prompt.NewCompiler()
+}
+
+// SetWorktreeManager overrides the Git worktree manager (used primarily for unit testing).
+func (s *Store) SetWorktreeManager(m git.WorktreeManager) {
+	s.worktreeMgr = m
+}
+
+func (s *Store) getWorktreeManager() git.WorktreeManager {
+	if s.worktreeMgr != nil {
+		return s.worktreeMgr
+	}
+	return git.NewLocalWorktreeManager()
 }
 
 // Close safely closes the underlying SQLite database connection pool.
@@ -767,56 +798,38 @@ func (s *Store) MergeTask(ctx context.Context, taskID string) (bool, []string, e
 		return false, nil, fmt.Errorf("%w: task %s is not ready to merge (current status: %s)", ErrInvalidState, taskID, t.Status)
 	}
 
-	// If WorktreePath is specified and exists, test/execute git integration
+	// If WorktreePath is specified, delegate merge execution to WorktreeManager
 	if t.WorktreePath != "" {
-		if fi, err := os.Stat(t.WorktreePath); err == nil && fi.IsDir() {
-			branchCmd := exec.CommandContext(ctx, "git", "-C", t.WorktreePath, "rev-parse", "--abbrev-ref", "HEAD")
-			out, err := branchCmd.Output()
-			if err == nil {
-				branch := strings.TrimSpace(string(out))
-				if branch != "" && branch != "HEAD" {
-					mergeCmd := exec.CommandContext(ctx, "git", "-C", t.RepoPath, "merge", "--no-ff", "--no-commit", branch)
-					if mergeOut, err := mergeCmd.CombinedOutput(); err != nil {
-						// Merge conflict detected!
-						conflictCmd := exec.CommandContext(ctx, "git", "-C", t.RepoPath, "diff", "--name-only", "--diff-filter=U")
-						confOut, _ := conflictCmd.Output()
-						_ = exec.CommandContext(ctx, "git", "-C", t.RepoPath, "merge", "--abort").Run()
+		merged, conflicts, err := s.getWorktreeManager().MergeWorktree(ctx, t.RepoPath, t.WorktreePath)
+		if err != nil {
+			return false, nil, err
+		}
+		if !merged {
+			conflictJSON, _ := json.Marshal(conflicts)
+			now := time.Now().UTC()
+			_ = s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+				_, err := tx.ExecContext(ctx, `
+					UPDATE tasks
+					SET status = 'CONFLICT', conflict_files = ?, updated_at = ?
+					WHERE id = ?
+				`, string(conflictJSON), now, taskID)
+				return err
+			})
 
-						var conflictFiles []string
-						for _, line := range strings.Split(string(confOut), "\n") {
-							line = strings.TrimSpace(line)
-							if line != "" {
-								conflictFiles = append(conflictFiles, line)
-							}
-						}
-						if len(conflictFiles) == 0 {
-							conflictFiles = []string{strings.TrimSpace(string(mergeOut))}
-						}
-
-						conflictJSON, _ := json.Marshal(conflictFiles)
-						now := time.Now().UTC()
-						_ = s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-							_, err := tx.ExecContext(ctx, `
-								UPDATE tasks
-								SET status = 'CONFLICT', conflict_files = ?, updated_at = ?
-								WHERE id = ?
-							`, string(conflictJSON), now, taskID)
-							return err
-						})
-
-						return false, conflictFiles, nil
-					} else {
-						// Clean merge succeeded
-						commitCmd := exec.CommandContext(ctx, "git", "-C", t.RepoPath, "commit", "-m", fmt.Sprintf("zenfd: integrate task %s (%s)", t.ID, t.Title))
-						_ = commitCmd.Run()
-					}
-				}
-			}
+			return false, conflicts, nil
 		}
 	}
 
+	fromStatus := t.Status
+	if fromStatus == domain.StatusConflict {
+		if err := s.UpdateTaskStatus(ctx, taskID, domain.StatusConflict, domain.StatusRunning); err != nil {
+			return false, nil, err
+		}
+		fromStatus = domain.StatusRunning
+	}
+
 	// Update task status to COMPLETED (which automatically unlocks downstream DAG in UpdateTaskStatus!)
-	err = s.UpdateTaskStatus(ctx, taskID, t.Status, domain.StatusCompleted)
+	err = s.UpdateTaskStatus(ctx, taskID, fromStatus, domain.StatusCompleted)
 	if err != nil {
 		return false, nil, err
 	}
@@ -835,39 +848,33 @@ func (s *Store) GetTaskContextPacket(ctx context.Context, taskID string) (*domai
 
 // buildContextPacket generates a complete prompt-ready context packet for an agent.
 func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.Task) (*domain.ContextPacket, error) {
-	packet := &domain.ContextPacket{
-		Task:                 task,
-		TargetFiles:          task.TargetFiles,
-		VerificationCommands: task.VerificationCommands,
-		SkillPaths:           []string{},
-		UpstreamDiffs:        []string{},
-		InputAttachments:     []domain.Artifact{},
-	}
+	skillPaths := []string{}
 
 	// 1. Resolve Skill Paths
 	for _, skill := range task.RequiredSkills {
 		localPath := filepath.Join(task.RepoPath, ".agents", "skills", skill, "SKILL.md")
 		if _, err := os.Stat(localPath); err == nil {
-			packet.SkillPaths = append(packet.SkillPaths, localPath)
+			skillPaths = append(skillPaths, localPath)
 		} else {
-			packet.SkillPaths = append(packet.SkillPaths, skill)
+			skillPaths = append(skillPaths, skill)
 		}
 	}
 
 	// 2. Resolve Input Attachments
 	attachments, err := s.GetArtifactsByTask(ctx, task.ID, domain.ArtifactRoleInput)
-	if err == nil {
-		packet.InputAttachments = attachments
+	if err != nil {
+		attachments = []domain.Artifact{}
 	}
 
 	// 3. Resolve Upstream Diffs
+	var upstreamDiffs []string
 	for _, depID := range task.Dependencies {
 		diffArtifacts, err := s.GetArtifactsByTask(ctx, depID, domain.ArtifactRoleOutput)
 		if err == nil {
 			for _, art := range diffArtifacts {
 				if art.Type == domain.ArtifactTypeDiff && art.FilePath != "" {
 					if content, err := os.ReadFile(art.FilePath); err == nil {
-						packet.UpstreamDiffs = append(packet.UpstreamDiffs, string(content))
+						upstreamDiffs = append(upstreamDiffs, string(content))
 					}
 				}
 			}
@@ -875,14 +882,15 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 	}
 
 	// 3.5. Resolve Linked Specs (Zero-Round-Trip Context Injection)
-	packet.LinkedSpecs = []domain.CompactSpecPayload{}
+	var linkedSpecs []domain.CompactSpecPayload
+	var specSnippets []string
 	var linkedSlugs []string
 	if tx != nil {
 		linkedSlugs, _ = s.autoLinkSpecsTx(ctx, tx, task.TargetFiles)
 		for _, slug := range linkedSlugs {
 			spec, err := s.getSpecTx(ctx, tx, slug)
 			if err == nil && spec != nil {
-				packet.LinkedSpecs = append(packet.LinkedSpecs, domain.CompactSpecPayload{
+				linkedSpecs = append(linkedSpecs, domain.CompactSpecPayload{
 					Slug:        spec.Slug,
 					Kind:        spec.Kind,
 					Title:       spec.Title,
@@ -896,7 +904,7 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 		for _, slug := range linkedSlugs {
 			spec, err := s.GetSpec(ctx, slug)
 			if err == nil && spec != nil {
-				packet.LinkedSpecs = append(packet.LinkedSpecs, domain.CompactSpecPayload{
+				linkedSpecs = append(linkedSpecs, domain.CompactSpecPayload{
 					Slug:        spec.Slug,
 					Kind:        spec.Kind,
 					Title:       spec.Title,
@@ -907,63 +915,21 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 		}
 	}
 
-	// 4. Generate Structured Prompt Markdown
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# Task Assignment: %s (%s)\n\n", task.Title, task.ID))
-	sb.WriteString(fmt.Sprintf("- **Plan**: `%s`\n", task.PlanID))
-	sb.WriteString(fmt.Sprintf("- **Priority**: `%s` | **Complexity**: `%s` | **Risk**: `%s`\n", task.Priority, task.Complexity, task.RiskLevel))
-	if task.WorktreePath != "" {
-		sb.WriteString(fmt.Sprintf("- **Worktree Path**: `%s`\n", task.WorktreePath))
-	}
-	sb.WriteString("\n## 1. Description & Context\n")
-	if task.Description != "" {
-		sb.WriteString(task.Description + "\n\n")
-	} else {
-		sb.WriteString("Execute the implementation according to plan specifications.\n\n")
-	}
-
-	if len(packet.LinkedSpecs) > 0 {
-		sb.WriteString("## 1.5. Linked Architectural Blueprints & Contracts (SSOT)\n")
-		for _, ls := range packet.LinkedSpecs {
-			sb.WriteString(fmt.Sprintf("### Spec `%s`: %s (%s)\n", ls.Slug, ls.Title, ls.Kind))
-			if ls.DiagramCode != "" {
-				sb.WriteString(fmt.Sprintf("```mermaid\n%s\n```\n", ls.DiagramCode))
-			}
+	for _, ls := range linkedSpecs {
+		snippet := fmt.Sprintf("### Spec `%s`: %s (%s)\n", ls.Slug, ls.Title, ls.Kind)
+		if ls.DiagramCode != "" {
+			snippet += fmt.Sprintf("```mermaid\n%s\n```\n", ls.DiagramCode)
 		}
-		sb.WriteString("\n")
+		specSnippets = append(specSnippets, snippet)
 	}
 
-	if len(task.AcceptanceCriteria) > 0 {
-		sb.WriteString("## 2. Acceptance Criteria\n")
-		for _, ac := range task.AcceptanceCriteria {
-			sb.WriteString(fmt.Sprintf("- [ ] %s\n", ac))
-		}
-		sb.WriteString("\n")
+	// 4. Delegate Prompt Context Compilation to domain Compiler
+	packet, err := s.getPromptCompiler().Compile(ctx, task, upstreamDiffs, attachments, specSnippets)
+	if err != nil {
+		return nil, err
 	}
-
-	if len(task.TargetFiles) > 0 {
-		sb.WriteString("## 3. Target Files\n")
-		for _, tf := range task.TargetFiles {
-			sb.WriteString(fmt.Sprintf("- `%s`\n", tf))
-		}
-		sb.WriteString("\n")
-	}
-
-	if len(task.VerificationCommands) > 0 {
-		sb.WriteString("## 4. Verification Commands\n")
-		sb.WriteString("Run the following commands to verify implementation correctness before completing:\n```bash\n")
-		for _, vc := range task.VerificationCommands {
-			sb.WriteString(vc + "\n")
-		}
-		sb.WriteString("```\n\n")
-	}
-
-	sb.WriteString("## 5. MCP Tool Handshake Protocol\n")
-	sb.WriteString(fmt.Sprintf("- **Claim**: Call `zenfd_claim_task(task_id=\"%s\", worker_role=\"CODER\", pid=$PID)` before editing files.\n", task.ID))
-	sb.WriteString(fmt.Sprintf("- **Architectural Drift / Blocked**: Call `zenfd_yield_review(task_id=\"%s\", reason=\"...\", details=\"...\", options=[\"...\"])` and exit immediately.\n", task.ID))
-	sb.WriteString(fmt.Sprintf("- **Stage Merge**: Once all verification commands pass with exit code 0, call `zenfd_stage_merge(task_id=\"%s\")`.\n", task.ID))
-
-	packet.PromptMarkdown = sb.String()
+	packet.SkillPaths = skillPaths
+	packet.LinkedSpecs = linkedSpecs
 	return packet, nil
 }
 
@@ -1031,27 +997,23 @@ func (s *Store) GetDoc(ctx context.Context, repoPath, slug string) (*domain.Proj
 	return &doc, nil
 }
 
-// ListDocs lists project documents filtered optionally by category.
+// ListDocs lists project documents filtered optionally by repoPath and/or category.
 func (s *Store) ListDocs(ctx context.Context, repoPath, category string) ([]domain.ProjectDoc, error) {
-	var query string
+	query := `
+	SELECT slug, repo_path, git_branch, title, category, content_markdown, mermaid_diagrams, version, updated_at
+	FROM project_docs
+	WHERE 1=1`
 	var args []any
-	if category != "" {
-		query = `
-		SELECT slug, repo_path, git_branch, title, category, content_markdown, mermaid_diagrams, version, updated_at
-		FROM project_docs
-		WHERE repo_path = ? AND category = ?
-		ORDER BY title ASC
-		`
-		args = []any{repoPath, category}
-	} else {
-		query = `
-		SELECT slug, repo_path, git_branch, title, category, content_markdown, mermaid_diagrams, version, updated_at
-		FROM project_docs
-		WHERE repo_path = ?
-		ORDER BY title ASC
-		`
-		args = []any{repoPath}
+
+	if repoPath != "" {
+		query += " AND repo_path = ?"
+		args = append(args, repoPath)
 	}
+	if category != "" {
+		query += " AND category = ?"
+		args = append(args, category)
+	}
+	query += " ORDER BY title ASC"
 
 	rows, err := s.db.sqlDB.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -1393,28 +1355,12 @@ func (s *Store) UpsertSpec(ctx context.Context, spec domain.TechSpec) (*domain.T
 	return result, nil
 }
 
-// GetSpec fetches a spec by slug.
-func (s *Store) GetSpec(ctx context.Context, slug string) (*domain.TechSpec, error) {
-	var spec *domain.TechSpec
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		var err error
-		spec, err = s.getSpecTx(ctx, tx, slug)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return spec, nil
-}
+const specSelectCols = `slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at`
 
-func (s *Store) getSpecTx(ctx context.Context, tx *sql.Tx, slug string) (*domain.TechSpec, error) {
-	query := `
-	SELECT slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at
-	FROM tech_specs WHERE slug = ?`
-
+func scanSpec(s scanner) (*domain.TechSpec, error) {
 	var spec domain.TechSpec
 	var payloadStr, boundStr string
-	err := tx.QueryRowContext(ctx, query, slug).Scan(
+	err := s.Scan(
 		&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
 		&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
 		&boundStr, &spec.Version, &spec.UpdatedAt)
@@ -1426,15 +1372,34 @@ func (s *Store) getSpecTx(ctx context.Context, tx *sql.Tx, slug string) (*domain
 	}
 
 	_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
+	if spec.StructuredPayload == nil {
+		spec.StructuredPayload = make(map[string]any)
+	}
 	_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
+	if spec.BoundPaths == nil {
+		spec.BoundPaths = []string{}
+	}
 	return &spec, nil
 }
 
-// ListSpecs lists specs filtered optionally by repoPath and/or tier.
+// GetSpec fetches a spec by slug without acquiring writeMu.
+func (s *Store) GetSpec(ctx context.Context, slug string) (*domain.TechSpec, error) {
+	query := fmt.Sprintf(`SELECT %s FROM tech_specs WHERE slug = ?`, specSelectCols)
+	row := s.db.QueryRow(ctx, query, slug)
+	return scanSpec(row)
+}
+
+func (s *Store) getSpecTx(ctx context.Context, tx *sql.Tx, slug string) (*domain.TechSpec, error) {
+	query := fmt.Sprintf(`SELECT %s FROM tech_specs WHERE slug = ?`, specSelectCols)
+	row := tx.QueryRowContext(ctx, query, slug)
+	return scanSpec(row)
+}
+
+// ListSpecs lists specs filtered optionally by repoPath and/or tier without acquiring writeMu.
 func (s *Store) ListSpecs(ctx context.Context, repoPath string, tier int) ([]domain.TechSpec, error) {
-	query := `
-	SELECT slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at
-	FROM tech_specs WHERE 1=1`
+	query := fmt.Sprintf(`
+	SELECT %s
+	FROM tech_specs WHERE 1=1`, specSelectCols)
 	var args []any
 
 	if repoPath != "" {
@@ -1447,36 +1412,24 @@ func (s *Store) ListSpecs(ctx context.Context, repoPath string, tier int) ([]dom
 	}
 	query += " ORDER BY tier ASC, slug ASC"
 
-	var specs []domain.TechSpec
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, query, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var spec domain.TechSpec
-			var payloadStr, boundStr string
-			if err := rows.Scan(
-				&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
-				&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
-				&boundStr, &spec.Version, &spec.UpdatedAt); err != nil {
-				return err
-			}
-			_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
-			_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
-			specs = append(specs, spec)
-		}
-		return nil
-	})
+	rows, err := s.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list specs: %w", err)
 	}
-	return specs, nil
+	defer rows.Close()
+
+	var specs []domain.TechSpec
+	for rows.Next() {
+		spec, err := scanSpec(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan spec: %w", err)
+		}
+		specs = append(specs, *spec)
+	}
+	return specs, rows.Err()
 }
 
-// SearchSpecs executes an FTS5 full-text query across tech_specs_fts.
+// SearchSpecs executes an FTS5 full-text query across tech_specs_fts without acquiring writeMu.
 func (s *Store) SearchSpecs(ctx context.Context, query string) ([]domain.TechSpec, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -1489,44 +1442,36 @@ func (s *Store) SearchSpecs(ctx context.Context, query string) ([]domain.TechSpe
 	JOIN tech_specs t ON f.rowid = t.rowid
 	WHERE tech_specs_fts MATCH ?`
 
-	var results []domain.TechSpec
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, sqlQuery, query)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var spec domain.TechSpec
-			var payloadStr, boundStr string
-			if err := rows.Scan(
-				&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
-				&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
-				&boundStr, &spec.Version, &spec.UpdatedAt); err != nil {
-				return err
-			}
-			_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
-			_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
-			results = append(results, spec)
-		}
-		return nil
-	})
+	rows, err := s.db.Query(ctx, sqlQuery, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to search specs: %w", err)
 	}
-	return results, nil
+	defer rows.Close()
+
+	var results []domain.TechSpec
+	for rows.Next() {
+		spec, err := scanSpec(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan spec: %w", err)
+		}
+		results = append(results, *spec)
+	}
+	return results, rows.Err()
 }
 
-// AutoLinkSpecs matches target files against bound paths of all registered specs.
+// AutoLinkSpecs matches target files against bound paths of all registered specs without acquiring writeMu.
 func (s *Store) AutoLinkSpecs(ctx context.Context, targetFiles []string) ([]string, error) {
-	var matched []string
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		var err error
-		matched, err = s.autoLinkSpecsTx(ctx, tx, targetFiles)
-		return err
-	})
-	return matched, err
+	if len(targetFiles) == 0 {
+		return nil, nil
+	}
+
+	rows, err := s.db.Query(ctx, `SELECT slug, bound_paths FROM tech_specs`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tech_specs: %w", err)
+	}
+	defer rows.Close()
+
+	return matchBoundPaths(rows, targetFiles)
 }
 
 func (s *Store) autoLinkSpecsTx(ctx context.Context, tx *sql.Tx, targetFiles []string) ([]string, error) {
@@ -1540,6 +1485,10 @@ func (s *Store) autoLinkSpecsTx(ctx context.Context, tx *sql.Tx, targetFiles []s
 	}
 	defer rows.Close()
 
+	return matchBoundPaths(rows, targetFiles)
+}
+
+func matchBoundPaths(rows *sql.Rows, targetFiles []string) ([]string, error) {
 	matchedSlugsMap := make(map[string]bool)
 	for rows.Next() {
 		var slug, boundStr string
@@ -1564,7 +1513,7 @@ func (s *Store) autoLinkSpecsTx(ctx context.Context, tx *sql.Tx, targetFiles []s
 		matched = append(matched, slug)
 	}
 	sort.Strings(matched)
-	return matched, nil
+	return matched, rows.Err()
 }
 
 // SavePlanSnapshot saves an atomic directory snapshot for a plan at a given revision.
@@ -1618,64 +1567,52 @@ func (s *Store) SavePlanSnapshot(ctx context.Context, planSlug, revision, author
 	})
 }
 
-// GetPlanSnapshot retrieves all snapshot files for a plan at a given revision.
+// GetPlanSnapshot retrieves all snapshot files for a plan at a given revision without acquiring writeMu.
 func (s *Store) GetPlanSnapshot(ctx context.Context, planSlug, revision string) ([]domain.SnapshotFile, error) {
-	var files []domain.SnapshotFile
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `
-			SELECT plan_slug, revision, file_path, content, byte_size, sha256, created_at
-			FROM plan_snapshots
-			WHERE plan_slug = ? AND revision = ?
-			ORDER BY file_path ASC
-		`, planSlug, revision)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var f domain.SnapshotFile
-			if err := rows.Scan(&f.PlanSlug, &f.Revision, &f.FilePath, &f.Content, &f.ByteSize, &f.SHA256, &f.CreatedAt); err != nil {
-				return err
-			}
-			files = append(files, f)
-		}
-		return nil
-	})
+	rows, err := s.db.Query(ctx, `
+		SELECT plan_slug, revision, file_path, content, byte_size, sha256, created_at
+		FROM plan_snapshots
+		WHERE plan_slug = ? AND revision = ?
+		ORDER BY file_path ASC
+	`, planSlug, revision)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query plan snapshots: %w", err)
 	}
-	return files, nil
+	defer rows.Close()
+
+	var files []domain.SnapshotFile
+	for rows.Next() {
+		var f domain.SnapshotFile
+		if err := rows.Scan(&f.PlanSlug, &f.Revision, &f.FilePath, &f.Content, &f.ByteSize, &f.SHA256, &f.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan snapshot file: %w", err)
+		}
+		files = append(files, f)
+	}
+	return files, rows.Err()
 }
 
-// ListPlanRevisions lists all revision records for a given plan.
+// ListPlanRevisions lists all revision records for a given plan without acquiring writeMu.
 func (s *Store) ListPlanRevisions(ctx context.Context, planSlug string) ([]domain.PlanRevision, error) {
-	var revs []domain.PlanRevision
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		rows, err := tx.QueryContext(ctx, `
-			SELECT id, plan_slug, revision, author, summary, created_at
-			FROM plan_revisions
-			WHERE plan_slug = ?
-			ORDER BY id ASC
-		`, planSlug)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var r domain.PlanRevision
-			if err := rows.Scan(&r.ID, &r.PlanSlug, &r.Revision, &r.Author, &r.Summary, &r.CreatedAt); err != nil {
-				return err
-			}
-			revs = append(revs, r)
-		}
-		return nil
-	})
+	rows, err := s.db.Query(ctx, `
+		SELECT id, plan_slug, revision, author, summary, created_at
+		FROM plan_revisions
+		WHERE plan_slug = ?
+		ORDER BY id ASC
+	`, planSlug)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query plan revisions: %w", err)
 	}
-	return revs, nil
+	defer rows.Close()
+
+	var revs []domain.PlanRevision
+	for rows.Next() {
+		var r domain.PlanRevision
+		if err := rows.Scan(&r.ID, &r.PlanSlug, &r.Revision, &r.Author, &r.Summary, &r.CreatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan plan revision: %w", err)
+		}
+		revs = append(revs, r)
+	}
+	return revs, rows.Err()
 }
 
 // GetPlanDiff computes differences between two plan revisions.

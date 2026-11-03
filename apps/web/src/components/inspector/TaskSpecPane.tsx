@@ -22,7 +22,8 @@ import {
   RefreshCw,
   RotateCcw,
 } from 'lucide-react'
-import type { Task, TaskStatus } from '../../types/contracts'
+import type { Task } from '../../types/contracts'
+import { getTaskStatusStyle } from '../../types/taskStatusStrategy'
 
 interface TaskSpecPaneProps {
   task: Task | null
@@ -196,31 +197,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     await onEvictTask(task.id, 'Reset by operator', 'RESET_TO_READY')
   }
 
-  const getStatusBadgeStyle = (status: TaskStatus) => {
-    switch (status) {
-      case 'COMPLETED':
-        return 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400'
-      case 'RUNNING':
-        return 'border-violet-500/40 bg-violet-500/10 text-violet-400 animate-pulse'
-      case 'READY':
-        return 'border-amber-500/40 bg-amber-500/10 text-amber-400'
-      case 'AWAITING_REVIEW':
-        return 'border-orange-500/40 bg-orange-500/15 text-orange-400 animate-pulse'
-      case 'SUSPENDED':
-        return 'border-amber-600/50 bg-amber-600/15 text-amber-400 font-bold'
-      case 'AWAITING_MERGE':
-        return 'border-cyan-500/40 bg-cyan-500/15 text-cyan-400'
-      case 'CONFLICT':
-        return 'border-rose-500/40 bg-rose-500/20 text-rose-400 font-bold'
-      case 'FAILED':
-        return 'border-rose-500/40 bg-rose-500/10 text-rose-400'
-      case 'BLOCKED':
-        return 'border-zinc-700 bg-zinc-800 text-zinc-400'
-      default:
-        return 'border-zinc-800 bg-zinc-900 text-zinc-500'
-    }
-  }
-
   const taskMap = new Map<string, Task>()
   allTasks.forEach((t) => taskMap.set(t.id, t))
 
@@ -259,7 +235,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             </span>
             <div className="flex items-center gap-1.5">
               <span
-                className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase ${getStatusBadgeStyle(
+                className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold tracking-wider uppercase ${getTaskStatusStyle(
                   task.status
                 )}`}
               >

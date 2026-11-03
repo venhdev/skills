@@ -294,6 +294,16 @@ func (d *DB) RawDB() *sql.DB {
 	return d.sqlDB
 }
 
+// Query executes a read-only query that returns rows without acquiring writeMu.
+func (d *DB) Query(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return d.sqlDB.QueryContext(ctx, query, args...)
+}
+
+// QueryRow executes a read-only query that returns at most one row without acquiring writeMu.
+func (d *DB) QueryRow(ctx context.Context, query string, args ...any) *sql.Row {
+	return d.sqlDB.QueryRowContext(ctx, query, args...)
+}
+
 // ExecImmediate executes a write operation inside a BEGIN IMMEDIATE transaction,
 // serializing access via writeMu to completely prevent SQLITE_BUSY deadlocks.
 func (d *DB) ExecImmediate(ctx context.Context, fn func(tx *sql.Tx) error) error {

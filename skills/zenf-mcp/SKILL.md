@@ -44,7 +44,7 @@ apps/daemon/bin/zenfd mcp check --client agy --json
 
 - **CASE A: CONNECTED & VALID (`configured: true` AND `binary_exists: true`)**:
   - Output a concise single-block report:
-    > ✅ **zenfd MCP server is successfully connected to Antigravity CLI/IDE** (`<config_path>`). All 16 MCP tools are active; no further configuration required.
+    > ✅ **zenfd MCP server is successfully connected to Antigravity CLI/IDE** (`<config_path>`). All 20 MCP tools are active; no further configuration required.
   - **Halt the turn immediately**. Do not call additional tools.
 
 - **CASE B: NOT CONFIGURED OR BROKEN (`configured: false` OR `binary_exists: false`)**:
@@ -92,4 +92,4 @@ Upon receiving affirmative human confirmation:
    ```bash
    apps/daemon/bin/zenfd mcp check --client agy
    ```
-3. Report success and remind the user to restart their AI client session (e.g. `agy`) to discover the 16 `zenfd` MCP tools.
+3. Report success and remind the user to restart their AI client session (e.g. `agy`) to discover the 20 `zenfd` MCP tools.

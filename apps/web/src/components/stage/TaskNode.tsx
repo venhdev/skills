@@ -1,19 +1,14 @@
-import React, { memo } from 'react'
+import { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import {
-  CheckCircle2,
-  PlayCircle,
-  Clock,
-  AlertCircle,
   Terminal,
-  AlertTriangle,
-  GitMerge,
   Zap,
   Bot,
   Crown,
   Unplug,
 } from 'lucide-react'
-import type { Task, TaskStatus } from '../../types/contracts'
+import type { Task } from '../../types/contracts'
+import { TASK_STATUS_CONFIG } from '../../types/taskStatusStrategy'
 
 export interface TaskNodeData {
   task: Task
@@ -22,98 +17,9 @@ export interface TaskNodeData {
   onSelect: (task: Task) => void
 }
 
-const statusStyles: Record<
-  TaskStatus,
-  {
-    border: string
-    bg: string
-    text: string
-    glow: string
-    icon: React.ReactNode
-  }
-> = {
-  COMPLETED: {
-    border: 'border-emerald-500/40',
-    bg: 'bg-emerald-950/20',
-    text: 'text-emerald-400',
-    glow: 'hover:shadow-[0_0_12px_rgba(16,185,129,0.2)]',
-    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />,
-  },
-  RUNNING: {
-    border: 'border-violet-500/80',
-    bg: 'bg-violet-950/30',
-    text: 'text-violet-400',
-    glow: 'shadow-[0_0_16px_rgba(139,92,246,0.3)] animate-pulse',
-    icon: <PlayCircle className="h-3.5 w-3.5 text-violet-400 animate-spin" />,
-  },
-  READY: {
-    border: 'border-amber-500/40',
-    bg: 'bg-amber-950/20',
-    text: 'text-amber-400',
-    glow: 'hover:shadow-[0_0_12px_rgba(245,158,11,0.2)]',
-    icon: <Clock className="h-3.5 w-3.5 text-amber-400" />,
-  },
-  AWAITING_REVIEW: {
-    border: 'border-orange-500/70',
-    bg: 'bg-orange-950/30',
-    text: 'text-orange-400',
-    glow: 'shadow-[0_0_16px_rgba(249,115,22,0.3)] animate-pulse',
-    icon: <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />,
-  },
-  SUSPENDED: {
-    border: 'border-amber-600/70',
-    bg: 'bg-amber-950/30',
-    text: 'text-amber-400',
-    glow: 'shadow-[0_0_14px_rgba(217,119,6,0.3)]',
-    icon: <Unplug className="h-3.5 w-3.5 text-amber-500" />,
-  },
-  AWAITING_MERGE: {
-    border: 'border-cyan-500/70',
-    bg: 'bg-cyan-950/30',
-    text: 'text-cyan-400',
-    glow: 'shadow-[0_0_16px_rgba(6,182,212,0.3)]',
-    icon: <GitMerge className="h-3.5 w-3.5 text-cyan-400" />,
-  },
-  CONFLICT: {
-    border: 'border-rose-500/80',
-    bg: 'bg-rose-950/40',
-    text: 'text-rose-400',
-    glow: 'shadow-[0_0_16px_rgba(244,63,94,0.4)]',
-    icon: <AlertCircle className="h-3.5 w-3.5 text-rose-400" />,
-  },
-  FAILED: {
-    border: 'border-rose-500/60',
-    bg: 'bg-rose-950/30',
-    text: 'text-rose-400',
-    glow: 'shadow-[0_0_14px_rgba(244,63,94,0.3)]',
-    icon: <AlertCircle className="h-3.5 w-3.5 text-rose-400" />,
-  },
-  PENDING: {
-    border: 'border-zinc-800',
-    bg: 'bg-zinc-900/40',
-    text: 'text-zinc-500',
-    glow: '',
-    icon: <div className="h-2 w-2 rounded-full bg-zinc-600" />,
-  },
-  BLOCKED: {
-    border: 'border-zinc-800',
-    bg: 'bg-zinc-900/40',
-    text: 'text-zinc-500',
-    glow: '',
-    icon: <div className="h-2 w-2 rounded-full bg-zinc-600" />,
-  },
-  CANCELLED: {
-    border: 'border-zinc-800',
-    bg: 'bg-zinc-900/40',
-    text: 'text-zinc-600',
-    glow: '',
-    icon: <div className="h-2 w-2 rounded-full bg-zinc-700" />,
-  },
-}
-
 export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
   const { task, isSelected, isBlastRadius, onSelect } = data
-  const style = statusStyles[task.status] || statusStyles.PENDING
+  const style = TASK_STATUS_CONFIG[task.status] || TASK_STATUS_CONFIG.PENDING
 
   return (
     <div

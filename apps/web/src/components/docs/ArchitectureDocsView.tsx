@@ -92,6 +92,10 @@ export const ArchitectureDocsView: React.FC<ArchitectureDocsViewProps> = ({
   const selectedDoc = docs.find((d) => d.slug === selectedSlug) || docs[0]
 
   useEffect(() => {
+    onRefresh()
+  }, [onRefresh])
+
+  useEffect(() => {
     if (selectedDoc) {
       setSelectedSlug(selectedDoc.slug)
       setEditTitle(selectedDoc.title)

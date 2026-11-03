@@ -6,7 +6,6 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -231,16 +230,12 @@ func (s *Server) handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var err error
-	if s.scheduler != nil {
-		err = s.scheduler.SubmitPlan(r.Context(), plan, req.Tasks)
-	} else if s.storage != nil {
-		err = s.storage.SavePlanWithTasks(r.Context(), plan, req.Tasks)
-	} else {
-		err = errors.New("no scheduler or storage configured")
+	if s.storage == nil {
+		http.Error(w, "no storage configured", http.StatusInternalServerError)
+		return
 	}
 
-	if err != nil {
+	if err := s.storage.SavePlanWithTasks(r.Context(), plan, req.Tasks); err != nil {
 		http.Error(w, fmt.Sprintf("failed to submit plan: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -268,25 +263,24 @@ func (s *Server) handleGetPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var plan *domain.Plan
-	var tasks []domain.Task
-	var err error
-
-	if s.scheduler != nil {
-		plan, tasks, err = s.scheduler.GetPlan(r.Context(), slug)
-	} else if s.storage != nil {
-		plan, err = s.storage.GetPlan(r.Context(), slug)
-		if err == nil {
-			tasks, err = s.storage.GetTasksByPlan(r.Context(), slug)
-		}
-	} else {
-		http.Error(w, "no scheduler or storage configured", http.StatusInternalServerError)
+	if s.storage == nil {
+		http.Error(w, "no storage configured", http.StatusInternalServerError)
 		return
 	}
 
+	plan, err := s.storage.GetPlan(r.Context(), slug)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("plan not found: %v", err), http.StatusNotFound)
 		return
+	}
+
+	tasks, err := s.storage.GetTasksByPlan(r.Context(), slug)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to get plan tasks: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if tasks == nil {
+		tasks = []domain.Task{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1034,7 +1028,7 @@ func (s *Server) handleGetGlobalEnv(w http.ResponseWriter, r *http.Request) {
 	}
 
 	envData := map[string]any{
-		"version":     "2.5.0",
+		"version":     "0.1.0",
 		"os":          runtime.GOOS,
 		"arch":        runtime.GOARCH,
 		"num_cpu":     runtime.NumCPU(),

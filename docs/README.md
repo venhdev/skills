@@ -8,3 +8,5 @@
 | **Construction Rules & Standards** | `docs/ZENFORGE_CONSTRUCTION_RULES.md` | Architectural invariants and engineering standards |
 | **System Roadmap** | `docs/ROADMAP.md` | Multi-phase milestones and deliverables |
 | **Skill Connections** | `docs/skill-connections.md` | Workflow topologies and skill transition graph |
+| **Architecture Topology** | `docs/architecture-topology.md` | Host-daemon topology and communication seams |
+| **ZenForge Daemon (zenfd)** | `docs/zenfd/` | Canonical contracts and UI specifications for v0.1.0 baseline |

@@ -15,11 +15,17 @@ export function useSSE({
   const [connected, setConnected] = useState(false)
   const [lastEvent, setLastEvent] = useState<EventMessage | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onEventRef = useRef(onEvent)
   onEventRef.current = onEvent
 
   const connect = useCallback(() => {
     if (!enabled) return
+
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
 
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
@@ -35,8 +41,11 @@ export function useSSE({
     es.onerror = () => {
       setConnected(false)
       es.close()
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+      }
       // Auto-reconnect after 3 seconds
-      setTimeout(() => {
+      reconnectTimerRef.current = setTimeout(() => {
         if (enabled) {
           connect()
         }
@@ -96,6 +105,10 @@ export function useSSE({
   useEffect(() => {
     connect()
     return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close()
         eventSourceRef.current = null

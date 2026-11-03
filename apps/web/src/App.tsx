@@ -93,6 +93,12 @@ export default function App() {
     refreshArtifacts(selectedTaskId)
   }, [selectedTaskId, refreshArtifacts])
 
+  useEffect(() => {
+    if (currentView === 'docs') {
+      refreshDocs()
+    }
+  }, [currentView, refreshDocs])
+
   // Real-time synchronization with daemon SQLite state
   const refreshData = useCallback(async () => {
     const taskList = await fetchTasks()

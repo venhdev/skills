@@ -19,7 +19,6 @@ import (
 	"zenfd/internal/harness"
 	zenfdmcp "zenfd/internal/mcp"
 	"zenfd/internal/parser"
-	"zenfd/internal/scheduler"
 	"zenfd/internal/storage"
 	"zenfd/internal/supervisor"
 
@@ -53,7 +52,7 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "2.5.0"
+const Version = "0.1.0"
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -96,39 +95,12 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			harnessReg := harness.DefaultRegistry()
 			super.SetHarnessRegistry(harnessReg)
 
-			// 3. Scheduler
-			cfg := scheduler.SchedulerConfig{
-				MaxConcurrentWorkers: defaultWorkers,
-				HeartbeatTimeout:     30 * time.Second,
-				TickInterval:         time.Duration(defaultTickMs) * time.Millisecond,
-			}
-			sched := scheduler.NewDAGScheduler(cfg, store, super)
-			sched.SetHarnessRegistry(harnessReg)
+			// 3. Gateway
+			gw := gateway.NewServer(store, super, nil)
 
-			// 4. Gateway
-			gw := gateway.NewServer(store, super, sched)
-			sched.SetBroadcaster(gw)
-
-			// 5. Context & Signals
+			// 4. Context & Signals
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
-
-			// Start scheduler ticker loop
-			ticker := time.NewTicker(time.Duration(defaultTickMs) * time.Millisecond)
-			defer ticker.Stop()
-
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-ticker.C:
-						if err := sched.Tick(ctx); err != nil {
-							// Log transient tick errors without crashing
-						}
-					}
-				}
-			}()
 
 			// Start HTTP Server
 			listenAddr := fmt.Sprintf("127.0.0.1:%d", defaultPort)

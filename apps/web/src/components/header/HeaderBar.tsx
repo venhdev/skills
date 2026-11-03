@@ -56,7 +56,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </div>
           <span>ZenForge</span>
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 font-sans">
-            V2.5
+            v0.1.0
           </span>
         </div>
 

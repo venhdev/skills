@@ -1,8 +1,12 @@
+---
+title: ZenForge Daemon (zenfd) Architecture & Seams
+description: Host-daemon topology, process group supervision, and communication seams.
+status: active
+created: 2026-11-03
+updated: 2026-11-03
+---
+
 # ZenForge Daemon (zenfd) Architecture & Seams
-
-> Category: ARCHITECTURE | Version: 1
-
-# ZenForge Daemon (zenfd) Architecture
 
 ZenForge Daemon is an agent-native operating environment combining SQLite WAL as Single Source of Truth with Model Context Protocol (MCP) and POSIX process group supervision.
 
@@ -20,3 +24,7 @@ graph LR
   end
 ```
 
+## Detailed Subsystem Specifications
+
+- **Domain & Interface Contracts**: [docs/zenfd/contracts.md](zenfd/contracts.md)
+- **Web Cockpit UI Layout**: [docs/zenfd/ui-layout.md](zenfd/ui-layout.md)

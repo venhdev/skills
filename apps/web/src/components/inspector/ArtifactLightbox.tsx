@@ -56,10 +56,16 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
     if (activeTab === 'diffs' && selectedArtifactId) {
       const art = diffArtifacts.find((a) => a.id === selectedArtifactId)
       if (art) {
-        fetch(`/api/v1/artifacts/${art.id}`)
+        const controller = new AbortController()
+        fetch(`/api/v1/artifacts/${art.id}`, { signal: controller.signal })
           .then((res) => (res.ok ? res.text() : ''))
           .then((txt) => setDiffContent(txt))
-          .catch(() => setDiffContent('// Failed to load diff'))
+          .catch((err) => {
+            if (err.name !== 'AbortError') {
+              setDiffContent('// Failed to load diff')
+            }
+          })
+        return () => controller.abort()
       }
     }
   }, [activeTab, selectedArtifactId, diffArtifacts])
@@ -67,10 +73,16 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
   // Fetch raw task logs when logs tab is active
   useEffect(() => {
     if (activeTab === 'logs' && taskId) {
-      fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/logs`)
+      const controller = new AbortController()
+      fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/logs`, { signal: controller.signal })
         .then((res) => (res.ok ? res.text() : ''))
         .then((txt) => setTaskLogs(txt))
-        .catch(() => setTaskLogs('// Failed to load task logs'))
+        .catch((err) => {
+          if (err.name !== 'AbortError') {
+            setTaskLogs('// Failed to load task logs')
+          }
+        })
+      return () => controller.abort()
     }
   }, [activeTab, taskId])
 
