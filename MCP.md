@@ -41,6 +41,30 @@ Existing config is backed up to `<config>.bak`; other MCP servers are preserved.
 VS Code is not covered by `zenfd mcp setup`; configure it manually with the
 snippet below.
 
+### Codex CLI (manual or CLI)
+
+Codex CLI registers local MCP servers through a stdio command. Its user
+configuration is `~/.codex/config.toml`, so the `mcpServers` JSON snippets for
+other clients are not valid Codex CLI configuration.
+
+CLI:
+
+```bash
+codex mcp add zenfd -- /abs/path/to/apps/daemon/bin/zenfd mcp --db /home/<user>/.zenforge/state.db
+codex mcp list
+```
+
+TOML (`~/.codex/config.toml`):
+
+```toml
+[mcp_servers.zenfd]
+command = "/abs/path/to/apps/daemon/bin/zenfd"
+args = ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
+```
+
+Restart the Codex session after registration. The daemon must reserve stdout
+for MCP JSON-RPC messages; emit diagnostics only to stderr.
+
 ### OpenCode (auto or manual)
 
 `zenfd mcp setup --client opencode` writes the project/global config entry
