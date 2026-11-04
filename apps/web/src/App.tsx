@@ -23,6 +23,7 @@ export default function App() {
 
   const activePlanRef = useRef<Plan | null>(null)
   activePlanRef.current = activePlan
+  const refreshSeqRef = useRef(0)
 
   const {
     fetchPlans,
@@ -51,15 +52,25 @@ export default function App() {
 
   // Real-time synchronization with daemon SQLite state
   const refreshData = useCallback(async () => {
+    // Coalesce overlapping refreshes (SSE + focus + interval). Only the most
+    // recent generation is allowed to apply its results.
+    const seq = ++refreshSeqRef.current
+
     const taskList = await fetchTasks()
     if (taskList === null) {
       // Network error occurred. Retain current state safely without wiping.
       return
     }
+    if (seq !== refreshSeqRef.current) return
 
     // The plans endpoint is the source of truth for the selector and includes
-    // plans that do not have any tasks yet.
-    const availablePlans = await fetchPlans()
+    // plans that do not have any tasks yet. A failed request must not be
+    // interpreted as "no plans".
+    const plansResult = await fetchPlans()
+    if (!plansResult.ok) return
+    if (seq !== refreshSeqRef.current) return
+
+    const availablePlans = plansResult.data
     setPlans(availablePlans)
 
     // Determine target plan. When nothing is selected, prefer a plan that has
@@ -72,6 +83,7 @@ export default function App() {
     }
 
     if (!targetPlanSlug) {
+      // Successful response with a genuinely empty plan list.
       setTasks([])
       setActivePlan(null)
       setSelectedTaskId(null)
@@ -79,26 +91,33 @@ export default function App() {
       return
     }
 
-    const planData = await fetchPlan(targetPlanSlug)
-    if (planData?.plan) {
-      setActivePlan(planData.plan)
-      const planTasks = planData.tasks || []
-      setTasks(planTasks)
+    const planResult = await fetchPlan(targetPlanSlug)
+    if (seq !== refreshSeqRef.current) return
 
-      // Select task
-      setSelectedTaskId((prev) => {
-        if (prev && planTasks.some((t) => t.id === prev)) {
-          return prev
-        }
-        return planTasks[0]?.id || null
-      })
-    } else {
-      // The selected plan disappeared (e.g. deleted externally).
-      setActivePlan(null)
-      setTasks([])
-      setSelectedTaskId(null)
-      setArtifacts([])
+    if (!planResult.ok) {
+      // A transient failure keeps the current canvas intact. Only a 404 means
+      // the plan is definitively gone.
+      if (planResult.status === 404) {
+        setActivePlan(null)
+        setTasks([])
+        setSelectedTaskId(null)
+        setArtifacts([])
+      }
+      return
     }
+
+    const planData = planResult.data
+    setActivePlan(planData.plan)
+    const planTasks = planData.tasks || []
+    setTasks(planTasks)
+
+    // Select task
+    setSelectedTaskId((prev) => {
+      if (prev && planTasks.some((t) => t.id === prev)) {
+        return prev
+      }
+      return planTasks[0]?.id || null
+    })
   }, [fetchTasks, fetchPlans, fetchPlan])
 
   // Initial fetch on mount
@@ -150,17 +169,17 @@ export default function App() {
   const activeWorkerCount = tasks.filter((t) => t.status === 'RUNNING').length
 
   const handleSelectPlan = async (slug: string) => {
-    const data = await fetchPlan(slug)
-    if (data?.plan) {
-      setActivePlan(data.plan)
-      setTasks(data.tasks || [])
-      const firstTask = data.tasks?.[0]
-      if (firstTask) {
-        setSelectedTaskId(firstTask.id)
-        setFocusTarget({ id: firstTask.id, timestamp: Date.now() })
-      } else {
-        setSelectedTaskId(null)
-      }
+    const result = await fetchPlan(slug)
+    if (!result.ok) return
+    const data = result.data
+    setActivePlan(data.plan)
+    setTasks(data.tasks || [])
+    const firstTask = data.tasks?.[0]
+    if (firstTask) {
+      setSelectedTaskId(firstTask.id)
+      setFocusTarget({ id: firstTask.id, timestamp: Date.now() })
+    } else {
+      setSelectedTaskId(null)
     }
   }
 
