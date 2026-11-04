@@ -16,7 +16,6 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 	task := domain.Task{
 		ID:                   "P-03",
 		PlanID:               "plan-engine-v1",
-		RepoPath:             "/home/dev/src/owner/my-skills",
 		Title:                "Prompt Context Compiler Domain Seam",
 		Description:          "Extract prompt markdown assembly into domain service.",
 		Priority:             "P2",
@@ -28,24 +27,16 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 		VerificationCommands: []string{"go test -v ./internal/domain/prompt/..."},
 	}
 
-	upstreamDiffs := []string{
-		"diff --git a/file1.go b/file1.go\n+func Hello() {}\n",
-	}
-
 	inputAttachments := []domain.Artifact{
 		{
 			ID:       "art-01",
 			TaskID:   "P-03",
-			Type:     domain.ArtifactTypeDiff,
-			FilePath: "/tmp/diff1.patch",
+			Type:     domain.ArtifactTypeMarkdown,
+			FilePath: "/tmp/spec.md",
 		},
 	}
 
-	specSnippets := []string{
-		"### Spec `spec-flow`: Flow Diagram (SEQUENCE)\n```mermaid\nsequenceDiagram\nAgent->>Engine: Claim\n```\n",
-	}
-
-	packet, err := compiler.Compile(ctx, task, upstreamDiffs, inputAttachments, specSnippets)
+	packet, err := compiler.Compile(ctx, task, inputAttachments)
 	if err != nil {
 		t.Fatalf("unexpected error compiling context packet: %v", err)
 	}
@@ -63,9 +54,6 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 	}
 	if len(packet.VerificationCommands) != 1 {
 		t.Errorf("expected 1 verification command, got %d", len(packet.VerificationCommands))
-	}
-	if len(packet.UpstreamDiffs) != 1 {
-		t.Errorf("expected 1 upstream diff, got %d", len(packet.UpstreamDiffs))
 	}
 	if len(packet.InputAttachments) != 1 {
 		t.Errorf("expected 1 input attachment, got %d", len(packet.InputAttachments))
@@ -95,15 +83,7 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 		t.Error("prompt markdown missing description body")
 	}
 
-	// 3. Spec snippets
-	if !strings.Contains(md, "## 1.5. Linked Architectural Blueprints & Contracts (SSOT)") {
-		t.Error("prompt markdown missing spec snippets section")
-	}
-	if !strings.Contains(md, "```mermaid\nsequenceDiagram\nAgent->>Engine: Claim\n```") {
-		t.Error("prompt markdown missing mermaid fence from spec snippet")
-	}
-
-	// 4. Acceptance Criteria
+	// 3. Acceptance Criteria
 	if !strings.Contains(md, "## 2. Acceptance Criteria") {
 		t.Error("prompt markdown missing acceptance criteria section")
 	}
@@ -130,26 +110,21 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 		t.Error("prompt markdown missing verification commands bash code fence")
 	}
 
-	// 7. Upstream Diffs
-	if !strings.Contains(md, "## Upstream Diffs") {
-		t.Error("prompt markdown missing upstream diffs section")
-	}
-	if !strings.Contains(md, "```diff\ndiff --git a/file1.go b/file1.go\n+func Hello() {}\n```") {
-		t.Error("prompt markdown missing upstream diff code fence")
-	}
-
-	// 8. MCP Tool Handshake Protocol
+	// 7. MCP Tool Handshake Protocol
 	if !strings.Contains(md, "## 5. MCP Tool Handshake Protocol") {
 		t.Error("prompt markdown missing tool handshake protocol section")
 	}
 	if !strings.Contains(md, "zenfd_claim_task(task_id=\"P-03\"") {
 		t.Error("prompt markdown missing claim task tool instruction")
 	}
-	if !strings.Contains(md, "zenfd_yield_review(task_id=\"P-03\"") {
-		t.Error("prompt markdown missing yield review tool instruction")
+	if !strings.Contains(md, "zenfd_request_review(task_id=\"P-03\"") {
+		t.Error("prompt markdown missing request review tool instruction")
 	}
-	if !strings.Contains(md, "zenfd_stage_merge(task_id=\"P-03\"") {
-		t.Error("prompt markdown missing stage merge tool instruction")
+	if !strings.Contains(md, "zenfd_transition_task(task_ids=[\"P-03\"], action=\"COMPLETE\"") {
+		t.Error("prompt markdown missing complete transition tool instruction")
+	}
+	if strings.Contains(md, "pid=$PID") {
+		t.Error("prompt markdown must not instruct passing pid")
 	}
 }
 
@@ -163,7 +138,7 @@ func TestMarkdownPromptCompiler_Compile_MinimalAndDefaults(t *testing.T) {
 		Title:  "Minimal Task",
 	}
 
-	packet, err := compiler.Compile(ctx, task, nil, nil, nil)
+	packet, err := compiler.Compile(ctx, task, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -177,9 +152,6 @@ func TestMarkdownPromptCompiler_Compile_MinimalAndDefaults(t *testing.T) {
 	if len(packet.VerificationCommands) != 0 {
 		t.Errorf("expected empty verification commands, got %d", len(packet.VerificationCommands))
 	}
-	if len(packet.UpstreamDiffs) != 0 {
-		t.Errorf("expected empty upstream diffs, got %d", len(packet.UpstreamDiffs))
-	}
 	if len(packet.InputAttachments) != 0 {
 		t.Errorf("expected empty input attachments, got %d", len(packet.InputAttachments))
 	}
@@ -190,9 +162,6 @@ func TestMarkdownPromptCompiler_Compile_MinimalAndDefaults(t *testing.T) {
 	}
 
 	// When empty, optional sections shouldn't be present
-	if strings.Contains(packet.PromptMarkdown, "## 1.5. Linked Architectural Blueprints") {
-		t.Error("did not expect spec section when specSnippets is nil")
-	}
 	if strings.Contains(packet.PromptMarkdown, "## 2. Acceptance Criteria") {
 		t.Error("did not expect acceptance criteria section when empty")
 	}
@@ -201,8 +170,5 @@ func TestMarkdownPromptCompiler_Compile_MinimalAndDefaults(t *testing.T) {
 	}
 	if strings.Contains(packet.PromptMarkdown, "## 4. Verification Commands") {
 		t.Error("did not expect verification commands section when empty")
-	}
-	if strings.Contains(packet.PromptMarkdown, "## Upstream Diffs") {
-		t.Error("did not expect upstream diffs section when nil")
 	}
 }

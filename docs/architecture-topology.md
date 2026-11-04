@@ -19,12 +19,10 @@ graph LR
   subgraph ControlPlane [Daemon Engine]
     B --> E[(SQLite WAL SSOT)]
     D --> E
-    D --> F[DAG Scheduler]
-    F --> G[POSIX Supervisor]
+    D --> G[POSIX Supervisor]
   end
 ```
 
 ## Detailed Subsystem Specifications
 
-- **Domain & Interface Contracts**: [docs/zenfd/contracts.md](zenfd/contracts.md)
-- **Web Cockpit UI Layout**: [docs/zenfd/ui-layout.md](zenfd/ui-layout.md)
+Subsystem contracts and UI specifications will be rewritten.

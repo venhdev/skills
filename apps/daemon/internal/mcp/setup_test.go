@@ -140,3 +140,77 @@ func TestMCPSetup_AlreadyConfiguredIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "configured", res3.Action)
 }
+
+func TestDefaultConfigFile_OpenCode(t *testing.T) {
+	path, err := DefaultConfigFile(ClientOpenCode)
+	require.NoError(t, err)
+	assert.Contains(t, path, filepath.Join(".config", "opencode", "opencode.json"))
+}
+
+func TestMCPSetup_OpenCodeFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "opencode.json")
+	fakeBin := filepath.Join(tmpDir, "fake_zenfd")
+	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0755))
+
+	initialJSON := `{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "other": {
+      "type": "local",
+      "command": ["other-server"]
+    }
+  }
+}`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(initialJSON), 0644))
+
+	dbPath := filepath.Join(tmpDir, "state.db")
+	opts := SetupOptions{
+		Client:     ClientOpenCode,
+		ConfigPath: cfgPath,
+		BinaryPath: fakeBin,
+		DBPath:     dbPath,
+	}
+
+	res, err := SetupMCP(opts)
+	require.NoError(t, err)
+	assert.Equal(t, "configured", res.Action)
+	assert.NotEmpty(t, res.BackupPath)
+
+	data, err := os.ReadFile(cfgPath)
+	require.NoError(t, err)
+
+	var root map[string]any
+	require.NoError(t, json.Unmarshal(data, &root))
+
+	mcpMap, ok := root["mcp"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, mcpMap, "other")
+	assert.Contains(t, mcpMap, "zenfd")
+
+	entry, ok := mcpMap["zenfd"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "local", entry["type"])
+	assert.Equal(t, true, entry["enabled"])
+	assert.NotContains(t, entry, "args")
+
+	cmd, ok := entry["command"].([]any)
+	require.True(t, ok)
+	require.Len(t, cmd, 4)
+	assert.Equal(t, fakeBin, cmd[0])
+	assert.Equal(t, "mcp", cmd[1])
+	assert.Equal(t, "--db", cmd[2])
+	assert.Equal(t, dbPath, cmd[3])
+
+	checkRes, err := CheckMCP(ClientOpenCode, cfgPath)
+	require.NoError(t, err)
+	assert.True(t, checkRes.Configured)
+	assert.True(t, checkRes.BinaryExists)
+	assert.Equal(t, fakeBin, checkRes.BinaryPath)
+	assert.Equal(t, dbPath, checkRes.DBPath)
+
+	// Second run should be idempotent.
+	res2, err := SetupMCP(opts)
+	require.NoError(t, err)
+	assert.Equal(t, "already_configured", res2.Action)
+}

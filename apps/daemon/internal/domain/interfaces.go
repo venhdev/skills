@@ -30,21 +30,6 @@ type Supervisor interface {
 	GetRun(runID string) (*Run, error)
 }
 
-// Scheduler resolves DAG readiness, schedules eligible workers, and audits heartbeat liveness.
-type Scheduler interface {
-	// SubmitPlan registers a new living plan and its decomposed task DAG.
-	SubmitPlan(ctx context.Context, plan Plan, tasks []Task) error
-
-	// GetPlan retrieves a plan and all its tasks by slug.
-	GetPlan(ctx context.Context, slug string) (*Plan, []Task, error)
-
-	// Tick evaluates ready tasks, dispatches available workers, and reaps crashed processes.
-	Tick(ctx context.Context) error
-
-	// RecordHeartbeat refreshes the liveness cursor for an active run.
-	RecordHeartbeat(ctx context.Context, runID string, cursor map[string]any) error
-}
-
 // EventBroadcaster distributes real-time events to connected clients and event stores.
 type EventBroadcaster interface {
 	Broadcast(evt EventMessage)
@@ -61,11 +46,11 @@ type StorageEngine interface {
 	// GetTasksByPlan retrieves all tasks belonging to a plan.
 	GetTasksByPlan(ctx context.Context, planSlug string) ([]Task, error)
 
-	// ListTasks returns tasks filtered optionally by repoPath and/or status.
-	ListTasks(ctx context.Context, repoPath string, status TaskStatus) ([]Task, error)
+	// ListTasks returns tasks filtered optionally by status.
+	ListTasks(ctx context.Context, status TaskStatus) ([]Task, error)
 
 	// GetReadyTasks returns tasks whose dependencies are fully completed.
-	GetReadyTasks(ctx context.Context, repoPath string, limit int) ([]Task, error)
+	GetReadyTasks(ctx context.Context, limit int) ([]Task, error)
 
 	// UpdateTaskStatus atomically transitions task status from an expected current state.
 	UpdateTaskStatus(ctx context.Context, taskID string, from TaskStatus, to TaskStatus) error
@@ -97,13 +82,10 @@ type StorageEngine interface {
 	// GetTask retrieves a single task by its unique ID.
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 
-	// ListProjects returns all distinct repo_paths known to the store.
-	ListProjects(ctx context.Context) ([]string, error)
-
 	// CreatePlan inserts a single plan.
 	CreatePlan(ctx context.Context, plan Plan) error
 
-	// DeletePlan deletes a plan and cascades to its tasks, runs, artifacts, and docs.
+	// DeletePlan deletes a plan and cascades to its tasks, runs, and artifacts.
 	DeletePlan(ctx context.Context, slug string) error
 
 	// CreateTask inserts a single task.
@@ -115,7 +97,7 @@ type StorageEngine interface {
 	// UpdateTaskNotes updates developer supplemental notes.
 	UpdateTaskNotes(ctx context.Context, taskID string, notes string) error
 
-	// AddInputAttachment adds an input artifact (media, screenshot, or spec) to a task.
+	// AddInputAttachment adds an input artifact (media or screenshot) to a task.
 	AddInputAttachment(ctx context.Context, taskID string, name string, filePath string, mimeType string, byteSize int64, sha256 string) (*Artifact, error)
 
 	// ClaimTask atomically verifies readiness, sets claim lock (workerID & pid), transitions to RUNNING, and returns ContextPacket.
@@ -124,71 +106,20 @@ type StorageEngine interface {
 	// ClaimTaskWithMeta atomically claims a ready task with full metadata.
 	ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string, pid int, orchestratorPID int) (*ContextPacket, error)
 
-	// ReclaimTask re-claims a SUSPENDED task with new worker and orchestrator.
-	ReclaimTask(ctx context.Context, taskID string, newWorkerID string, newOrchestratorID string, newPID int) (*ContextPacket, error)
-
 	// EvictTask evicts a running or suspended task, resetting it to READY or cancelling it.
 	EvictTask(ctx context.Context, taskID string, reason string, action string) error
-
-	// RegisterSession registers or updates an agent session.
-	RegisterSession(ctx context.Context, session AgentSession) error
-
-	// ListSessions returns all active or recently seen sessions.
-	ListSessions(ctx context.Context) ([]AgentSession, error)
-
-	// HeartbeatSession updates the last heartbeat timestamp for a session.
-	HeartbeatSession(ctx context.Context, sessionID string) error
 
 	// RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
 	RequestReview(ctx context.Context, taskID string, reason string, details string, options []string) error
 
-	// ResolveReview answers an awaiting review, records resolution, and transitions task back to READY.
+	// ResolveReview records the human guidance relayed by the main agent and transitions task back to READY.
 	ResolveReview(ctx context.Context, taskID string, response string) error
 
-	// StageMerge marks a worktree task as complete and transitions it to AWAITING_MERGE.
-	StageMerge(ctx context.Context, taskID string) error
+	// AppendTaskNotes appends a note to the task's supplemental notes.
+	AppendTaskNotes(ctx context.Context, taskID string, note string) error
 
-	// MergeTask executes git merge from worktree to target branch, transitioning to COMPLETED or CONFLICT.
-	MergeTask(ctx context.Context, taskID string) (bool, []string, error)
-
-	// GetTaskContextPacket compiles full context packet (task, target files, skill paths, upstream diffs, media).
+	// GetTaskContextPacket compiles full context packet (task, target files, skill paths, media).
 	GetTaskContextPacket(ctx context.Context, taskID string) (*ContextPacket, error)
-
-	// UpsertDoc creates or updates a project document or living architecture spec.
-	UpsertDoc(ctx context.Context, doc ProjectDoc) error
-
-	// GetDoc retrieves a project document by repoPath and slug.
-	GetDoc(ctx context.Context, repoPath, slug string) (*ProjectDoc, error)
-
-	// ListDocs lists project documents filtered optionally by category.
-	ListDocs(ctx context.Context, repoPath, category string) ([]ProjectDoc, error)
-
-	// UpsertSpec creates or updates a multi-tiered technical specification.
-	UpsertSpec(ctx context.Context, spec TechSpec) (*TechSpec, error)
-
-	// GetSpec retrieves a technical spec by slug.
-	GetSpec(ctx context.Context, slug string) (*TechSpec, error)
-
-	// ListSpecs lists technical specs filtered optionally by repoPath and/or tier.
-	ListSpecs(ctx context.Context, repoPath string, tier int) ([]TechSpec, error)
-
-	// SearchSpecs performs a full-text FTS5 search across all technical specs.
-	SearchSpecs(ctx context.Context, query string) ([]TechSpec, error)
-
-	// AutoLinkSpecs evaluates targetFiles against bound_paths of all registered specs.
-	AutoLinkSpecs(ctx context.Context, targetFiles []string) ([]string, error)
-
-	// SavePlanSnapshot saves an atomic directory snapshot for a plan at a given revision.
-	SavePlanSnapshot(ctx context.Context, planSlug, revision, author, summary string, files []SnapshotFile) error
-
-	// GetPlanSnapshot retrieves all snapshot files for a plan at a given revision.
-	GetPlanSnapshot(ctx context.Context, planSlug, revision string) ([]SnapshotFile, error)
-
-	// ListPlanRevisions lists all revision records for a given plan.
-	ListPlanRevisions(ctx context.Context, planSlug string) ([]PlanRevision, error)
-
-	// GetPlanDiff computes differences between two plan revisions.
-	GetPlanDiff(ctx context.Context, planSlug, fromRev, toRev string) ([]FileDiff, error)
 
 	// Close safely flushes WAL checkpoints and closes the database connection pool.
 	Close() error

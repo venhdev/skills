@@ -15,7 +15,6 @@ import (
 
 var (
 	headerSlugRegex = regexp.MustCompile(`(?i)^#+\s+(?:Plan(?:\s+Dossier)?:\s*)?([a-zA-Z0-9_\-\.]+)(?:\s*·\s*([a-zA-Z0-9_]+))?`)
-	cleanMDRegex    = regexp.MustCompile(`[\\*\\_\\[\\]\\$]`)
 )
 
 // CleanMarkdownToken strips markdown decorators like **, __, $, [], etc.
@@ -46,7 +45,7 @@ func NormalizeStatus(raw string) domain.TaskStatus {
 }
 
 // ParseMarkdownPlan parses a markdown plan dossier into domain.Plan and []domain.Task.
-func ParseMarkdownPlan(r io.Reader, fallbackSlug string, repoPath string) (domain.Plan, []domain.Task, error) {
+func ParseMarkdownPlan(r io.Reader, fallbackSlug string) (domain.Plan, []domain.Task, error) {
 	scanner := bufio.NewScanner(r)
 
 	var title string
@@ -101,7 +100,7 @@ func ParseMarkdownPlan(r io.Reader, fallbackSlug string, repoPath string) (domai
 			}
 
 			// Table Data Row
-			task := parseTaskRow(parts, headerMap, slug, repoPath)
+			task := parseTaskRow(parts, headerMap, slug)
 			if task.ID != "" {
 				tasks = append(tasks, task)
 			}
@@ -131,7 +130,6 @@ func ParseMarkdownPlan(r io.Reader, fallbackSlug string, repoPath string) (domai
 	plan := domain.Plan{
 		Slug:      slug,
 		Title:     title,
-		RepoPath:  repoPath,
 		Status:    planStatus,
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
@@ -141,7 +139,7 @@ func ParseMarkdownPlan(r io.Reader, fallbackSlug string, repoPath string) (domai
 }
 
 // ParseMarkdownPlanFile opens a file from disk and parses it.
-func ParseMarkdownPlanFile(path string, repoPath string) (domain.Plan, []domain.Task, error) {
+func ParseMarkdownPlanFile(path string) (domain.Plan, []domain.Task, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return domain.Plan{}, nil, fmt.Errorf("failed to open plan file: %w", err)
@@ -157,7 +155,7 @@ func ParseMarkdownPlanFile(path string, repoPath string) (domain.Plan, []domain.
 		}
 	}
 
-	return ParseMarkdownPlan(f, slug, repoPath)
+	return ParseMarkdownPlan(f, slug)
 }
 
 func splitTableRow(line string) []string {
@@ -203,7 +201,7 @@ func buildHeaderMap(headers []string) map[string]int {
 	return m
 }
 
-func parseTaskRow(parts []string, colMap map[string]int, planID, repoPath string) domain.Task {
+func parseTaskRow(parts []string, colMap map[string]int, planID string) domain.Task {
 	idIdx, hasID := colMap["id"]
 	if !hasID || idIdx >= len(parts) {
 		return domain.Task{}
@@ -263,7 +261,6 @@ func parseTaskRow(parts []string, colMap map[string]int, planID, repoPath string
 	return domain.Task{
 		ID:           rawID,
 		PlanID:       planID,
-		RepoPath:     repoPath,
 		Title:        title,
 		Dependencies: deps,
 		Harness:      harness,

@@ -115,8 +115,8 @@ func TestTaskStatus_StateTransitions(t *testing.T) {
 		// Re-open and Retry transitions
 		{domain.StatusCompleted, domain.StatusReady, true}, // Re-open by operator
 		{domain.StatusCompleted, domain.StatusRunning, false},
-		{domain.StatusFailed, domain.StatusReady, true},    // Retry
-		{domain.StatusFailed, domain.StatusRunning, true},  // Immediate re-run
+		{domain.StatusFailed, domain.StatusReady, true},   // Retry
+		{domain.StatusFailed, domain.StatusRunning, true}, // Immediate re-run
 		{domain.StatusCancelled, domain.StatusReady, false},
 
 		// Idempotent self-transition
@@ -165,7 +165,6 @@ func TestEntities_JSONSerialization(t *testing.T) {
 	plan := domain.Plan{
 		Slug:      "test-plan",
 		Title:     "Test Plan",
-		RepoPath:  "/path/to/repo",
 		Status:    "ACTIVE",
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -186,7 +185,6 @@ func TestEntities_JSONSerialization(t *testing.T) {
 	task := domain.Task{
 		ID:           "task-01",
 		PlanID:       "test-plan",
-		RepoPath:     "/path/to/repo",
 		Title:        "Implement Feature",
 		Dependencies: []string{"task-00"},
 		Harness:      "claude-code",

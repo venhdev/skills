@@ -18,17 +18,14 @@ const schemaDDL = `
 CREATE TABLE IF NOT EXISTS plans (
     slug TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    repo_path TEXT NOT NULL,
     status TEXT NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_plans_repo ON plans (repo_path, status);
 
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     plan_id TEXT NOT NULL,
-    repo_path TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     dependencies TEXT NOT NULL,
@@ -62,25 +59,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     FOREIGN KEY (plan_id) REFERENCES plans (slug) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_plan ON tasks (plan_id);
-CREATE INDEX IF NOT EXISTS idx_tasks_repo_status ON tasks (repo_path, status);
-
-CREATE TABLE IF NOT EXISTS agent_sessions (
-    session_id TEXT PRIMARY KEY,
-    parent_session_id TEXT NOT NULL DEFAULT '',
-    role TEXT NOT NULL DEFAULT 'SUBAGENT',
-    name TEXT NOT NULL DEFAULT '',
-    pid INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'ACTIVE',
-    claimed_tasks TEXT NOT NULL DEFAULT '[]',
-    created_at DATETIME NOT NULL,
-    last_beat_at DATETIME NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_agent_sessions_status ON agent_sessions (status);
 
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     task_id TEXT NOT NULL,
-    repo_path TEXT NOT NULL,
     pid INTEGER NOT NULL,
     pgid INTEGER NOT NULL,
     status TEXT NOT NULL,
@@ -121,87 +103,16 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_task ON events (task_id);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events (timestamp);
+`
 
-CREATE TABLE IF NOT EXISTS project_docs (
-    slug TEXT NOT NULL,
-    repo_path TEXT NOT NULL,
-    git_branch TEXT NOT NULL DEFAULT '',
-    title TEXT NOT NULL,
-    category TEXT NOT NULL,
-    content_markdown TEXT NOT NULL,
-    mermaid_diagrams TEXT NOT NULL DEFAULT '[]',
-    version INTEGER NOT NULL DEFAULT 1,
-    updated_at DATETIME NOT NULL,
-    PRIMARY KEY (repo_path, slug)
-);
-CREATE INDEX IF NOT EXISTS idx_project_docs_repo ON project_docs (repo_path, category);
-
-CREATE TABLE IF NOT EXISTS tech_specs (
-    slug TEXT PRIMARY KEY,
-    repo_path TEXT NOT NULL,
-    tier INTEGER NOT NULL,
-    kind TEXT NOT NULL,
-    title TEXT NOT NULL,
-    diagram_type TEXT NOT NULL,
-    diagram_code TEXT NOT NULL DEFAULT '',
-    structured_payload TEXT NOT NULL DEFAULT '{}',
-    notes TEXT NOT NULL DEFAULT '',
-    bound_paths TEXT NOT NULL DEFAULT '[]',
-    version INTEGER NOT NULL DEFAULT 1,
-    updated_at DATETIME NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_tech_specs_repo_tier ON tech_specs (repo_path, tier, kind);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS tech_specs_fts USING fts5(
-    slug,
-    title,
-    diagram_code,
-    notes,
-    content='tech_specs',
-    content_rowid='rowid'
-);
-
-CREATE TRIGGER IF NOT EXISTS trg_tech_specs_ai AFTER INSERT ON tech_specs BEGIN
-  INSERT INTO tech_specs_fts(rowid, slug, title, diagram_code, notes)
-  VALUES (new.rowid, new.slug, new.title, new.diagram_code, new.notes);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_tech_specs_ad AFTER DELETE ON tech_specs BEGIN
-  INSERT INTO tech_specs_fts(tech_specs_fts, rowid, slug, title, diagram_code, notes)
-  VALUES ('delete', old.rowid, old.slug, old.title, old.diagram_code, old.notes);
-END;
-
-CREATE TRIGGER IF NOT EXISTS trg_tech_specs_au AFTER UPDATE ON tech_specs BEGIN
-  INSERT INTO tech_specs_fts(tech_specs_fts, rowid, slug, title, diagram_code, notes)
-  VALUES ('delete', old.rowid, old.slug, old.title, old.diagram_code, old.notes);
-  INSERT INTO tech_specs_fts(rowid, slug, title, diagram_code, notes)
-  VALUES (new.rowid, new.slug, new.title, new.diagram_code, new.notes);
-END;
-
-CREATE TABLE IF NOT EXISTS plan_revisions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    plan_slug TEXT NOT NULL,
-    revision TEXT NOT NULL,
-    author TEXT NOT NULL DEFAULT '',
-    summary TEXT NOT NULL DEFAULT '',
-    created_at DATETIME NOT NULL,
-    FOREIGN KEY (plan_slug) REFERENCES plans (slug) ON DELETE CASCADE,
-    UNIQUE (plan_slug, revision)
-);
-CREATE INDEX IF NOT EXISTS idx_plan_revisions_plan ON plan_revisions (plan_slug);
-
-CREATE TABLE IF NOT EXISTS plan_snapshots (
-    plan_slug TEXT NOT NULL,
-    revision TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    content TEXT NOT NULL,
-    byte_size INTEGER NOT NULL,
-    sha256 TEXT NOT NULL,
-    created_at DATETIME NOT NULL,
-    PRIMARY KEY (plan_slug, revision, file_path),
-    FOREIGN KEY (plan_slug) REFERENCES plans (slug) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_plan_snapshots_slug_rev ON plan_snapshots (plan_slug, revision);
+// dropLegacyDDL removes storage tables that are no longer part of the plans/tasks-only schema.
+const dropLegacyDDL = `
+DROP TABLE IF EXISTS tech_specs_fts;
+DROP TABLE IF EXISTS tech_specs;
+DROP TABLE IF EXISTS project_docs;
+DROP TABLE IF EXISTS plan_revisions;
+DROP TABLE IF EXISTS plan_snapshots;
+DROP TABLE IF EXISTS agent_sessions;
 `
 
 // DB encapsulates the connection pool and migration runner for SQLite WAL.
@@ -219,9 +130,10 @@ func Open(dbPath string) (*DB, error) {
 	}
 
 	dsn := fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)", dbPath)
+	// fts5 is registered so legacy FTS tables can be dropped during migration.
 	conn, err := driver.Open(dsn, fts5.Register)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open sqlite database with fts5: %w", err)
+		return nil, fmt.Errorf("failed to open sqlite database: %w", err)
 	}
 
 	// Connection pool tuning for SQLite WAL
@@ -250,6 +162,12 @@ func Open(dbPath string) (*DB, error) {
 	if _, err := conn.Exec(schemaDDL); err != nil {
 		_ = conn.Close()
 		return nil, fmt.Errorf("failed to apply schema migrations: %w", err)
+	}
+
+	// Drop legacy docs/specs/snapshot/session tables (idempotent).
+	if _, err := conn.Exec(dropLegacyDDL); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to drop legacy tables: %w", err)
 	}
 
 	// Apply incremental column migrations for existing databases

@@ -19,7 +19,6 @@ import {
   Upload,
   Save,
   Unplug,
-  RefreshCw,
   RotateCcw,
 } from 'lucide-react'
 import type { Task } from '../../types/contracts'
@@ -29,11 +28,8 @@ interface TaskSpecPaneProps {
   task: Task | null
   allTasks: Task[]
   onSelectTaskId?: (taskId: string) => void
-  onResolveReview?: (taskId: string, response: string) => Promise<void>
-  onMergeTask?: (taskId: string) => Promise<void>
   onUploadAttachment?: (taskId: string, file: File, name?: string) => Promise<any>
   onUpdateNotes?: (taskId: string, notes: string) => Promise<any>
-  onReclaimTask?: (taskId: string) => Promise<any>
   onEvictTask?: (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => Promise<any>
   isMaximized?: boolean
   onToggleMaximize?: () => void
@@ -43,26 +39,19 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   task,
   allTasks,
   onSelectTaskId,
-  onResolveReview,
-  onMergeTask,
   onUploadAttachment,
   onUpdateNotes,
-  onReclaimTask,
   onEvictTask,
   isMaximized = false,
   onToggleMaximize,
 }) => {
   const [copiedCmd, setCopiedCmd] = useState(false)
   const [copiedWorktree, setCopiedWorktree] = useState(false)
-  const [reviewResponseInput, setReviewResponseInput] = useState('')
-  const [isResolvingReview, setIsResolvingReview] = useState(false)
-  const [isMerging, setIsMerging] = useState(false)
   const [notesInput, setNotesInput] = useState('')
   const [isSavingNotes, setIsSavingNotes] = useState(false)
   const [savedNotesSuccess, setSavedNotesSuccess] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadSuccess, setUploadSuccess] = useState(false)
-  const [isReclaiming, setIsReclaiming] = useState(false)
 
   useEffect(() => {
     if (task) {
@@ -136,27 +125,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     }
   }
 
-  const handleResolveReviewSubmit = async () => {
-    if (!onResolveReview || !reviewResponseInput.trim()) return
-    setIsResolvingReview(true)
-    try {
-      await onResolveReview(task.id, reviewResponseInput.trim())
-      setReviewResponseInput('')
-    } finally {
-      setIsResolvingReview(false)
-    }
-  }
-
-  const handleMergeSubmit = async () => {
-    if (!onMergeTask) return
-    setIsMerging(true)
-    try {
-      await onMergeTask(task.id)
-    } finally {
-      setIsMerging(false)
-    }
-  }
-
   const handleSaveNotesSubmit = async () => {
     if (!onUpdateNotes) return
     setIsSavingNotes(true)
@@ -179,16 +147,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
       setTimeout(() => setUploadSuccess(false), 2500)
     } finally {
       setIsUploading(false)
-    }
-  }
-
-  const handleReclaimSubmit = async () => {
-    if (!onReclaimTask) return
-    setIsReclaiming(true)
-    try {
-      await onReclaimTask(task.id)
-    } finally {
-      setIsReclaiming(false)
     }
   }
 
@@ -333,19 +291,9 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
               <span>Worker PID Disconnected (Suspended)</span>
             </div>
             <p className="text-[11px] text-zinc-300">
-              The assigned agent runner terminated unexpectedly. Worktree files, git diff, and logs are preserved.
+              The assigned agent runner terminated unexpectedly. Worktree files and logs are preserved.
             </p>
             <div className="flex gap-2 pt-1">
-              {onReclaimTask && (
-                <button
-                  onClick={handleReclaimSubmit}
-                  disabled={isReclaiming}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded bg-violet-600 hover:bg-violet-500 text-white font-semibold py-1.5 text-xs transition disabled:opacity-50 shadow-md shadow-violet-950/50"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isReclaiming ? 'animate-spin' : ''}`} />
-                  <span>{isReclaiming ? 'Re-claiming...' : 'Re-claim with New Agent'}</span>
-                </button>
-              )}
               {onEvictTask && (
                 <button
                   onClick={handleEvictSubmit}
@@ -359,12 +307,12 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
           </div>
         )}
 
-        {/* INTERACTIVE GATE: Awaiting Review Handshake */}
+        {/* OBSERVATION GATE: Awaiting Review Handshake (read-only) */}
         {task.status === 'AWAITING_REVIEW' && (
           <div className="rounded-lg border border-orange-500/40 bg-orange-950/20 p-3.5 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold text-orange-300">
               <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
-              <span>Architectural Review Requested by Agent</span>
+              <span>Architectural Review Requested by Worker</span>
             </div>
 
             {task.review_reason && (
@@ -382,41 +330,27 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             {task.review_options && task.review_options.length > 0 && (
               <div className="space-y-1.5">
                 <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                  Recommended Options:
+                  Suggested Options:
                 </span>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="space-y-1">
                   {task.review_options.map((opt, i) => (
-                    <button
+                    <div
                       key={i}
-                      onClick={() => setReviewResponseInput(opt)}
-                      className="rounded border border-orange-500/30 bg-orange-500/10 px-2 py-1 text-[11px] text-orange-200 hover:bg-orange-500/20 text-left transition"
+                      className="rounded border border-orange-500/20 bg-orange-500/5 px-2 py-1 text-[11px] text-orange-200"
                     >
                       {opt}
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className="space-y-1.5 pt-1">
-              <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                Developer Guidance / Decision:
-              </label>
-              <textarea
-                value={reviewResponseInput}
-                onChange={(e) => setReviewResponseInput(e.target.value)}
-                placeholder="Type guidance to resolve review (resumes task to READY)..."
-                rows={2}
-                className="w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-200 focus:border-orange-500 focus:outline-none resize-none"
-              />
-              <button
-                onClick={handleResolveReviewSubmit}
-                disabled={!reviewResponseInput.trim() || isResolvingReview}
-                className="w-full flex items-center justify-center gap-1.5 rounded bg-orange-600 hover:bg-orange-500 text-white font-semibold py-1.5 text-xs transition disabled:opacity-50"
-              >
-                <Check className="h-3.5 w-3.5" />
-                <span>{isResolvingReview ? 'Resuming...' : 'Submit Decision & Set READY'}</span>
-              </button>
+            <div className="rounded border border-orange-500/30 bg-black/30 p-2.5 text-[11px] leading-relaxed text-zinc-300">
+              This gate is resolved by your{' '}
+              <strong className="text-orange-200">main orchestrator agent</strong>, not from the Web Cockpit.
+              Reply with your decision in the agent session; the main agent records it with{' '}
+              <code className="font-mono text-orange-200">zenfd_resolve_review</code> and the task returns to{' '}
+              <code className="font-mono text-orange-200">READY</code>.
             </div>
           </div>
         )}
@@ -429,16 +363,10 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
               <span>Worktree Slice Tested & Ready for Merge</span>
             </div>
             <p className="text-[11px] text-zinc-300">
-              Agent execution verified with passing tests on isolated worktree. Integrate slice back to target branch.
+              Agent execution verified with passing tests on isolated worktree. Merge the worktree into the target
+              branch outside MCP, then mark the outcome with <code className="font-mono">zenfd_transition_task</code>{' '}
+              (<code className="font-mono">merge_outcome=MERGED</code> or <code className="font-mono">CONFLICT</code>).
             </p>
-            <button
-              onClick={handleMergeSubmit}
-              disabled={isMerging}
-              className="w-full flex items-center justify-center gap-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2 text-xs transition disabled:opacity-50 shadow-lg shadow-cyan-950/50"
-            >
-              <GitMerge className="h-3.5 w-3.5" />
-              <span>{isMerging ? 'Merging to Main Branch...' : 'Merge to Main Branch'}</span>
-            </button>
           </div>
         )}
 
@@ -450,7 +378,9 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
               <span>Git Merge Conflicts Detected</span>
             </div>
             <p className="text-[11px] text-zinc-300">
-              Automatic clean merge was aborted to keep the base branch safe. Conflicting files:
+              Resolve conflicts manually outside MCP, then mark the task merged via{' '}
+              <code className="font-mono">zenfd_transition_task</code> with{' '}
+              <code className="font-mono">merge_outcome=MERGED</code>. Conflicting files:
             </p>
             {task.conflict_files && task.conflict_files.length > 0 && (
               <div className="space-y-1">
@@ -607,7 +537,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             )}
           </div>
           <div className="truncate rounded border border-zinc-850 bg-zinc-900/50 px-2 py-1 font-mono text-[11px] text-zinc-300 select-text">
-            {task.worktree_path || task.repo_path || 'Default Repo Root'}
+            {task.worktree_path || 'Not set'}
           </div>
 
           <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400 pt-1">

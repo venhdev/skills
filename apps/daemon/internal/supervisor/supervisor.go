@@ -134,7 +134,6 @@ func (s *ProcessSupervisor) SpawnHeadless(ctx context.Context, task domain.Task,
 	run := &domain.Run{
 		ID:         runID,
 		TaskID:     task.ID,
-		RepoPath:   task.RepoPath,
 		PID:        pid,
 		PGID:       pgid,
 		Status:     domain.StatusRunning,
@@ -232,7 +231,6 @@ func (s *ProcessSupervisor) SpawnPTY(ctx context.Context, task domain.Task, win 
 	run := &domain.Run{
 		ID:         runID,
 		TaskID:     task.ID,
-		RepoPath:   task.RepoPath,
 		PID:        pid,
 		PGID:       pgid,
 		Status:     domain.StatusRunning,

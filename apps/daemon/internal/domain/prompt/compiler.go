@@ -10,7 +10,7 @@ import (
 
 // Compiler defines the contract for assembling structured prompt context packets.
 type Compiler interface {
-	Compile(ctx context.Context, task domain.Task, upstreamDiffs []string, inputAttachments []domain.Artifact, specSnippets []string) (*domain.ContextPacket, error)
+	Compile(ctx context.Context, task domain.Task, inputAttachments []domain.Artifact) (*domain.ContextPacket, error)
 }
 
 // MarkdownPromptCompiler formats prompt packets using Markdown syntax.
@@ -27,13 +27,8 @@ func NewCompiler() *MarkdownPromptCompiler {
 func (c *MarkdownPromptCompiler) Compile(
 	ctx context.Context,
 	task domain.Task,
-	upstreamDiffs []string,
 	inputAttachments []domain.Artifact,
-	specSnippets []string,
 ) (*domain.ContextPacket, error) {
-	if upstreamDiffs == nil {
-		upstreamDiffs = []string{}
-	}
 	if inputAttachments == nil {
 		inputAttachments = []domain.Artifact{}
 	}
@@ -58,17 +53,6 @@ func (c *MarkdownPromptCompiler) Compile(
 		sb.WriteString(task.Description + "\n\n")
 	} else {
 		sb.WriteString("Execute the implementation according to plan specifications.\n\n")
-	}
-
-	if len(specSnippets) > 0 {
-		sb.WriteString("## 1.5. Linked Architectural Blueprints & Contracts (SSOT)\n")
-		for _, snippet := range specSnippets {
-			sb.WriteString(snippet)
-			if !strings.HasSuffix(snippet, "\n") {
-				sb.WriteString("\n")
-			}
-		}
-		sb.WriteString("\n")
 	}
 
 	if len(task.AcceptanceCriteria) > 0 {
@@ -96,29 +80,17 @@ func (c *MarkdownPromptCompiler) Compile(
 		sb.WriteString("```\n\n")
 	}
 
-	if len(upstreamDiffs) > 0 {
-		sb.WriteString("## Upstream Diffs\n")
-		for _, diff := range upstreamDiffs {
-			sb.WriteString("```diff\n")
-			sb.WriteString(diff)
-			if !strings.HasSuffix(diff, "\n") {
-				sb.WriteString("\n")
-			}
-			sb.WriteString("```\n\n")
-		}
-	}
-
 	sb.WriteString("## 5. MCP Tool Handshake Protocol\n")
-	sb.WriteString(fmt.Sprintf("- **Claim**: Call `zenfd_claim_task(task_id=\"%s\", worker_role=\"CODER\", pid=$PID)` before editing files.\n", task.ID))
-	sb.WriteString(fmt.Sprintf("- **Architectural Drift / Blocked**: Call `zenfd_yield_review(task_id=\"%s\", reason=\"...\", details=\"...\", options=[\"...\"])` and exit immediately.\n", task.ID))
-	sb.WriteString(fmt.Sprintf("- **Stage Merge**: Once all verification commands pass with exit code 0, call `zenfd_stage_merge(task_id=\"%s\")`.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Claim**: Call `zenfd_claim_task(task_id=\"%s\", worker_role=\"CODER\")` before editing files.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Architectural Drift / Blocked**: Call `zenfd_request_review(task_id=\"%s\", reason=\"...\", details=\"...\", options=[\"...\"])` and exit immediately. Do not resolve the review yourself; the main orchestrator agent relays the human decision and calls `zenfd_resolve_review`.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Complete**: Once all verification commands pass with exit code 0, call `zenfd_transition_task(task_ids=[\"%s\"], action=\"COMPLETE\", summary=\"...\")`. Tasks with a worktree stop at AWAITING_MERGE for the orchestrator to merge outside MCP.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Failure**: If the task cannot be completed, call `zenfd_transition_task(task_ids=[\"%s\"], action=\"FAIL\", reason=\"...\")`.\n", task.ID))
 
 	packet := &domain.ContextPacket{
 		Task:                 task,
 		TargetFiles:          targetFiles,
 		VerificationCommands: verificationCommands,
 		SkillPaths:           []string{},
-		UpstreamDiffs:        upstreamDiffs,
 		InputAttachments:     inputAttachments,
 		PromptMarkdown:       sb.String(),
 	}

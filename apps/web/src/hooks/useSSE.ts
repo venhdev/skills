@@ -78,9 +78,13 @@ export function useSSE({
     // Specific domain events
     const eventTypes = [
       'plan:created',
+      'plan:deleted',
+      'task:created',
       'task:status',
+      'task:dependencies_updated',
+      'task:notes_updated',
+      'task:artifact_added',
       'run:killed',
-      'artifact:created',
     ]
 
     eventTypes.forEach((type) => {

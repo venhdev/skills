@@ -13,7 +13,6 @@ disable-model-invocation: true
 - **Verification Integrity**: Require every acceptance criterion and required check to pass before `DONE`; preserve failing evidence and existing edits rather than silently reverting or weakening assertions.
 - **Safe Rollback**: Use `git reset --soft HEAD~1` when undoing local commits to preserve uncommitted deltas in the staging index.
 - **Environment & Secret Isolation**: Never inspect or modify secret files (`.env*`, `*.key`, `*.pem`); ground test execution and linter invocations in `.agents/environment.md`.
-- **Ephemeral Swarm & MCP Handshake**: In repositories governed by `zenfd` (ZenForge Daemon), the worker subagent acts as an ephemeral worker: call `zenfd_claim_task(task_id, worker_role, pid)` before touching files. If architectural drift or interface mismatch occurs, call `zenfd_yield_review(task_id, reason, details, options)` and terminate immediately. Upon green verification, call `zenfd_stage_merge(task_id)` to stage the worktree.
 - **Delivery Boundary**: Report implementation and verification with a proposed commit message; keep committing, merging, and publishing outside this skill's completion scope.
 
 ## Domain Rubric

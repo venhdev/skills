@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  FileCode,
   Download,
   Image as ImageIcon,
   FileText,
@@ -26,17 +25,14 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
   artifacts,
   onUploadAttachment,
 }) => {
-  const [activeTab, setActiveTab] = useState<'inputs' | 'diffs' | 'logs'>('inputs')
+  const [activeTab, setActiveTab] = useState<'inputs' | 'logs'>('inputs')
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
-  const [diffContent, setDiffContent] = useState<string>('')
   const [taskLogs, setTaskLogs] = useState<string>('')
   const [isUploading, setIsUploading] = useState(false)
   const [zoomImageSrc, setZoomImageSrc] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const inputArtifacts = artifacts.filter((a) => a.role === 'INPUT')
-  const outputArtifacts = artifacts.filter((a) => a.role === 'OUTPUT')
-  const diffArtifacts = outputArtifacts.filter((a) => a.type === 'DIFF')
 
   // Set default selected artifact when tab changes or artifacts list updates
   useEffect(() => {
@@ -44,31 +40,8 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
       if (inputArtifacts.length > 0 && !inputArtifacts.some((a) => a.id === selectedArtifactId)) {
         setSelectedArtifactId(inputArtifacts[0].id)
       }
-    } else if (activeTab === 'diffs') {
-      if (diffArtifacts.length > 0 && !diffArtifacts.some((a) => a.id === selectedArtifactId)) {
-        setSelectedArtifactId(diffArtifacts[0].id)
-      }
     }
-  }, [activeTab, inputArtifacts, diffArtifacts, selectedArtifactId])
-
-  // Fetch diff content when diff artifact is selected
-  useEffect(() => {
-    if (activeTab === 'diffs' && selectedArtifactId) {
-      const art = diffArtifacts.find((a) => a.id === selectedArtifactId)
-      if (art) {
-        const controller = new AbortController()
-        fetch(`/api/v1/artifacts/${art.id}`, { signal: controller.signal })
-          .then((res) => (res.ok ? res.text() : ''))
-          .then((txt) => setDiffContent(txt))
-          .catch((err) => {
-            if (err.name !== 'AbortError') {
-              setDiffContent('// Failed to load diff')
-            }
-          })
-        return () => controller.abort()
-      }
-    }
-  }, [activeTab, selectedArtifactId, diffArtifacts])
+  }, [activeTab, inputArtifacts, selectedArtifactId])
 
   // Fetch raw task logs when logs tab is active
   useEffect(() => {
@@ -112,40 +85,6 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
     }
   }
 
-  const renderDiffLines = (diff: string) => {
-    if (!diff || diff.trim() === '') {
-      return (
-        <div className="py-8 text-center text-xs text-zinc-500">
-          No code modifications recorded for this task.
-        </div>
-      )
-    }
-    return diff.split('\n').map((line, idx) => {
-      let bg = 'hover:bg-zinc-900/60'
-      let text = 'text-zinc-300'
-
-      if (line.startsWith('+') && !line.startsWith('+++')) {
-        bg = 'bg-emerald-950/30 hover:bg-emerald-950/50'
-        text = 'text-emerald-400 font-medium'
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
-        bg = 'bg-rose-950/30 hover:bg-rose-950/50'
-        text = 'text-rose-400 font-medium'
-      } else if (line.startsWith('@@')) {
-        bg = 'bg-violet-950/30'
-        text = 'text-violet-400 font-semibold'
-      }
-
-      return (
-        <div key={idx} className={`flex px-3 py-0.5 font-mono text-xs ${bg}`}>
-          <span className="w-8 shrink-0 select-none text-[10px] text-zinc-600">
-            {idx + 1}
-          </span>
-          <span className={`whitespace-pre select-text ${text}`}>{line}</span>
-        </div>
-      )
-    })
-  }
-
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-zinc-950 font-sans select-none">
       {/* Lightbox Toolbar */}
@@ -171,17 +110,6 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
           >
             <ImageIcon className="h-3 w-3" />
             <span>Inputs ({inputArtifacts.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('diffs')}
-            className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors ${
-              activeTab === 'diffs'
-                ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <FileCode className="h-3 w-3" />
-            <span>Diffs ({diffArtifacts.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('logs')}
@@ -292,48 +220,7 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
           </div>
         )}
 
-        {/* TAB 2: DIFFS (Code modifications by Agent) */}
-        {activeTab === 'diffs' && (
-          <div className="space-y-2">
-            {diffArtifacts.length > 1 && (
-              <div className="flex gap-1 border-b border-zinc-800 pb-1.5 overflow-x-auto text-[10px]">
-                {diffArtifacts.map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => setSelectedArtifactId(a.id)}
-                    className={`rounded px-2 py-0.5 whitespace-nowrap ${
-                      selectedArtifactId === a.id
-                        ? 'bg-violet-600 text-white font-bold'
-                        : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    {a.name || a.id}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="rounded border border-zinc-850 bg-zinc-900/50 py-1 overflow-x-auto">
-              <div className="flex items-center justify-between border-b border-zinc-850 px-3 py-1.5 text-[11px] text-zinc-400">
-                <span className="font-mono text-zinc-300">
-                  {selectedArtifactId ? `Patch: ${selectedArtifactId}` : 'Git Snapshot'}
-                </span>
-                {selectedArtifactId && (
-                  <a
-                    href={`/api/v1/artifacts/${selectedArtifactId}`}
-                    download="changes.diff"
-                    className="flex items-center gap-1 text-[10px] text-emerald-400 hover:underline"
-                  >
-                    <Download className="h-3 w-3" /> Download Diff
-                  </a>
-                )}
-              </div>
-              <div className="py-2">{renderDiffLines(diffContent)}</div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: LOGS (Raw terminal logs) */}
+        {/* TAB 2: LOGS (Raw terminal logs) */}
         {activeTab === 'logs' && (
           <div className="h-full rounded border border-zinc-850 bg-zinc-900/60 p-3 font-mono text-xs text-zinc-300 overflow-x-auto">
             <pre className="whitespace-pre-wrap select-text leading-relaxed">

@@ -26,11 +26,9 @@ import (
 )
 
 var (
-	defaultPort    int
-	defaultDBPath  string
-	defaultURL     string
-	defaultWorkers int
-	defaultTickMs  int
+	defaultPort   int
+	defaultDBPath string
+	defaultURL    string
 )
 
 func resolveHomePath(path string) string {
@@ -60,8 +58,8 @@ func main() {
 		Version: Version,
 		Short:   "ZenForge Daemon (zenfd) - Background Agent Execution & Orchestration Daemon",
 		Long: `zenfd is the single-binary control plane for ZenForge.
-It manages POSIX process groups, PTY sessions, DAG scheduler execution, 
-SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
+It manages POSIX process groups, PTY sessions, SQLite WAL state, and provides
+real-time SSE/WebSocket endpoints on port 1123.`,
 	}
 
 	rootCmd.PersistentFlags().StringVar(&defaultURL, "url", "http://127.0.0.1:1123", "Daemon control plane URL")
@@ -79,7 +77,6 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			fmt.Printf("ZenForge Daemon (zenfd) v%s starting...\n", Version)
 			fmt.Printf("  • Port:     %d\n", defaultPort)
 			fmt.Printf("  • Database: %s (SQLite WAL)\n", dbPath)
-			fmt.Printf("  • Workers:  %d concurrent\n", defaultWorkers)
 
 			// 1. Storage
 			db, err := storage.Open(dbPath)
@@ -96,7 +93,7 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			super.SetHarnessRegistry(harnessReg)
 
 			// 3. Gateway
-			gw := gateway.NewServer(store, super, nil)
+			gw := gateway.NewServer(store, super)
 
 			// 4. Context & Signals
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -131,34 +128,25 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 
 	daemonCmd.Flags().IntVarP(&defaultPort, "port", "p", 1123, "Port to bind HTTP/SSE/WebSocket gateway")
 	daemonCmd.Flags().StringVarP(&defaultDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
-	daemonCmd.Flags().IntVarP(&defaultWorkers, "workers", "w", 5, "Maximum concurrent worker slots")
-	daemonCmd.Flags().IntVar(&defaultTickMs, "tick", 500, "Scheduler tick interval in milliseconds")
 	rootCmd.AddCommand(daemonCmd)
 
 	// 2. Plan Push Command
-	var planRepo string
 	planPushCmd := &cobra.Command{
 		Use:   "push <file.md>",
 		Short: "Parse and ingest a living Markdown plan dossier into the daemon",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := args[0]
-			repo := planRepo
-			if repo == "" {
-				cwd, _ := os.Getwd()
-				repo = cwd
-			}
 
-			plan, tasks, err := parser.ParseMarkdownPlanFile(filePath, repo)
+			plan, tasks, err := parser.ParseMarkdownPlanFile(filePath)
 			if err != nil {
 				return fmt.Errorf("failed to parse plan dossier %s: %w", filePath, err)
 			}
 
 			payload := gateway.CreatePlanRequest{
-				Slug:     plan.Slug,
-				Title:    plan.Title,
-				RepoPath: plan.RepoPath,
-				Tasks:    tasks,
+				Slug:  plan.Slug,
+				Title: plan.Title,
+				Tasks: tasks,
 			}
 
 			bodyBytes, err := json.Marshal(payload)
@@ -183,8 +171,6 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			return nil
 		},
 	}
-	planPushCmd.Flags().StringVarP(&planRepo, "repo", "r", "", "Repository root path (defaults to CWD)")
-
 	// 3. Plan Get Command
 	planGetCmd := &cobra.Command{
 		Use:   "get <slug>",
@@ -214,8 +200,7 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			}
 
 			fmt.Printf("Plan: %s (Status: %s)\n", result.Plan.Slug, result.Plan.Status)
-			fmt.Printf("Title: %s\n", result.Plan.Title)
-			fmt.Printf("Repo:  %s\n\n", result.Plan.RepoPath)
+			fmt.Printf("Title: %s\n\n", result.Plan.Title)
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 			fmt.Fprintf(w, "TASK ID\tSTATUS\tDEPENDENCIES\tTITLE\n")
@@ -240,12 +225,11 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 
 	// 4. Task List Command
 	var taskStatus string
-	var taskRepo string
 	taskListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List tasks across active plans",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			url := fmt.Sprintf("%s/api/v1/tasks?status=%s&repo_path=%s", defaultURL, taskStatus, taskRepo)
+			url := fmt.Sprintf("%s/api/v1/tasks?status=%s", defaultURL, taskStatus)
 			resp, err := http.Get(url)
 			if err != nil {
 				return fmt.Errorf("failed to fetch tasks: %w", err)
@@ -271,7 +255,6 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 		},
 	}
 	taskListCmd.Flags().StringVarP(&taskStatus, "status", "s", "", "Filter by task status (e.g. READY, RUNNING)")
-	taskListCmd.Flags().StringVarP(&taskRepo, "repo", "r", "", "Filter by repo path")
 
 	taskCmd := &cobra.Command{
 		Use:   "task",
@@ -397,43 +380,6 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 	taskClaimCmd.Flags().BoolVar(&claimJSON, "json", false, "Output raw ContextPacket JSON")
 	taskCmd.AddCommand(taskClaimCmd)
 
-	// Task Merge Command
-	taskMergeCmd := &cobra.Command{
-		Use:   "merge <task-id>",
-		Short: "Merge an awaiting worktree task into main branch",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			taskID := args[0]
-			resp, err := http.Post(fmt.Sprintf("%s/api/v1/tasks/%s/merge", defaultURL, taskID), "application/json", nil)
-			if err != nil {
-				return fmt.Errorf("failed to connect to daemon: %w", err)
-			}
-			defer resp.Body.Close()
-
-			var result struct {
-				Merged        bool     `json:"merged"`
-				ConflictFiles []string `json:"conflict_files"`
-				Status        string   `json:"status"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-				return err
-			}
-
-			if !result.Merged {
-				fmt.Printf("✗ Merge conflict encountered for task %s (Status: CONFLICT)\n", taskID)
-				fmt.Printf("Conflicts in:\n")
-				for _, f := range result.ConflictFiles {
-					fmt.Printf("  • %s\n", f)
-				}
-				return fmt.Errorf("merge conflict in %d files", len(result.ConflictFiles))
-			}
-
-			fmt.Printf("✓ Task '%s' cleanly merged and completed (Status: COMPLETED)\n", taskID)
-			return nil
-		},
-	}
-	taskCmd.AddCommand(taskMergeCmd)
-
 	rootCmd.AddCommand(taskCmd)
 
 	// 5. Run Kill Command
@@ -489,7 +435,6 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 
 	// MCP Stdio Server Command
 	var mcpDBPath string
-	var mcpRepoPath string
 	mcpCmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "Start the stdio Model Context Protocol (MCP) server for agents",
@@ -502,17 +447,11 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			defer db.Close()
 			store := storage.NewStore(db)
 
-			repo := mcpRepoPath
-			if repo == "" {
-				repo, _ = os.Getwd()
-			}
-
-			srv := zenfdmcp.NewServer(store, repo)
+			srv := zenfdmcp.NewServer(store)
 			return srv.ServeStdio()
 		},
 	}
 	mcpCmd.Flags().StringVarP(&mcpDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
-	mcpCmd.Flags().StringVarP(&mcpRepoPath, "repo", "r", "", "Repository root path (defaults to CWD)")
 	rootCmd.AddCommand(mcpCmd)
 
 	// Subcommands for MCP: check and setup
@@ -540,7 +479,7 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			return nil
 		},
 	}
-	mcpCheckCmd.Flags().StringVarP(&checkClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor")
+	mcpCheckCmd.Flags().StringVarP(&checkClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor, opencode")
 	mcpCheckCmd.Flags().StringVar(&checkConfig, "config", "", "Override client config file path")
 	mcpCheckCmd.Flags().BoolVar(&checkJSON, "json", false, "Output result as JSON")
 	mcpCmd.AddCommand(mcpCheckCmd)
@@ -583,11 +522,11 @@ SQLite WAL state, and provides real-time SSE/WebSocket endpoints on port 1123.`,
 			}
 			fmt.Printf("Binary: %s\n", res.BinaryPath)
 			fmt.Printf("Database: %s\n", res.DBPath)
-			fmt.Println("Please restart your AI client session (e.g. agy) to load the zenfd MCP tools.")
+			fmt.Println("Please restart your AI client session (e.g. opencode or agy) to load the zenfd MCP tools.")
 			return nil
 		},
 	}
-	mcpSetupCmd.Flags().StringVarP(&setupClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor")
+	mcpSetupCmd.Flags().StringVarP(&setupClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor, opencode")
 	mcpSetupCmd.Flags().StringVar(&setupConfig, "config", "", "Override client config file path")
 	mcpSetupCmd.Flags().StringVarP(&setupDB, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
 	mcpSetupCmd.Flags().StringVarP(&setupBinary, "binary", "b", "", "Path to zenfd binary (auto-detected if omitted)")

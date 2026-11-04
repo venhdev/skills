@@ -14,9 +14,10 @@ import (
 type ClientType string
 
 const (
-	ClientAgy    ClientType = "agy"
-	ClientClaude ClientType = "claude"
-	ClientCursor ClientType = "cursor"
+	ClientAgy      ClientType = "agy"
+	ClientClaude   ClientType = "claude"
+	ClientCursor   ClientType = "cursor"
+	ClientOpenCode ClientType = "opencode"
 )
 
 // CheckResult represents the outcome of an MCP integration audit.
@@ -76,8 +77,10 @@ func DefaultConfigFile(client ClientType) (string, error) {
 		return filepath.Join(home, ".claude.json"), nil
 	case ClientCursor:
 		return filepath.Join(home, ".cursor", "mcp.json"), nil
+	case ClientOpenCode:
+		return filepath.Join(home, ".config", "opencode", "opencode.json"), nil
 	default:
-		return "", fmt.Errorf("unsupported client: %s (supported: agy, claude, cursor)", client)
+		return "", fmt.Errorf("unsupported client: %s (supported: agy, claude, cursor, opencode)", client)
 	}
 }
 
@@ -179,21 +182,22 @@ func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error
 		return res, nil
 	}
 
-	serversRaw, ok := root["mcpServers"]
+	serversKey := serverMapKey(client)
+	serversRaw, ok := root[serversKey]
 	if !ok {
-		res.StatusMessage = "No 'mcpServers' object found in config"
+		res.StatusMessage = fmt.Sprintf("No '%s' object found in config", serversKey)
 		return res, nil
 	}
 
 	servers, ok := serversRaw.(map[string]any)
 	if !ok {
-		res.StatusMessage = "'mcpServers' is not a JSON object"
+		res.StatusMessage = fmt.Sprintf("'%s' is not a JSON object", serversKey)
 		return res, nil
 	}
 
 	zenfdRaw, ok := servers["zenfd"]
 	if !ok {
-		res.StatusMessage = "Server 'zenfd' is not configured in mcpServers"
+		res.StatusMessage = fmt.Sprintf("Server 'zenfd' is not configured in %s", serversKey)
 		return res, nil
 	}
 
@@ -205,27 +209,19 @@ func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error
 
 	res.Configured = true
 
-	if cmdStr, ok := zenfdMap["command"].(string); ok {
-		res.BinaryPath = cmdStr
-		if _, err := os.Stat(cmdStr); err == nil {
-			res.BinaryExists = true
-		} else {
-			res.BinaryExists = false
-			res.StatusMessage = fmt.Sprintf("Configured command does not exist on disk: %s", cmdStr)
-			return res, nil
-		}
+	res.BinaryPath = entryBinary(zenfdMap, client)
+	if res.BinaryPath == "" {
+		res.StatusMessage = "Configured 'zenfd' entry is missing a valid command"
+		return res, nil
+	}
+	if _, err := os.Stat(res.BinaryPath); err == nil {
+		res.BinaryExists = true
+	} else {
+		res.StatusMessage = fmt.Sprintf("Configured command does not exist on disk: %s", res.BinaryPath)
+		return res, nil
 	}
 
-	// Extract db argument if present
-	if argsRaw, ok := zenfdMap["args"].([]any); ok {
-		for i, arg := range argsRaw {
-			if argStr, ok := arg.(string); ok && argStr == "--db" && i+1 < len(argsRaw) {
-				if dbStr, ok := argsRaw[i+1].(string); ok {
-					res.DBPath = dbStr
-				}
-			}
-		}
-	}
+	res.DBPath = entryDBPath(zenfdMap, client)
 
 	res.StatusMessage = fmt.Sprintf("zenfd MCP server is configured and valid in %s", cfgPath)
 	return res, nil
@@ -282,19 +278,26 @@ func SetupMCP(opts SetupOptions) (*SetupResult, error) {
 		}
 	}
 
-	// Extract or initialize mcpServers map
-	var mcpServers map[string]any
-	if existingServers, ok := root["mcpServers"].(map[string]any); ok {
-		mcpServers = existingServers
+	// Extract or initialize the client's server map.
+	serversKey := serverMapKey(opts.Client)
+	var servers map[string]any
+	if raw, ok := root[serversKey]; ok {
+		existing, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("'%s' is not a JSON object", serversKey)
+		}
+		servers = existing
 	} else {
-		mcpServers = make(map[string]any)
-		root["mcpServers"] = mcpServers
+		servers = make(map[string]any)
+		root[serversKey] = servers
 	}
 
+	// Construct the client-specific zenfd server entry.
+	zenfdEntry := buildEntry(opts.Client, binPath, expandedDB)
+
 	// Check if already cleanly configured
-	if existingEntry, ok := mcpServers["zenfd"].(map[string]any); ok && !opts.Force {
-		existingCmd, _ := existingEntry["command"].(string)
-		if existingCmd == binPath {
+	if existingEntry, ok := servers["zenfd"].(map[string]any); ok && !opts.Force {
+		if entryBinary(existingEntry, opts.Client) == binPath {
 			res.Action = "already_configured"
 			formatted, _ := json.MarshalIndent(root, "", "  ")
 			res.WrittenJSON = string(formatted)
@@ -302,12 +305,7 @@ func SetupMCP(opts SetupOptions) (*SetupResult, error) {
 		}
 	}
 
-	// Construct zenfd server entry
-	zenfdEntry := map[string]any{
-		"command": binPath,
-		"args":    []string{"mcp", "--db", expandedDB},
-	}
-	mcpServers["zenfd"] = zenfdEntry
+	servers["zenfd"] = zenfdEntry
 
 	formatted, err := json.MarshalIndent(root, "", "  ")
 	if err != nil {
@@ -343,4 +341,89 @@ func SetupMCP(opts SetupOptions) (*SetupResult, error) {
 
 	res.Action = "configured"
 	return res, nil
+}
+
+// serverMapKey returns the top-level JSON key that holds MCP server entries.
+func serverMapKey(client ClientType) string {
+	if client == ClientOpenCode {
+		return "mcp"
+	}
+	return "mcpServers"
+}
+
+// buildEntry constructs the client-specific zenfd server entry.
+func buildEntry(client ClientType, binPath, dbPath string) map[string]any {
+	if client == ClientOpenCode {
+		return map[string]any{
+			"type":    "local",
+			"command": []string{binPath, "mcp", "--db", dbPath},
+			"enabled": true,
+		}
+	}
+	return map[string]any{
+		"command": binPath,
+		"args":    []string{"mcp", "--db", dbPath},
+	}
+}
+
+// entryBinary extracts the configured binary path from a zenfd entry.
+func entryBinary(entry map[string]any, client ClientType) string {
+	if client == ClientOpenCode {
+		switch cmd := entry["command"].(type) {
+		case []any:
+			if len(cmd) > 0 {
+				s, _ := cmd[0].(string)
+				return s
+			}
+		case []string:
+			if len(cmd) > 0 {
+				return cmd[0]
+			}
+		case string:
+			return cmd
+		}
+		return ""
+	}
+	s, _ := entry["command"].(string)
+	return s
+}
+
+// entryDBPath extracts the --db value from a zenfd entry.
+func entryDBPath(entry map[string]any, client ClientType) string {
+	if client == ClientOpenCode {
+		switch cmd := entry["command"].(type) {
+		case []any:
+			return scanDBArg(cmd)
+		case []string:
+			return scanDBArgStrings(cmd)
+		}
+		return ""
+	}
+	switch args := entry["args"].(type) {
+	case []any:
+		return scanDBArg(args)
+	case []string:
+		return scanDBArgStrings(args)
+	}
+	return ""
+}
+
+func scanDBArg(args []any) string {
+	for i, arg := range args {
+		if s, ok := arg.(string); ok && s == "--db" && i+1 < len(args) {
+			if db, ok := args[i+1].(string); ok {
+				return db
+			}
+		}
+	}
+	return ""
+}
+
+func scanDBArgStrings(args []string) string {
+	for i, arg := range args {
+		if arg == "--db" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
 }

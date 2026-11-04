@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -14,7 +13,8 @@ import (
 	"zenfd/internal/storage"
 )
 
-func TestMCPServer_ToolsAndResources(t *testing.T) {
+func newTestServer(t *testing.T) (*zenfdmcp.Server, domain.StorageEngine) {
+	t.Helper()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_mcp.db")
 
@@ -22,277 +22,319 @@ func TestMCPServer_ToolsAndResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open db: %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(func() { _ = db.Close() })
 
 	store := storage.NewStore(db)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	return zenfdmcp.NewServer(store), store
+}
 
-	plan := domain.Plan{
-		Slug:     "test-mcp-plan",
-		Title:    "MCP Server Verification",
-		RepoPath: tempDir,
-		Status:   "ACTIVE",
+func callTool(t *testing.T, srv *zenfdmcp.Server, name string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	tool := srv.MCPServer().GetTool(name)
+	if tool == nil {
+		t.Fatalf("Tool %s not registered", name)
 	}
-
-	task := domain.Task{
-		ID:                   "task-mcp-01",
-		PlanID:               plan.Slug,
-		RepoPath:             tempDir,
-		Title:                "Test MCP Tool Lifecycle",
-		Description:          "Verify claim, review, and complete tools via MCP",
-		Priority:             domain.PriorityP1,
-		Complexity:           domain.ComplexityMedium,
-		RiskLevel:            domain.RiskLow,
-		Dependencies:         []string{},
-		AcceptanceCriteria:   []string{"MCP claim returns context packet", "Review pause functions"},
-		VerificationCommands: []string{"go test -v ./..."},
-		Status:               domain.StatusReady,
-	}
-
-	if err := store.SavePlanWithTasks(ctx, plan, []domain.Task{task}); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
-	}
-
-	srv := zenfdmcp.NewServer(store, tempDir)
-	mcpServer := srv.MCPServer()
-
-	// 1. Test zenfd_claim_task
-	claimTool := mcpServer.GetTool("zenfd_claim_task")
-	if claimTool == nil {
-		t.Fatal("Tool zenfd_claim_task not registered")
-	}
-	claimReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_claim_task",
-			Arguments: map[string]any{
-				"task_id":   "task-mcp-01",
-				"worker_id": "test-agent-worker",
-			},
-		},
-	}
-	claimRes, err := claimTool.Handler(ctx, claimReq)
+	res, err := tool.Handler(context.Background(), mcp.CallToolRequest{
+		Params: mcp.CallToolParams{Name: name, Arguments: args},
+	})
 	if err != nil {
-		t.Fatalf("claim handler failed: %v", err)
+		t.Fatalf("%s handler failed: %v", name, err)
 	}
-	if claimRes == nil || claimRes.IsError {
-		t.Fatalf("Claim returned error result: %+v", claimRes)
+	if res == nil || res.IsError {
+		t.Fatalf("%s returned error result: %+v", name, res)
+	}
+	return res
+}
+
+func resultText(t *testing.T, res *mcp.CallToolResult) string {
+	t.Helper()
+	if len(res.Content) == 0 {
+		t.Fatal("expected tool result content")
+	}
+	text, ok := mcp.AsTextContent(res.Content[0])
+	if !ok {
+		t.Fatalf("expected text content, got %T", res.Content[0])
+	}
+	return text.Text
+}
+
+func TestMCPServer_Surface(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	expectedTools := []string{
+		"zenfd_create_plan",
+		"zenfd_create_task",
+		"zenfd_claim_task",
+		"zenfd_request_review",
+		"zenfd_resolve_review",
+		"zenfd_transition_task",
+		"zenfd_get_task",
+	}
+	for _, name := range expectedTools {
+		if srv.MCPServer().GetTool(name) == nil {
+			t.Errorf("expected tool %s to be registered", name)
+		}
 	}
 
-	// 2. Test zenfd_request_review
-	reviewTool := mcpServer.GetTool("zenfd_request_review")
-	reviewReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_request_review",
-			Arguments: map[string]any{
-				"task_id": "task-mcp-01",
-				"reason":  "Schema drift",
-				"details": "Need developer decision on migration vs recreate",
-				"options": []string{"Option A: Migrate", "Option B: Recreate"},
-			},
-		},
+	removedTools := []string{
+		"zenfd_push_plan",
+		"zenfd_reclaim_task",
+		"zenfd_evict_task",
+		"zenfd_complete_task",
+		"zenfd_fail_task",
+		"zenfd_merge_task",
+		"zenfd_register_session",
+		"zenfd_read_doc",
+		"zenfd_write_doc",
+		"zenfd_export_docs",
+		"zenfd_upsert_spec",
+		"zenfd_get_spec",
+		"zenfd_search_specs",
+		"zenfd_snapshot_plan",
 	}
-	reviewRes, err := reviewTool.Handler(ctx, reviewReq)
-	if err != nil || (reviewRes != nil && reviewRes.IsError) {
-		t.Fatalf("Request review failed: err=%v, res=%+v", err, reviewRes)
-	}
-
-	t1, _ := store.GetTask(ctx, "task-mcp-01")
-	if t1.Status != domain.StatusAwaitingReview {
-		t.Fatalf("Expected status AWAITING_REVIEW, got: %s", t1.Status)
-	}
-
-	// 3. Test zenfd_resolve_review
-	resolveTool := mcpServer.GetTool("zenfd_resolve_review")
-	resolveReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_resolve_review",
-			Arguments: map[string]any{
-				"task_id":  "task-mcp-01",
-				"response": "Option A chosen",
-			},
-		},
-	}
-	resolveRes, err := resolveTool.Handler(ctx, resolveReq)
-	if err != nil || (resolveRes != nil && resolveRes.IsError) {
-		t.Fatalf("Resolve review failed: err=%v, res=%+v", err, resolveRes)
+	for _, name := range removedTools {
+		if srv.MCPServer().GetTool(name) != nil {
+			t.Errorf("tool %s should not be registered", name)
+		}
 	}
 
-	t2, _ := store.GetTask(ctx, "task-mcp-01")
-	if t2.Status != domain.StatusReady {
-		t.Fatalf("Expected status READY after review resolution, got: %s", t2.Status)
+	for uri := range srv.MCPServer().ListResources() {
+		t.Errorf("unexpected direct resource registered: %s", uri)
 	}
+}
 
-	// Re-claim task to resume execution
-	claimReq2 := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_claim_task",
-			Arguments: map[string]any{
-				"task_id":   "task-mcp-01",
-				"worker_id": "subagent-coder-2",
-			},
-		},
-	}
-	claimRes2, err := claimTool.Handler(ctx, claimReq2)
-	if err != nil || (claimRes2 != nil && claimRes2.IsError) {
-		t.Fatalf("Re-claim task failed: %v", err)
-	}
+func TestMCPServer_LifecycleAndTransition(t *testing.T) {
+	srv, store := newTestServer(t)
+	ctx := context.Background()
 
-	// 4. Test zenfd_complete_task
-	compTool := mcpServer.GetTool("zenfd_complete_task")
-	compReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_complete_task",
-			Arguments: map[string]any{
-				"task_id": "task-mcp-01",
-				"summary": "Implementation verified",
-			},
-		},
-	}
-	compRes, err := compTool.Handler(ctx, compReq)
-	if err != nil || (compRes != nil && compRes.IsError) {
-		t.Fatalf("Complete task failed: err=%v, res=%+v", err, compRes)
-	}
-
-	t3, _ := store.GetTask(ctx, "task-mcp-01")
-	if t3.Status != domain.StatusCompleted {
-		t.Fatalf("Expected status COMPLETED, got: %s", t3.Status)
-	}
-
-	// 5. Test zenfd_write_doc and zenfd_read_doc
-	writeTool := mcpServer.GetTool("zenfd_write_doc")
-	writeDocReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_write_doc",
-			Arguments: map[string]any{
-				"slug":     "arch-doc",
-				"title":    "Living Architecture",
-				"category": "ARCHITECTURE",
-				"content":  "# Living Architecture Spec",
-			},
-		},
-	}
-	writeRes, err := writeTool.Handler(ctx, writeDocReq)
-	if err != nil || (writeRes != nil && writeRes.IsError) {
-		t.Fatalf("Write doc failed: err=%v, res=%+v", err, writeRes)
-	}
-
-	readTool := mcpServer.GetTool("zenfd_read_doc")
-	readDocReq := mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_read_doc",
-			Arguments: map[string]any{
-				"slug": "arch-doc",
-			},
-		},
-	}
-	readRes, err := readTool.Handler(ctx, readDocReq)
-	if err != nil || (readRes != nil && readRes.IsError) {
-		t.Fatalf("Read doc failed: err=%v, res=%+v", err, readRes)
-	}
-
-	// 6. Test Resource Read: zenfd://global/env
-	resMap := mcpServer.ListResources()
-	envResource := resMap["zenfd://global/env"]
-	if envResource == nil {
-		t.Fatal("Resource zenfd://global/env not registered")
-	}
-	envContents, err := envResource.Handler(ctx, mcp.ReadResourceRequest{
-		Params: mcp.ReadResourceParams{
-			URI: "zenfd://global/env",
-		},
+	callTool(t, srv, "zenfd_create_plan", map[string]any{
+		"slug":  "test-mcp-plan",
+		"title": "MCP Server Verification",
 	})
-	if err != nil || len(envContents) == 0 {
-		t.Fatalf("Read resource env failed: err=%v, contents=%+v", err, envContents)
+	callTool(t, srv, "zenfd_create_task", map[string]any{
+		"plan_id":               "test-mcp-plan",
+		"id":                    "task-mcp-01",
+		"title":                 "Test MCP Tool Lifecycle",
+		"description":           "Verify claim, review, and transition tools via MCP",
+		"priority":              "P1",
+		"acceptance_criteria":   []string{"MCP claim returns context packet", "Transition completes task"},
+		"verification_commands": []string{"go test ./..."},
+	})
+
+	// Claim.
+	callTool(t, srv, "zenfd_claim_task", map[string]any{
+		"task_id":   "task-mcp-01",
+		"worker_id": "test-agent-worker",
+	})
+	task, _ := store.GetTask(ctx, "task-mcp-01")
+	if task.Status != domain.StatusRunning {
+		t.Fatalf("expected RUNNING after claim, got %s", task.Status)
 	}
-	textContents, ok := mcp.AsTextResourceContents(envContents[0])
-	if !ok || textContents.URI != "zenfd://global/env" {
-		t.Fatalf("Unexpected env content: %+v", envContents[0])
-	}
-	var envData map[string]any
-	if err := json.Unmarshal([]byte(textContents.Text), &envData); err != nil {
-		t.Fatalf("Failed to parse env json: %v", err)
-	}
-	if envData["os"] == "" {
-		t.Errorf("Expected os in env data, got: %+v", envData)
+	if len(task.AcceptanceCriteria) != 2 || len(task.VerificationCommands) != 1 {
+		t.Errorf("create_task did not persist criteria/verification: %+v", task)
 	}
 
-	// 7. Test zenfd_upsert_spec
-	upsertTool := mcpServer.GetTool("zenfd_upsert_spec")
-	if upsertTool == nil {
-		t.Fatal("Tool zenfd_upsert_spec not registered")
-	}
-	upsertRes, err := upsertTool.Handler(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_upsert_spec",
-			Arguments: map[string]any{
-				"slug":         "topology-mcp-test",
-				"title":        "Topology MCP Test",
-				"tier":         1.0,
-				"kind":         "CONTEXT",
-				"diagram_type": "mermaid:flowchart",
-				"diagram_code": "flowchart TD\nA-->B",
-				"notes":        "Test spec via MCP",
-				"bound_paths":  []string{"internal/mcp/"},
-			},
-		},
+	// Worker requests review; the main agent relays the human decision and resolves.
+	callTool(t, srv, "zenfd_request_review", map[string]any{
+		"task_id": "task-mcp-01",
+		"reason":  "Schema drift",
+		"details": "Need developer decision on migration vs recreate",
+		"options": []string{"Option A: Migrate", "Option B: Recreate"},
 	})
-	if err != nil || (upsertRes != nil && upsertRes.IsError) {
-		t.Fatalf("zenfd_upsert_spec failed: err=%v, res=%+v", err, upsertRes)
+	task, _ = store.GetTask(ctx, "task-mcp-01")
+	if task.Status != domain.StatusAwaitingReview {
+		t.Fatalf("expected AWAITING_REVIEW, got %s", task.Status)
+	}
+	if task.ReviewReason != "Schema drift" || len(task.ReviewOptions) != 2 {
+		t.Errorf("expected review question persisted, got %+v", task)
 	}
 
-	// 8. Test zenfd_get_spec
-	getSpecTool := mcpServer.GetTool("zenfd_get_spec")
-	if getSpecTool == nil {
-		t.Fatal("Tool zenfd_get_spec not registered")
-	}
-	getSpecRes, err := getSpecTool.Handler(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_get_spec",
-			Arguments: map[string]any{
-				"slug": "topology-mcp-test",
-			},
-		},
+	callTool(t, srv, "zenfd_resolve_review", map[string]any{
+		"task_id":  "task-mcp-01",
+		"response": "Option A chosen",
 	})
-	if err != nil || (getSpecRes != nil && getSpecRes.IsError) {
-		t.Fatalf("zenfd_get_spec failed: err=%v, res=%+v", err, getSpecRes)
+	task, _ = store.GetTask(ctx, "task-mcp-01")
+	if task.Status != domain.StatusReady {
+		t.Fatalf("expected READY after review resolution, got %s", task.Status)
 	}
 
-	// 9. Test zenfd_search_specs
-	searchTool := mcpServer.GetTool("zenfd_search_specs")
-	if searchTool == nil {
-		t.Fatal("Tool zenfd_search_specs not registered")
-	}
-	searchRes, err := searchTool.Handler(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_search_specs",
-			Arguments: map[string]any{
-				"query": "Topology",
-			},
-		},
+	// Re-claim and complete without a worktree.
+	callTool(t, srv, "zenfd_claim_task", map[string]any{
+		"task_id":   "task-mcp-01",
+		"worker_id": "subagent-coder-2",
 	})
-	if err != nil || (searchRes != nil && searchRes.IsError) {
-		t.Fatalf("zenfd_search_specs failed: err=%v, res=%+v", err, searchRes)
+	res := callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids": []string{"task-mcp-01"},
+		"action":   "COMPLETE",
+		"summary":  "Implementation verified",
+	})
+	var payload struct {
+		Results []struct {
+			TaskID string `json:"task_id"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &payload); err != nil {
+		t.Fatalf("failed to decode transition result: %v", err)
+	}
+	if len(payload.Results) != 1 || payload.Results[0].Status != "COMPLETED" {
+		t.Fatalf("unexpected transition result: %+v", payload)
 	}
 
-	// 10. Test zenfd_snapshot_plan
-	snapshotTool := mcpServer.GetTool("zenfd_snapshot_plan")
-	if snapshotTool == nil {
-		t.Fatal("Tool zenfd_snapshot_plan not registered")
+	task, _ = store.GetTask(ctx, "task-mcp-01")
+	if task.Status != domain.StatusCompleted {
+		t.Fatalf("expected COMPLETED, got %s", task.Status)
 	}
-	snapshotRes, err := snapshotTool.Handler(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{
-			Name: "zenfd_snapshot_plan",
-			Arguments: map[string]any{
-				"plan_slug":   plan.Slug,
-				"folder_path": tempDir,
-				"revision":    "v1.0",
-				"author":      "agent-test",
-				"summary":     "Initial test snapshot",
-			},
-		},
+	if task.Notes == "" {
+		t.Error("expected completion summary appended to Notes")
+	}
+}
+
+func TestMCPServer_WorktreeMergeOutcome(t *testing.T) {
+	srv, store := newTestServer(t)
+	ctx := context.Background()
+
+	callTool(t, srv, "zenfd_create_plan", map[string]any{"slug": "wt-plan", "title": "Worktree Plan"})
+	callTool(t, srv, "zenfd_create_task", map[string]any{
+		"plan_id":       "wt-plan",
+		"id":            "task-wt-01",
+		"title":         "Worktree Task",
+		"worktree_path": "/tmp/fake-worktree",
 	})
-	if err != nil || (snapshotRes != nil && snapshotRes.IsError) {
-		t.Fatalf("zenfd_snapshot_plan failed: err=%v, res=%+v", err, snapshotRes)
+	callTool(t, srv, "zenfd_claim_task", map[string]any{"task_id": "task-wt-01"})
+
+	callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids": []string{"task-wt-01"},
+		"action":   "COMPLETE",
+	})
+	task, _ := store.GetTask(ctx, "task-wt-01")
+	if task.Status != domain.StatusAwaitingMerge {
+		t.Fatalf("expected AWAITING_MERGE, got %s", task.Status)
+	}
+
+	callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids":      []string{"task-wt-01"},
+		"action":        "COMPLETE",
+		"merge_outcome": "CONFLICT",
+	})
+	task, _ = store.GetTask(ctx, "task-wt-01")
+	if task.Status != domain.StatusConflict {
+		t.Fatalf("expected CONFLICT, got %s", task.Status)
+	}
+
+	callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids":      []string{"task-wt-01"},
+		"action":        "COMPLETE",
+		"merge_outcome": "MERGED",
+	})
+	task, _ = store.GetTask(ctx, "task-wt-01")
+	if task.Status != domain.StatusCompleted {
+		t.Fatalf("expected COMPLETED after CONFLICT -> MERGED, got %s", task.Status)
+	}
+}
+
+func TestMCPServer_BatchTransitionIsPerTask(t *testing.T) {
+	srv, store := newTestServer(t)
+	ctx := context.Background()
+
+	callTool(t, srv, "zenfd_create_plan", map[string]any{"slug": "batch-plan", "title": "Batch Plan"})
+	for _, id := range []string{"batch-01", "batch-02"} {
+		callTool(t, srv, "zenfd_create_task", map[string]any{
+			"plan_id": "batch-plan",
+			"id":      id,
+			"title":   id,
+		})
+		callTool(t, srv, "zenfd_claim_task", map[string]any{"task_id": id})
+	}
+
+	// batch-01 completes, missing batch-99 fails without blocking batch-02.
+	res := callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids": []string{"batch-01", "batch-99", "batch-02"},
+		"action":   "COMPLETE",
+	})
+	var payload struct {
+		Results []struct {
+			TaskID string `json:"task_id"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &payload); err != nil {
+		t.Fatalf("failed to decode batch result: %v", err)
+	}
+	if len(payload.Results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(payload.Results))
+	}
+	if payload.Results[1].Error == "" {
+		t.Error("expected error for missing batch-99")
+	}
+
+	for _, id := range []string{"batch-01", "batch-02"} {
+		task, _ := store.GetTask(ctx, id)
+		if task.Status != domain.StatusCompleted {
+			t.Errorf("expected %s COMPLETED, got %s", id, task.Status)
+		}
+	}
+}
+
+func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
+	srv, store := newTestServer(t)
+	ctx := context.Background()
+
+	callTool(t, srv, "zenfd_create_plan", map[string]any{"slug": "state-plan", "title": "State Plan"})
+	for _, id := range []string{"state-fail", "state-reset", "state-cancel"} {
+		callTool(t, srv, "zenfd_create_task", map[string]any{
+			"plan_id": "state-plan",
+			"id":      id,
+			"title":   id,
+		})
+		callTool(t, srv, "zenfd_claim_task", map[string]any{"task_id": id})
+	}
+
+	callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids": []string{"state-fail"},
+		"action":   "FAIL",
+		"reason":   "compile error",
+	})
+	task, _ := store.GetTask(ctx, "state-fail")
+	if task.Status != domain.StatusFailed {
+		t.Fatalf("expected FAILED, got %s", task.Status)
+	}
+
+	callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids": []string{"state-reset"},
+		"action":   "RESET",
+		"reason":   "worker hung",
+	})
+	task, _ = store.GetTask(ctx, "state-reset")
+	if task.Status != domain.StatusReady {
+		t.Fatalf("expected READY, got %s", task.Status)
+	}
+
+	callTool(t, srv, "zenfd_transition_task", map[string]any{
+		"task_ids": []string{"state-cancel"},
+		"action":   "CANCEL",
+		"reason":   "obsolete",
+	})
+	task, _ = store.GetTask(ctx, "state-cancel")
+	if task.Status != domain.StatusCancelled {
+		t.Fatalf("expected CANCELLED, got %s", task.Status)
+	}
+}
+
+func TestMCPServer_GetTask(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	callTool(t, srv, "zenfd_create_plan", map[string]any{"slug": "read-plan", "title": "Read Plan"})
+	callTool(t, srv, "zenfd_create_task", map[string]any{
+		"plan_id": "read-plan",
+		"id":      "read-01",
+		"title":   "Read Task",
+	})
+
+	res := callTool(t, srv, "zenfd_get_task", map[string]any{"task_id": "read-01"})
+	if resultText(t, res) == "" {
+		t.Fatal("expected get_task content")
 	}
 }

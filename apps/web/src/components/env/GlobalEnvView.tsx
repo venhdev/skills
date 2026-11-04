@@ -6,7 +6,6 @@ import {
   Shield,
   CheckCircle2,
   RefreshCw,
-  FolderTree,
 } from 'lucide-react'
 
 interface GlobalEnvViewProps {
@@ -152,17 +151,6 @@ export const GlobalEnvView: React.FC<GlobalEnvViewProps> = ({ onFetchEnv }) => {
           </div>
         </div>
 
-        {/* 4. Repository Path Seam */}
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 text-xs font-mono text-zinc-400 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FolderTree className="h-4 w-4 text-zinc-500" />
-            <span>Active Repository Scope:</span>
-            <strong className="text-zinc-200">{envData?.repo_path || '/workspace'}</strong>
-          </div>
-          <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400 font-semibold uppercase">
-            Active
-          </span>
-        </div>
       </div>
     </div>
   )

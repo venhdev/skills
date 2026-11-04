@@ -75,8 +75,9 @@ func (s TaskStatus) CanTransitionTo(target TaskStatus) bool {
 		return target == StatusCompleted || target == StatusConflict ||
 			target == StatusRunning || target == StatusCancelled
 	case StatusConflict:
-		// Assigned back to RUNNING to resolve conflict, or failed/cancelled
-		return target == StatusRunning || target == StatusReady || target == StatusFailed || target == StatusCancelled
+		// Merged after manual conflict resolution, assigned back to RUNNING, or failed/cancelled
+		return target == StatusCompleted || target == StatusRunning ||
+			target == StatusReady || target == StatusFailed || target == StatusCancelled
 	case StatusBlocked:
 		return target == StatusReady || target == StatusPending || target == StatusCancelled
 	case StatusFailed:
@@ -118,7 +119,6 @@ const (
 type Plan struct {
 	Slug      string    `json:"slug"`
 	Title     string    `json:"title"`
-	RepoPath  string    `json:"repo_path"`
 	Status    string    `json:"status"` // ACTIVE, COMPLETED, DRIFTED
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -129,7 +129,6 @@ type Task struct {
 	// 1. Identity & DAG Topology
 	ID           string   `json:"id"`
 	PlanID       string   `json:"plan_id"`
-	RepoPath     string   `json:"repo_path"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description,omitempty"`
 	Dependencies []string `json:"dependencies"` // List of prerequisite Task IDs
@@ -173,19 +172,6 @@ type Task struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// AgentSession tracks active live agent sessions in the local operating environment.
-type AgentSession struct {
-	SessionID       string    `json:"session_id"`
-	ParentSessionID string    `json:"parent_session_id,omitempty"`
-	Role            string    `json:"role"`
-	Name            string    `json:"name"`
-	PID             int       `json:"pid"`
-	Status          string    `json:"status"` // 'ACTIVE', 'DISCONNECTED', 'TERMINATED'
-	ClaimedTasks    []string  `json:"claimed_tasks"`
-	CreatedAt       time.Time `json:"created_at"`
-	LastBeatAt      time.Time `json:"last_beat_at"`
-}
-
 // Validate checks task integrity.
 func (t *Task) Validate() error {
 	if t.ID == "" {
@@ -200,90 +186,20 @@ func (t *Task) Validate() error {
 	return nil
 }
 
-// ProjectDoc represents a living architectural document or schema.
-type ProjectDoc struct {
-	Slug            string    `json:"slug"`
-	RepoPath        string    `json:"repo_path"`
-	GitBranch       string    `json:"git_branch"`
-	Title           string    `json:"title"`
-	Category        string    `json:"category"` // ARCHITECTURE, SCHEMA, ADR, GUIDE, MEMORY
-	ContentMarkdown string    `json:"content_markdown"`
-	MermaidDiagrams []string  `json:"mermaid_diagrams,omitempty"`
-	Version         int       `json:"version"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
-
 // ContextPacket is the prompt-ready manifest delivered to an agent upon claim.
 type ContextPacket struct {
-	Task                 Task                 `json:"task"`
-	TargetFiles          []string             `json:"target_files"`
-	SkillPaths           []string             `json:"skill_paths"`
-	UpstreamDiffs        []string             `json:"upstream_diffs"`
-	InputAttachments     []Artifact           `json:"input_attachments"`
-	VerificationCommands []string             `json:"verification_commands"`
-	PromptMarkdown       string               `json:"prompt_markdown"`
-	LinkedSpecs          []CompactSpecPayload `json:"linked_specs,omitempty"`
-}
-
-// CompactSpecPayload represents eagerly resolved architecture context injected into a claimed task.
-type CompactSpecPayload struct {
-	Slug        string         `json:"slug"`
-	Kind        string         `json:"kind"`
-	Title       string         `json:"title"`
-	DiagramCode string         `json:"diagram_code"`
-	Payload     map[string]any `json:"payload"`
-}
-
-// TechSpec represents a multi-tiered technical specification (Topology, Dynamics, Persistence, Contracts, ADRs).
-type TechSpec struct {
-	Slug              string         `json:"slug"`
-	RepoPath          string         `json:"repo_path"`
-	Tier              int            `json:"tier"` // 1: Topology, 2: Dynamics, 3: Data, 4: Contracts, 5: ADR
-	Kind              string         `json:"kind"` // 'CONTEXT', 'FLOWCHART', 'SEQUENCE', 'STATE', 'ERD', 'CONTRACT', 'ADR'
-	Title             string         `json:"title"`
-	DiagramType       string         `json:"diagram_type"` // 'mermaid:flowchart', 'mermaid:sequenceDiagram', 'mermaid:erDiagram', 'json:schema'
-	DiagramCode       string         `json:"diagram_code"` // Pure Mermaid code or schema text
-	StructuredPayload map[string]any `json:"structured_payload"`
-	Notes             string         `json:"notes"`
-	BoundPaths        []string       `json:"bound_paths"` // File or folder paths bound to this spec for auto-linking
-	Version           int            `json:"version"`
-	UpdatedAt         time.Time      `json:"updated_at"`
-}
-
-// PlanRevision records an immutable revision record for a plan folder snapshot.
-type PlanRevision struct {
-	ID        int64     `json:"id"`
-	PlanSlug  string    `json:"plan_slug"`
-	Revision  string    `json:"revision"` // e.g. "v1.0", "v2.5"
-	Author    string    `json:"author"`
-	Summary   string    `json:"summary"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-// SnapshotFile records an individual file preserved within a plan revision snapshot.
-type SnapshotFile struct {
-	PlanSlug  string    `json:"plan_slug"`
-	Revision  string    `json:"revision"`
-	FilePath  string    `json:"file_path"` // Relative path inside plan directory (e.g. "README.md", "01-contracts.md")
-	Content   string    `json:"content"`
-	ByteSize  int64     `json:"byte_size"`
-	SHA256    string    `json:"sha256"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-// FileDiff represents a computed difference between two plan revision file versions.
-type FileDiff struct {
-	FilePath   string `json:"file_path"`
-	ChangeType string `json:"change_type"` // "ADDED", "MODIFIED", "DELETED", "IDENTICAL"
-	OldContent string `json:"old_content,omitempty"`
-	NewContent string `json:"new_content,omitempty"`
+	Task                 Task       `json:"task"`
+	TargetFiles          []string   `json:"target_files"`
+	SkillPaths           []string   `json:"skill_paths"`
+	InputAttachments     []Artifact `json:"input_attachments"`
+	VerificationCommands []string   `json:"verification_commands"`
+	PromptMarkdown       string     `json:"prompt_markdown"`
 }
 
 // Run tracks an individual execution attempt of a task under an agent runner.
 type Run struct {
 	ID         string     `json:"id"`
 	TaskID     string     `json:"task_id"`
-	RepoPath   string     `json:"repo_path"`
 	PID        int        `json:"pid"`
 	PGID       int        `json:"pgid"` // Negative PGID used for cascade kill
 	Status     TaskStatus `json:"status"`
@@ -298,7 +214,6 @@ type Run struct {
 type ArtifactType string
 
 const (
-	ArtifactTypeDiff       ArtifactType = "DIFF"
 	ArtifactTypeImage      ArtifactType = "IMAGE"
 	ArtifactTypeLog        ArtifactType = "LOG"
 	ArtifactTypeTestResult ArtifactType = "TEST_RESULT"
@@ -315,7 +230,7 @@ const (
 // IsValid checks if the artifact type is supported.
 func (a ArtifactType) IsValid() bool {
 	switch a {
-	case ArtifactTypeDiff, ArtifactTypeImage, ArtifactTypeLog,
+	case ArtifactTypeImage, ArtifactTypeLog,
 		ArtifactTypeTestResult, ArtifactTypeMarkdown, ArtifactTypeDoc, ArtifactTypeFile:
 		return true
 	default:
@@ -328,7 +243,7 @@ type Artifact struct {
 	ID        string       `json:"id"`
 	RunID     string       `json:"run_id,omitempty"`
 	TaskID    string       `json:"task_id"`
-	Role      string       `json:"role"` // "INPUT" (spec/mockup) or "OUTPUT" (diff/log/result)
+	Role      string       `json:"role"` // "INPUT" (spec/mockup) or "OUTPUT" (log/result)
 	Name      string       `json:"name"` // Display filename or caption
 	Type      ArtifactType `json:"type"`
 	FilePath  string       `json:"file_path"`

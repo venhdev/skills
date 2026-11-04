@@ -28,21 +28,19 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 
 	// Seed root plan
 	plan := domain.Plan{
-		Slug:     "stress-plan",
-		Title:    "Stress Test Plan",
-		RepoPath: "/repo",
-		Status:   "ACTIVE",
+		Slug:   "stress-plan",
+		Title:  "Stress Test Plan",
+		Status: "ACTIVE",
 	}
 
 	const numTasks = 20
 	var tasks []domain.Task
 	for i := 0; i < numTasks; i++ {
 		tasks = append(tasks, domain.Task{
-			ID:       fmt.Sprintf("task-%02d", i),
-			PlanID:   plan.Slug,
-			RepoPath: plan.RepoPath,
-			Title:    fmt.Sprintf("Task %02d", i),
-			Status:   domain.StatusReady,
+			ID:     fmt.Sprintf("task-%02d", i),
+			PlanID: plan.Slug,
+			Title:  fmt.Sprintf("Task %02d", i),
+			Status: domain.StatusReady,
 		})
 	}
 
@@ -66,7 +64,6 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 			run := domain.Run{
 				ID:        rID,
 				TaskID:    tID,
-				RepoPath:  "/repo",
 				PID:       1000,
 				PGID:      1000,
 				Status:    domain.StatusRunning,

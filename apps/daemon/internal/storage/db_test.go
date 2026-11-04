@@ -80,8 +80,8 @@ func TestDB_ExecImmediate(t *testing.T) {
 
 	now := time.Now().UTC()
 	err = db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		_, err := tx.Exec("INSERT INTO plans (slug, title, repo_path, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-			"plan-1", "Plan 1", "/path", "ACTIVE", now, now)
+		_, err := tx.Exec("INSERT INTO plans (slug, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			"plan-1", "Plan 1", "ACTIVE", now, now)
 		return err
 	})
 	if err != nil {

@@ -3,17 +3,13 @@ import {
   Zap,
   Activity,
   GitFork,
-  BookOpen,
   Cpu,
-  FolderGit2,
   Trash2,
   Bot,
-  Layers,
-  FolderArchive,
 } from 'lucide-react'
 import type { Plan } from '../../types/contracts'
 
-export type CockpitView = 'dag' | 'blueprint' | 'dossier' | 'docs' | 'env'
+export type CockpitView = 'dag' | 'env'
 
 interface HeaderBarProps {
   connected: boolean
@@ -21,12 +17,7 @@ interface HeaderBarProps {
   plans: string[]
   onSelectPlan: (slug: string) => void
   activeWorkers: number
-  projects?: string[]
-  activeProject?: string
-  onSelectProject?: (repo: string) => void
   onDeletePlanClick?: () => void
-  onToggleSwarmDrawer?: () => void
-  isSwarmOpen?: boolean
   currentView?: CockpitView
   onChangeView?: (view: CockpitView) => void
 }
@@ -37,12 +28,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   plans,
   onSelectPlan,
   activeWorkers,
-  projects = [],
-  activeProject = '',
-  onSelectProject,
   onDeletePlanClick,
-  onToggleSwarmDrawer,
-  isSwarmOpen = false,
   currentView = 'dag',
   onChangeView,
 }) => {
@@ -58,34 +44,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 font-sans">
             v0.1.0
           </span>
-        </div>
-
-        <div className="h-4 w-[1px] bg-zinc-800" />
-
-        {/* Project Switcher */}
-        <div className="flex items-center gap-1.5">
-          <FolderGit2 className="h-3.5 w-3.5 text-zinc-400" />
-          <select
-            value={activeProject}
-            onChange={(e) => onSelectProject?.(e.target.value)}
-            disabled={projects.length === 0 && !activeProject}
-            className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-xs font-mono font-medium text-zinc-300 outline-none hover:border-zinc-700 focus:border-violet-500 max-w-[160px] truncate disabled:opacity-50"
-            title={activeProject || 'No projects registered in DB. Create living plan via Main Agent.'}
-          >
-            {activeProject && !projects.includes(activeProject) && (
-              <option value={activeProject}>
-                {activeProject.split('/').pop() || activeProject}
-              </option>
-            )}
-            {projects.map((proj) => (
-              <option key={proj} value={proj}>
-                {proj.split('/').pop() || proj}
-              </option>
-            ))}
-            {projects.length === 0 && !activeProject && (
-              <option value="">(No projects - via agent)</option>
-            )}
-          </select>
         </div>
 
         <div className="h-4 w-[1px] bg-zinc-800" />
@@ -142,39 +100,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             <span>DAG Canvas</span>
           </button>
           <button
-            onClick={() => onChangeView('blueprint')}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
-              currentView === 'blueprint'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Layers className="h-3.5 w-3.5 text-violet-400" />
-            <span>Blueprint Studio</span>
-          </button>
-          <button
-            onClick={() => onChangeView('dossier')}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
-              currentView === 'dossier'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <FolderArchive className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Dossier Vault</span>
-          </button>
-          <button
-            onClick={() => onChangeView('docs')}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
-              currentView === 'docs'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            <span>Docs</span>
-          </button>
-          <button
             onClick={() => onChangeView('env')}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1 font-semibold transition-colors ${
               currentView === 'env'
@@ -190,26 +115,10 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
       {/* Active Ephemeral Workers Badge & SSE Health Status */}
       <div className="flex items-center gap-4">
-        {/* Active Ephemeral Workers Badge (Click opens Swarm Drawer) */}
-        {onToggleSwarmDrawer ? (
-          <button
-            onClick={onToggleSwarmDrawer}
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-mono transition-all ${
-              activeWorkers > 0
-                ? 'border-violet-500/50 bg-violet-500/10 text-violet-300 shadow-[0_0_12px_rgba(139,92,246,0.3)] hover:bg-violet-500/20'
-                : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
-            } ${isSwarmOpen ? 'ring-1 ring-violet-400' : ''}`}
-            title="Click to toggle Active Agent Swarm Drawer"
-          >
-            <Bot className={`h-3.5 w-3.5 ${activeWorkers > 0 ? 'text-violet-400 animate-pulse' : 'text-zinc-500'}`} />
-            <span>Active: {activeWorkers}</span>
-          </button>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-400">
-            <Bot className="h-3.5 w-3.5 text-zinc-500" />
-            <span>Active: {activeWorkers}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 text-xs font-mono text-zinc-400">
+          <Bot className={`h-3.5 w-3.5 ${activeWorkers > 0 ? 'text-violet-400 animate-pulse' : 'text-zinc-500'}`} />
+          <span>Active: {activeWorkers}</span>
+        </div>
 
         <div className="h-4 w-[1px] bg-zinc-800" />
 

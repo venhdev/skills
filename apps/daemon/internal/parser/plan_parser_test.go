@@ -24,7 +24,7 @@ Target: payment-service
 | **T-03** | Email receipt | T-02 | **PLANNED** | antigravity |
 `
 
-	plan, tasks, err := ParseMarkdownPlan(strings.NewReader(mdContent), "default", "/test/repo")
+	plan, tasks, err := ParseMarkdownPlan(strings.NewReader(mdContent), "default")
 	if err != nil {
 		t.Fatalf("ParseMarkdownPlan failed: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestParseMarkdownPlanFile_SyntheticDossier(t *testing.T) {
 		t.Fatalf("failed to write temp plan file: %v", err)
 	}
 
-	plan, tasks, err := ParseMarkdownPlanFile(tmpFile, "/home/dev/src/owner/my-skills")
+	plan, tasks, err := ParseMarkdownPlanFile(tmpFile)
 	if err != nil {
 		t.Fatalf("ParseMarkdownPlanFile failed: %v", err)
 	}

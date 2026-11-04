@@ -3,23 +3,15 @@ import { HeaderBar, type CockpitView } from './components/header/HeaderBar'
 import { PlanTree } from './components/sidebar/PlanTree'
 import { DAGCanvas } from './components/stage/DAGCanvas'
 import { InspectionDock } from './components/inspector/InspectionDock'
-import { BlueprintStudio } from './components/blueprint/BlueprintStudio'
-import { DossierExplorer } from './components/dossier/DossierExplorer'
-import { ArchitectureDocsView } from './components/docs/ArchitectureDocsView'
-import { GlobalEnvView } from './components/docs/GlobalEnvView'
-import { AgentSwarmDrawer } from './components/swarm/AgentSwarmDrawer'
+import { GlobalEnvView } from './components/env/GlobalEnvView'
 import { useSSE } from './hooks/useSSE'
 import { useZenfdAPI } from './hooks/useZenfdAPI'
-import type { Plan, Task, Artifact, ProjectDoc, AgentSession } from './types/contracts'
+import type { Plan, Task, Artifact } from './types/contracts'
 
 export default function App() {
-  const [projects, setProjects] = useState<string[]>([])
-  const [activeProject, setActiveProject] = useState<string>('')
   const [plans, setPlans] = useState<string[]>([])
   const [activePlan, setActivePlan] = useState<Plan | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
-  const [sessions, setSessions] = useState<AgentSession[]>([])
-  const [docs, setDocs] = useState<ProjectDoc[]>([])
   const [currentView, setCurrentView] = useState<CockpitView>('dag')
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -28,16 +20,11 @@ export default function App() {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [dockCollapsed, setDockCollapsed] = useState(false)
-  const [isSwarmOpen, setIsSwarmOpen] = useState(false)
 
   const activePlanRef = useRef<Plan | null>(null)
   activePlanRef.current = activePlan
 
-  const activeProjectRef = useRef<string>('')
-  activeProjectRef.current = activeProject
-
   const {
-    fetchProjects,
     fetchPlans,
     fetchPlan,
     fetchTasks,
@@ -45,15 +32,8 @@ export default function App() {
     deletePlan,
     updateTaskDependencies,
     updateTaskNotes,
-    reclaimTask,
     evictTask,
-    fetchSessions,
     uploadAttachment,
-    fetchDocs,
-    saveDoc,
-    exportDocs,
-    resolveReview,
-    mergeTask,
     fetchGlobalEnv,
   } = useZenfdAPI()
 
@@ -69,35 +49,10 @@ export default function App() {
     [fetchTaskArtifacts]
   )
 
-  const refreshDocs = useCallback(async () => {
-    const repo = activePlanRef.current?.repo_path || activeProjectRef.current
-    const list = await fetchDocs(repo)
-    setDocs(list || [])
-  }, [fetchDocs])
-
-  const refreshSessions = useCallback(async () => {
-    const list = await fetchSessions()
-    setSessions(list || [])
-  }, [fetchSessions])
-
-  const refreshProjects = useCallback(async () => {
-    const projs = await fetchProjects()
-    setProjects(projs || [])
-    if (projs && projs.length > 0) {
-      setActiveProject((curr) => curr || projs[0])
-    }
-  }, [fetchProjects])
-
   // Refresh artifacts whenever selectedTaskId changes
   useEffect(() => {
     refreshArtifacts(selectedTaskId)
   }, [selectedTaskId, refreshArtifacts])
-
-  useEffect(() => {
-    if (currentView === 'docs') {
-      refreshDocs()
-    }
-  }, [currentView, refreshDocs])
 
   // Real-time synchronization with daemon SQLite state
   const refreshData = useCallback(async () => {
@@ -109,7 +64,7 @@ export default function App() {
 
     if (taskList.length === 0) {
       // Check if there are any empty plans
-      const availablePlans = await fetchPlans(activeProjectRef.current)
+      const availablePlans = await fetchPlans()
       if (availablePlans.length > 0) {
         setPlans(availablePlans)
         let targetSlug = activePlanRef.current?.slug
@@ -147,9 +102,6 @@ export default function App() {
       const planData = await fetchPlan(targetPlanSlug)
       if (planData?.plan) {
         setActivePlan(planData.plan)
-        if (planData.plan.repo_path) {
-          setActiveProject((curr) => curr || planData.plan.repo_path)
-        }
         const planTasks = planData.tasks || []
         setTasks(planTasks)
 
@@ -167,9 +119,6 @@ export default function App() {
   // Initial fetch on mount
   useEffect(() => {
     refreshData()
-    refreshProjects()
-    refreshSessions()
-    refreshDocs()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -178,14 +127,14 @@ export default function App() {
     onEvent: (evt) => {
       if (
         evt.type === 'task:status' ||
+        evt.type === 'task:created' ||
+        evt.type === 'task:dependencies_updated' ||
+        evt.type === 'task:notes_updated' ||
         evt.type === 'plan:created' ||
+        evt.type === 'plan:deleted' ||
         evt.type === 'run:killed'
       ) {
         refreshData()
-        refreshSessions()
-      }
-      if (evt.type === 'session:registered' || evt.type === 'session:heartbeat') {
-        refreshSessions()
       }
       if (evt.type === 'task:artifact_added') {
         refreshArtifacts(selectedTaskId)
@@ -195,19 +144,6 @@ export default function App() {
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null
   const activeWorkerCount = tasks.filter((t) => t.status === 'RUNNING').length
-
-  const handleSelectProject = async (repo: string) => {
-    setActiveProject(repo)
-    const projsPlans = await fetchPlans(repo)
-    setPlans(projsPlans)
-    if (projsPlans.length > 0) {
-      handleSelectPlan(projsPlans[0])
-    } else {
-      setActivePlan(null)
-      setTasks([])
-      setSelectedTaskId(null)
-    }
-  }
 
   const handleSelectPlan = async (slug: string) => {
     const data = await fetchPlan(slug)
@@ -233,7 +169,6 @@ export default function App() {
     ) {
       const ok = await deletePlan(activePlan.slug)
       if (ok) {
-        await refreshProjects()
         await refreshData()
       }
     }
@@ -254,16 +189,6 @@ export default function App() {
       setSelectedTaskId(taskId)
       setFocusTarget({ id: taskId, timestamp: Date.now() })
     }
-  }
-
-  const handleResolveReview = async (taskId: string, response: string) => {
-    await resolveReview(taskId, response)
-    refreshData()
-  }
-
-  const handleMergeTask = async (taskId: string) => {
-    await mergeTask(taskId)
-    refreshData()
   }
 
   const handleUploadAttachment = async (taskId: string, file: File, name?: string) => {
@@ -290,39 +215,24 @@ export default function App() {
     return ok
   }
 
-  const handleReclaimTask = async (taskId: string) => {
-    const res = await reclaimTask(taskId)
-    if (res) {
-      refreshData()
-      refreshSessions()
-    }
-    return res
-  }
-
   const handleEvictTask = async (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => {
     const ok = await evictTask(taskId, reason, action)
     if (ok) {
       refreshData()
-      refreshSessions()
     }
     return ok
   }
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100">
-      {/* 1. Header Bar with Project Switcher, Plan CRUD & Active Worker Count */}
+      {/* 1. Header Bar with Plan CRUD & Active Worker Count */}
       <HeaderBar
         connected={connected}
         activePlan={activePlan}
         plans={plans}
         onSelectPlan={handleSelectPlan}
         activeWorkers={activeWorkerCount}
-        projects={projects}
-        activeProject={activeProject}
-        onSelectProject={handleSelectProject}
         onDeletePlanClick={handleDeletePlan}
-        onToggleSwarmDrawer={() => setIsSwarmOpen(!isSwarmOpen)}
-        isSwarmOpen={isSwarmOpen}
         currentView={currentView}
         onChangeView={(v) => setCurrentView(v)}
       />
@@ -348,50 +258,17 @@ export default function App() {
             onUpdateDependencies={handleUpdateDependencies}
           />
 
-          {/* Right: Inspection Dock with Seeding Hub, Review Handshake & Suspended Recovery */}
+          {/* Right: Inspection Dock with Seeding Hub, Review Status & Suspended Recovery */}
           <InspectionDock
             selectedTask={selectedTask}
             allTasks={tasks}
             artifacts={artifacts}
             onSelectTaskId={handleSelectTaskId}
-            onResolveReview={handleResolveReview}
-            onMergeTask={handleMergeTask}
             onUploadAttachment={handleUploadAttachment}
             onUpdateNotes={handleUpdateNotes}
-            onReclaimTask={handleReclaimTask}
             onEvictTask={handleEvictTask}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
-          />
-        </div>
-      )}
-
-      {currentView === 'blueprint' && (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <BlueprintStudio
-            tasks={tasks}
-            onSelectTask={(task) => {
-              handleSelectTask(task, 'sidebar')
-              setCurrentView('dag')
-            }}
-          />
-        </div>
-      )}
-
-      {currentView === 'dossier' && (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <DossierExplorer planSlug={activePlan?.slug || ''} />
-        </div>
-      )}
-
-      {currentView === 'docs' && (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <ArchitectureDocsView
-            repoPath={activePlan?.repo_path || activeProject}
-            docs={docs}
-            onSaveDoc={saveDoc}
-            onExportDocs={exportDocs}
-            onRefresh={refreshDocs}
           />
         </div>
       )}
@@ -401,16 +278,6 @@ export default function App() {
           <GlobalEnvView onFetchEnv={fetchGlobalEnv} />
         </div>
       )}
-
-      {/* 3. Ephemeral Swarm Hierarchy Drawer */}
-      <AgentSwarmDrawer
-        isOpen={isSwarmOpen}
-        onClose={() => setIsSwarmOpen(false)}
-        sessions={sessions}
-        tasks={tasks}
-        onSelectTask={(task) => handleSelectTask(task, 'dock')}
-        onEvictTask={handleEvictTask}
-      />
     </div>
   )
 }

@@ -8,11 +8,11 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Scratch Exclusivity & DB SSOT**: Mutate plan artifacts inside `.agents/scratch/plans/<slug>/`; never modify production source code or permanent `docs/` directly (delegate durable promotion to `/ssot`). In repositories governed by `zenfd` (ZenForge Daemon), persist living plans and decomposed task DAGs directly into SQLite SSOT via MCP tools `zenfd_create_plan` and `zenfd_create_task`.
+- **Scratch Exclusivity & DB SSOT**: Mutate plan artifacts inside `.agents/scratch/plans/<slug>/`; never modify production source code or permanent `docs/` directly (delegate durable promotion to `/ssot`). In repositories governed by `zenfd` (ZenForge Daemon), persist living plans and decomposed task DAGs directly into SQLite SSOT.
 - **Authorization Gate on Init**: Stage the planned dossier structure and halt for affirmative human authorization before creating files on disk; honor prior explicit approval.
 - **Evidence-Backed Verification**: Transition phase status to `VERIFIED` strictly when supported by concrete proof (automated test command exit code 0 and git commit SHA); never accept unverified verbal claims of completion.
 - **Drift Breaker**: Transition phase status to `DRIFTED` and halt implementation immediately upon detecting architectural divergence between code reality and staged contracts; require caller re-planning before amending the plan.
-- **Prompt-Embedded Tool Contracts**: When authoring task specifications and prompts for ephemeral subagent workers, embed the explicit MCP Tool Handshake (`zenfd_claim_task`, `zenfd_yield_review`, `zenfd_stage_merge`) directly in the task prompt to guarantee zero-hallucination execution.
+- **Prompt-Embedded Handshake**: When authoring task specifications and prompts for ephemeral subagent workers, embed the explicit claim/execute/report handshake directly in the task prompt to guarantee zero-hallucination execution. Reserve review resolution for the main orchestrator agent, which relays the human decision; workers request review and exit.
 - **Active Plan Preservation**: Preserve plan directories containing active phases (`PLANNED`, `CLAIMED`, `IN_PROGRESS`, `DRIFTED`); mark initiative `COMPLETED` only when all phases are `VERIFIED`.
 
 ## Domain Rubric
@@ -70,6 +70,6 @@ PLAN | slug: <slug> | rev: <v1.N> | status: <STATUS> | active: <phase-id> | veri
 
 1. **Ingest & Parse**: Ingest operation (`init`, `claim`, `verify`, `drift`, `amend`), initiative slug, and target phase ID or proof payload.
 2. **Authorize & Mutate**:
-   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, call MCP tools `zenfd_create_plan` and `zenfd_create_task` to register the living plan and task DAG in SQLite SSOT.
+   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the living plan and task DAG in SQLite SSOT.
    - For `claim / verify / drift / amend`: Read existing dashboard, validate state transition rules, apply atomic update to `README.md`, and reconcile overall initiative state.
 3. **Emit & Report**: Render Canonical Output Contract (or micro-token for autonomous runners) and halt turn.

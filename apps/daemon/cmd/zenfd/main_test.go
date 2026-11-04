@@ -45,8 +45,6 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 	daemonCmd := exec.CommandContext(ctx, binPath, "daemon",
 		"--port", fmt.Sprintf("%d", port),
 		"--db", dbPath,
-		"--workers", "2",
-		"--tick", "100",
 	)
 	var daemonOut bytes.Buffer
 	daemonCmd.Stdout = &daemonOut

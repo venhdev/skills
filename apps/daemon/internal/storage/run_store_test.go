@@ -25,15 +25,14 @@ func TestRunStore_Lifecycle(t *testing.T) {
 	defer cancel()
 
 	// Seed plan and task first for foreign key
-	plan := domain.Plan{Slug: "p1", Title: "P1", RepoPath: "/repo", Status: "ACTIVE"}
-	task := domain.Task{ID: "t1", PlanID: "p1", RepoPath: "/repo", Title: "T1", Status: domain.StatusReady}
+	plan := domain.Plan{Slug: "p1", Title: "P1", Status: "ACTIVE"}
+	task := domain.Task{ID: "t1", PlanID: "p1", Title: "T1", Status: domain.StatusReady}
 	_ = store.SavePlanWithTasks(ctx, plan, []domain.Task{task})
 
 	// 1. Create Run
 	run := domain.Run{
 		ID:        "run-001",
 		TaskID:    "t1",
-		RepoPath:  "/repo",
 		PID:       1234,
 		PGID:      1234,
 		Status:    domain.StatusRunning,
@@ -87,8 +86,8 @@ func TestRunStore_ArtifactClaimCheck(t *testing.T) {
 	defer cancel()
 
 	// Seed plan and task
-	plan := domain.Plan{Slug: "p1", Title: "P1", RepoPath: "/repo", Status: "ACTIVE"}
-	task := domain.Task{ID: "t1", PlanID: "p1", RepoPath: "/repo", Title: "T1", Status: domain.StatusReady}
+	plan := domain.Plan{Slug: "p1", Title: "P1", Status: "ACTIVE"}
+	task := domain.Task{ID: "t1", PlanID: "p1", Title: "T1", Status: domain.StatusReady}
 	_ = store.SavePlanWithTasks(ctx, plan, []domain.Task{task})
 
 	// Create output artifact

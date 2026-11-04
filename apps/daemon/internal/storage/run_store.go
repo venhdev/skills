@@ -29,13 +29,13 @@ func (s *Store) CreateRun(ctx context.Context, run domain.Run) error {
 	}
 
 	query := `
-	INSERT INTO runs (id, task_id, repo_path, pid, pgid, status, log_path, exit_code, started_at, finished_at, last_beat_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	INSERT INTO runs (id, task_id, pid, pgid, status, log_path, exit_code, started_at, finished_at, last_beat_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, query,
-			run.ID, run.TaskID, run.RepoPath, run.PID, run.PGID,
+			run.ID, run.TaskID, run.PID, run.PGID,
 			string(run.Status), run.LogPath, run.ExitCode,
 			run.StartedAt, run.FinishedAt, run.LastBeatAt)
 		return err
@@ -85,7 +85,7 @@ func (s *Store) FinishRun(ctx context.Context, runID string, status domain.TaskS
 // GetActiveRuns returns all currently running runs for liveness audit.
 func (s *Store) GetActiveRuns(ctx context.Context) ([]domain.Run, error) {
 	query := `
-	SELECT id, task_id, repo_path, pid, pgid, status, log_path, exit_code, started_at, finished_at, last_beat_at
+	SELECT id, task_id, pid, pgid, status, log_path, exit_code, started_at, finished_at, last_beat_at
 	FROM runs
 	WHERE status = 'RUNNING'
 	`
@@ -100,7 +100,7 @@ func (s *Store) GetActiveRuns(ctx context.Context) ([]domain.Run, error) {
 		var r domain.Run
 		var statusStr string
 		err := rows.Scan(
-			&r.ID, &r.TaskID, &r.RepoPath, &r.PID, &r.PGID,
+			&r.ID, &r.TaskID, &r.PID, &r.PGID,
 			&statusStr, &r.LogPath, &r.ExitCode,
 			&r.StartedAt, &r.FinishedAt, &r.LastBeatAt,
 		)

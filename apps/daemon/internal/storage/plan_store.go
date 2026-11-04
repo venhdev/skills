@@ -2,21 +2,17 @@ package storage
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
 	"zenfd/internal/domain"
 	"zenfd/internal/domain/prompt"
-	"zenfd/internal/git"
 )
 
 var (
@@ -29,17 +25,15 @@ var _ domain.StorageEngine = (*Store)(nil)
 
 // Store implements domain.StorageEngine using the SQLite WAL DB.
 type Store struct {
-	db              *DB
-	worktreeAdapter git.WorktreeAdapter
-	promptCompiler  prompt.Compiler
+	db             *DB
+	promptCompiler prompt.Compiler
 }
 
 // NewStore creates a new domain.StorageEngine backed by the SQLite WAL DB.
 func NewStore(db *DB) *Store {
 	return &Store{
-		db:              db,
-		worktreeAdapter: git.NewLocalWorktreeAdapter(),
-		promptCompiler:  prompt.NewCompiler(),
+		db:             db,
+		promptCompiler: prompt.NewCompiler(),
 	}
 }
 
@@ -55,25 +49,13 @@ func (s *Store) getPromptCompiler() prompt.Compiler {
 	return prompt.NewCompiler()
 }
 
-// SetWorktreeAdapter overrides the Git worktree adapter (used primarily for unit testing).
-func (s *Store) SetWorktreeAdapter(a git.WorktreeAdapter) {
-	s.worktreeAdapter = a
-}
-
-func (s *Store) getWorktreeAdapter() git.WorktreeAdapter {
-	if s.worktreeAdapter != nil {
-		return s.worktreeAdapter
-	}
-	return git.NewLocalWorktreeAdapter()
-}
-
 // Close safely closes the underlying SQLite database connection pool.
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
 const taskSelectCols = `
-id, plan_id, repo_path, title, description, dependencies,
+id, plan_id, title, description, dependencies,
 priority, complexity, risk_level, required_skills, required_tools,
 target_files, acceptance_criteria, verification_commands,
 harness, skill_command, worktree_path, status, claimed_by, claimed_at,
@@ -93,7 +75,7 @@ func scanTask(s scanner) (*domain.Task, error) {
 	var claimedAt sql.NullTime
 
 	err := s.Scan(
-		&t.ID, &t.PlanID, &t.RepoPath, &t.Title, &t.Description, &depsJSON,
+		&t.ID, &t.PlanID, &t.Title, &t.Description, &depsJSON,
 		&priorityStr, &complexityStr, &riskStr, &skillsJSON, &toolsJSON,
 		&filesJSON, &criteriaJSON, &verifJSON,
 		&t.Harness, &t.SkillCommand, &t.WorktreePath, &statusStr, &t.ClaimedBy, &claimedAt,
@@ -161,14 +143,14 @@ func scanTask(s scanner) (*domain.Task, error) {
 
 const taskUpsertQuery = `
 INSERT INTO tasks (
-	id, plan_id, repo_path, title, description, dependencies,
+	id, plan_id, title, description, dependencies,
 	priority, complexity, risk_level, required_skills, required_tools,
 	target_files, acceptance_criteria, verification_commands,
 	harness, skill_command, worktree_path, status, claimed_by, claimed_at,
 	orchestrator_id, worker_role, pid, orchestrator_pid, notes,
 	review_reason, review_details, review_options, review_response, resolved_by,
 	conflict_files, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	title = excluded.title,
 	description = excluded.description,
@@ -209,7 +191,6 @@ func upsertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, defaultPla
 		task.CreatedAt = now
 	}
 	task.UpdatedAt = now
-	task.RepoPath = NormalizePath(task.RepoPath)
 
 	planID := task.PlanID
 	if planID == "" {
@@ -246,7 +227,7 @@ func upsertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, defaultPla
 	}
 
 	_, err := tx.ExecContext(ctx, taskUpsertQuery,
-		task.ID, planID, task.RepoPath, task.Title, task.Description, string(depsJSON),
+		task.ID, planID, task.Title, task.Description, string(depsJSON),
 		priority, complexity, risk, string(skillsJSON), string(toolsJSON),
 		string(filesJSON), string(criteriaJSON), string(verifJSON),
 		task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
@@ -276,15 +257,14 @@ func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks [
 	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
 		// Upsert plan
 		planQuery := `
-		INSERT INTO plans (slug, title, repo_path, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO plans (slug, title, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(slug) DO UPDATE SET
 			title = excluded.title,
-			repo_path = excluded.repo_path,
 			status = excluded.status,
 			updated_at = excluded.updated_at
 		`
-		_, err := tx.ExecContext(ctx, planQuery, plan.Slug, plan.Title, plan.RepoPath, plan.Status, plan.CreatedAt, plan.UpdatedAt)
+		_, err := tx.ExecContext(ctx, planQuery, plan.Slug, plan.Title, plan.Status, plan.CreatedAt, plan.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("failed to upsert plan: %w", err)
 		}
@@ -302,11 +282,11 @@ func (s *Store) SavePlanWithTasks(ctx context.Context, plan domain.Plan, tasks [
 
 // GetPlan retrieves a plan by slug.
 func (s *Store) GetPlan(ctx context.Context, slug string) (*domain.Plan, error) {
-	query := `SELECT slug, title, repo_path, status, created_at, updated_at FROM plans WHERE slug = ?`
+	query := `SELECT slug, title, status, created_at, updated_at FROM plans WHERE slug = ?`
 	row := s.db.sqlDB.QueryRowContext(ctx, query, slug)
 
 	var p domain.Plan
-	err := row.Scan(&p.Slug, &p.Title, &p.RepoPath, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+	err := row.Scan(&p.Slug, &p.Title, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -358,36 +338,21 @@ func (s *Store) GetTasksByPlan(ctx context.Context, planSlug string) ([]domain.T
 	return tasks, rows.Err()
 }
 
-// GetReadyTasks returns tasks whose status is READY, filtered optionally by repoPath.
-func (s *Store) GetReadyTasks(ctx context.Context, repoPath string, limit int) ([]domain.Task, error) {
+// GetReadyTasks returns tasks whose status is READY.
+func (s *Store) GetReadyTasks(ctx context.Context, limit int) ([]domain.Task, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 
-	var query string
-	var args []any
+	query := fmt.Sprintf(`
+	SELECT %s
+	FROM tasks
+	WHERE status = 'READY'
+	ORDER BY created_at ASC
+	LIMIT ?
+	`, taskSelectCols)
 
-	if repoPath != "" {
-		query = fmt.Sprintf(`
-		SELECT %s
-		FROM tasks
-		WHERE status = 'READY' AND repo_path = ?
-		ORDER BY created_at ASC
-		LIMIT ?
-		`, taskSelectCols)
-		args = []any{repoPath, limit}
-	} else {
-		query = fmt.Sprintf(`
-		SELECT %s
-		FROM tasks
-		WHERE status = 'READY'
-		ORDER BY created_at ASC
-		LIMIT ?
-		`, taskSelectCols)
-		args = []any{limit}
-	}
-
-	rows, err := s.db.sqlDB.QueryContext(ctx, query, args...)
+	rows, err := s.db.sqlDB.QueryContext(ctx, query, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query ready tasks: %w", err)
 	}
@@ -405,28 +370,12 @@ func (s *Store) GetReadyTasks(ctx context.Context, repoPath string, limit int) (
 	return tasks, rows.Err()
 }
 
-// ListTasks returns tasks filtered optionally by repoPath and/or status.
-func (s *Store) ListTasks(ctx context.Context, repoPath string, status domain.TaskStatus) ([]domain.Task, error) {
+// ListTasks returns tasks filtered optionally by status.
+func (s *Store) ListTasks(ctx context.Context, status domain.TaskStatus) ([]domain.Task, error) {
 	var query string
 	var args []any
 
-	if repoPath != "" && status != "" {
-		query = fmt.Sprintf(`
-		SELECT %s
-		FROM tasks
-		WHERE repo_path = ? AND status = ?
-		ORDER BY created_at ASC
-		`, taskSelectCols)
-		args = []any{repoPath, string(status)}
-	} else if repoPath != "" {
-		query = fmt.Sprintf(`
-		SELECT %s
-		FROM tasks
-		WHERE repo_path = ?
-		ORDER BY created_at ASC
-		`, taskSelectCols)
-		args = []any{repoPath}
-	} else if status != "" {
+	if status != "" {
 		query = fmt.Sprintf(`
 		SELECT %s
 		FROM tasks
@@ -648,73 +597,13 @@ func (s *Store) ClaimTaskWithMeta(ctx context.Context, taskID string, workerID s
 			runID := fmt.Sprintf("run-%s-%d", taskID, now.Unix())
 			logPath := filepath.Join(os.TempDir(), fmt.Sprintf("%s.log", runID))
 			_, _ = tx.ExecContext(ctx, `
-				INSERT INTO runs (id, task_id, repo_path, pid, pgid, status, log_path, exit_code, started_at, last_beat_at)
-				VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, 0, ?, ?)
-			`, runID, taskID, t.RepoPath, pid, pid, logPath, now, now)
+				INSERT INTO runs (id, task_id, pid, pgid, status, log_path, exit_code, started_at, last_beat_at)
+				VALUES (?, ?, ?, ?, 'RUNNING', ?, 0, ?, ?)
+			`, runID, taskID, pid, pid, logPath, now, now)
 		}
 
-		packet, err = s.buildContextPacket(ctx, tx, *t)
+		packet, err = s.buildContextPacket(ctx, *t)
 		return err
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	return packet, nil
-}
-
-// ReclaimTask re-claims a SUSPENDED or failed task with a new worker and orchestrator.
-func (s *Store) ReclaimTask(ctx context.Context, taskID string, newWorkerID string, newOrchestratorID string, newPID int) (*domain.ContextPacket, error) {
-	if newWorkerID == "" {
-		newWorkerID = fmt.Sprintf("reclaimed-worker-%d", time.Now().UnixNano())
-	}
-	now := time.Now().UTC()
-
-	var packet *domain.ContextPacket
-	err := s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		query := fmt.Sprintf("SELECT %s FROM tasks WHERE id = ?", taskSelectCols)
-		row := tx.QueryRowContext(ctx, query, taskID)
-		t, err := scanTask(row)
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-
-		if t.Status != domain.StatusSuspended && t.Status != domain.StatusReady {
-			return fmt.Errorf("%w: task %s is not SUSPENDED or READY (current: %s)", ErrConflictStatus, taskID, t.Status)
-		}
-
-		res, err := tx.ExecContext(ctx, `
-			UPDATE tasks
-			SET status = 'RUNNING', claimed_by = ?, orchestrator_id = ?, pid = ?, claimed_at = ?, updated_at = ?
-			WHERE id = ? AND (status = 'SUSPENDED' OR status = 'READY')
-		`, newWorkerID, newOrchestratorID, newPID, now, now, taskID)
-		if err != nil {
-			return err
-		}
-		rows, err := res.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if rows == 0 {
-			return fmt.Errorf("%w: failed to reclaim task %s", ErrConflictStatus, taskID)
-		}
-
-		t.Status = domain.StatusRunning
-		t.ClaimedBy = newWorkerID
-		t.OrchestratorID = newOrchestratorID
-		t.PID = newPID
-		t.ClaimedAt = &now
-		t.UpdatedAt = now
-
-		p, err := s.buildContextPacket(ctx, tx, *t)
-		if err != nil {
-			return err
-		}
-		packet = p
-		return nil
 	})
 
 	if err != nil {
@@ -786,7 +675,7 @@ func (s *Store) RequestReview(ctx context.Context, taskID string, reason string,
 	})
 }
 
-// ResolveReview answers an awaiting review, records resolution, and transitions task back to READY.
+// ResolveReview records the human guidance relayed by the main agent and transitions task back to READY.
 func (s *Store) ResolveReview(ctx context.Context, taskID string, response string) error {
 	now := time.Now().UTC()
 	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
@@ -805,7 +694,7 @@ func (s *Store) ResolveReview(ctx context.Context, taskID string, response strin
 
 		res, err := tx.ExecContext(ctx, `
 			UPDATE tasks
-			SET status = 'READY', review_response = ?, claimed_by = '', pid = 0, resolved_by = 'operator', updated_at = ?
+			SET status = 'READY', review_response = ?, claimed_by = '', pid = 0, resolved_by = 'main-agent', updated_at = ?
 			WHERE id = ? AND status = 'AWAITING_REVIEW'
 		`, response, now, taskID)
 		if err != nil {
@@ -819,82 +708,33 @@ func (s *Store) ResolveReview(ctx context.Context, taskID string, response strin
 	})
 }
 
-// StageMerge marks a worktree task as complete and transitions it to AWAITING_MERGE.
-func (s *Store) StageMerge(ctx context.Context, taskID string) error {
-	return s.UpdateTaskStatus(ctx, taskID, domain.StatusRunning, domain.StatusAwaitingMerge)
-}
-
-// MergeTask executes git merge from worktree to target branch, transitioning to COMPLETED or CONFLICT.
-func (s *Store) MergeTask(ctx context.Context, taskID string) (bool, []string, error) {
-	t, err := s.GetTask(ctx, taskID)
-	if err != nil {
-		return false, nil, err
-	}
-
-	if t.Status != domain.StatusAwaitingMerge && t.Status != domain.StatusRunning && t.Status != domain.StatusConflict {
-		return false, nil, fmt.Errorf("%w: task %s is not ready to merge (current status: %s)", ErrInvalidState, taskID, t.Status)
-	}
-
-	// If WorktreePath is specified, delegate merge execution to WorktreeAdapter
-	if t.WorktreePath != "" {
-		merged, conflicts, err := s.getWorktreeAdapter().MergeWorktree(ctx, t.RepoPath, t.WorktreePath)
-		if err != nil {
-			return false, nil, err
-		}
-		if !merged {
-			conflictJSON, _ := json.Marshal(conflicts)
-			now := time.Now().UTC()
-			_ = s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-				_, err := tx.ExecContext(ctx, `
-					UPDATE tasks
-					SET status = 'CONFLICT', conflict_files = ?, updated_at = ?
-					WHERE id = ?
-				`, string(conflictJSON), now, taskID)
-				return err
-			})
-
-			return false, conflicts, nil
-		}
-	}
-
-	fromStatus := t.Status
-	if fromStatus == domain.StatusConflict {
-		if err := s.UpdateTaskStatus(ctx, taskID, domain.StatusConflict, domain.StatusRunning); err != nil {
-			return false, nil, err
-		}
-		fromStatus = domain.StatusRunning
-	}
-
-	// Update task status to COMPLETED (which automatically unlocks downstream DAG in UpdateTaskStatus!)
-	err = s.UpdateTaskStatus(ctx, taskID, fromStatus, domain.StatusCompleted)
-	if err != nil {
-		return false, nil, err
-	}
-
-	return true, nil, nil
-}
-
-// GetTaskContextPacket compiles full context packet (task, target files, skill paths, upstream diffs, media).
+// GetTaskContextPacket compiles full context packet (task, target files, skill paths, media).
 func (s *Store) GetTaskContextPacket(ctx context.Context, taskID string) (*domain.ContextPacket, error) {
 	t, err := s.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
-	return s.buildContextPacket(ctx, nil, *t)
+	return s.buildContextPacket(ctx, *t)
 }
 
 // buildContextPacket generates a complete prompt-ready context packet for an agent.
-func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.Task) (*domain.ContextPacket, error) {
+func (s *Store) buildContextPacket(ctx context.Context, task domain.Task) (*domain.ContextPacket, error) {
 	skillPaths := []string{}
 
-	// 1. Resolve Skill Paths
-	for _, skill := range task.RequiredSkills {
-		localPath := filepath.Join(task.RepoPath, ".agents", "skills", skill, "SKILL.md")
-		if _, err := os.Stat(localPath); err == nil {
-			skillPaths = append(skillPaths, localPath)
-		} else {
-			skillPaths = append(skillPaths, skill)
+	// 1. Resolve Skill Paths relative to the task worktree when one is configured.
+	// Without a repo binding, the daemon cannot discover a repository root; agents
+	// resolve bare skill names through their own skill registry.
+	if task.WorktreePath != "" {
+		for _, skill := range task.RequiredSkills {
+			localPath := filepath.Join(task.WorktreePath, ".agents", "skills", skill, "SKILL.md")
+			if _, err := os.Stat(localPath); err == nil {
+				skillPaths = append(skillPaths, localPath)
+			} else {
+				skillPaths = append(skillPaths, skill)
+			}
 		}
+	} else {
+		skillPaths = append(skillPaths, task.RequiredSkills...)
 	}
 
 	// 2. Resolve Input Attachments
@@ -903,242 +743,13 @@ func (s *Store) buildContextPacket(ctx context.Context, tx *sql.Tx, task domain.
 		attachments = []domain.Artifact{}
 	}
 
-	// 3. Resolve Upstream Diffs
-	var upstreamDiffs []string
-	for _, depID := range task.Dependencies {
-		diffArtifacts, err := s.GetArtifactsByTask(ctx, depID, domain.ArtifactRoleOutput)
-		if err == nil {
-			for _, art := range diffArtifacts {
-				if art.Type == domain.ArtifactTypeDiff && art.FilePath != "" {
-					if content, err := os.ReadFile(art.FilePath); err == nil {
-						upstreamDiffs = append(upstreamDiffs, string(content))
-					}
-				}
-			}
-		}
-	}
-
-	// 3.5. Resolve Linked Specs (Zero-Round-Trip Context Injection)
-	var linkedSpecs []domain.CompactSpecPayload
-	var specSnippets []string
-	var linkedSlugs []string
-	if tx != nil {
-		linkedSlugs, _ = s.autoLinkSpecsTx(ctx, tx, task.TargetFiles)
-		for _, slug := range linkedSlugs {
-			spec, err := s.getSpecTx(ctx, tx, slug)
-			if err == nil && spec != nil {
-				linkedSpecs = append(linkedSpecs, domain.CompactSpecPayload{
-					Slug:        spec.Slug,
-					Kind:        spec.Kind,
-					Title:       spec.Title,
-					DiagramCode: spec.DiagramCode,
-					Payload:     spec.StructuredPayload,
-				})
-			}
-		}
-	} else {
-		linkedSlugs, _ = s.AutoLinkSpecs(ctx, task.TargetFiles)
-		for _, slug := range linkedSlugs {
-			spec, err := s.GetSpec(ctx, slug)
-			if err == nil && spec != nil {
-				linkedSpecs = append(linkedSpecs, domain.CompactSpecPayload{
-					Slug:        spec.Slug,
-					Kind:        spec.Kind,
-					Title:       spec.Title,
-					DiagramCode: spec.DiagramCode,
-					Payload:     spec.StructuredPayload,
-				})
-			}
-		}
-	}
-
-	for _, ls := range linkedSpecs {
-		snippet := fmt.Sprintf("### Spec `%s`: %s (%s)\n", ls.Slug, ls.Title, ls.Kind)
-		if ls.DiagramCode != "" {
-			snippet += fmt.Sprintf("```mermaid\n%s\n```\n", ls.DiagramCode)
-		}
-		specSnippets = append(specSnippets, snippet)
-	}
-
-	// 4. Delegate Prompt Context Compilation to domain Compiler
-	packet, err := s.getPromptCompiler().Compile(ctx, task, upstreamDiffs, attachments, specSnippets)
+	// 3. Delegate Prompt Context Compilation to domain Compiler
+	packet, err := s.getPromptCompiler().Compile(ctx, task, attachments)
 	if err != nil {
 		return nil, err
 	}
 	packet.SkillPaths = skillPaths
-	packet.LinkedSpecs = linkedSpecs
 	return packet, nil
-}
-
-// UpsertDoc creates or updates a project document or living architecture spec.
-func (s *Store) UpsertDoc(ctx context.Context, doc domain.ProjectDoc) error {
-	if doc.Slug == "" {
-		return fmt.Errorf("doc slug cannot be empty")
-	}
-	if doc.RepoPath == "" {
-		return fmt.Errorf("doc repo_path cannot be empty")
-	}
-	if doc.Category == "" {
-		doc.Category = "ARCHITECTURE"
-	}
-	now := time.Now().UTC()
-	doc.UpdatedAt = now
-
-	diagramsJSON, err := json.Marshal(doc.MermaidDiagrams)
-	if err != nil {
-		diagramsJSON = []byte("[]")
-	}
-
-	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		query := `
-		INSERT INTO project_docs (slug, repo_path, git_branch, title, category, content_markdown, mermaid_diagrams, version, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(repo_path, slug) DO UPDATE SET
-			git_branch = excluded.git_branch,
-			title = excluded.title,
-			category = excluded.category,
-			content_markdown = excluded.content_markdown,
-			mermaid_diagrams = excluded.mermaid_diagrams,
-			version = project_docs.version + 1,
-			updated_at = excluded.updated_at
-		`
-		_, err := tx.ExecContext(ctx, query,
-			doc.Slug, doc.RepoPath, doc.GitBranch, doc.Title, doc.Category,
-			doc.ContentMarkdown, string(diagramsJSON), 1, now,
-		)
-		return err
-	})
-}
-
-// GetDoc retrieves a project document by repoPath and slug.
-func (s *Store) GetDoc(ctx context.Context, repoPath, slug string) (*domain.ProjectDoc, error) {
-	query := `
-	SELECT slug, repo_path, git_branch, title, category, content_markdown, mermaid_diagrams, version, updated_at
-	FROM project_docs
-	WHERE repo_path = ? AND slug = ?
-	`
-	row := s.db.sqlDB.QueryRowContext(ctx, query, repoPath, slug)
-	var doc domain.ProjectDoc
-	var diagramsJSON string
-	err := row.Scan(&doc.Slug, &doc.RepoPath, &doc.GitBranch, &doc.Title, &doc.Category, &doc.ContentMarkdown, &diagramsJSON, &doc.Version, &doc.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to query doc: %w", err)
-	}
-	_ = json.Unmarshal([]byte(diagramsJSON), &doc.MermaidDiagrams)
-	if doc.MermaidDiagrams == nil {
-		doc.MermaidDiagrams = []string{}
-	}
-	return &doc, nil
-}
-
-// ListDocs lists project documents filtered optionally by repoPath and/or category.
-func (s *Store) ListDocs(ctx context.Context, repoPath, category string) ([]domain.ProjectDoc, error) {
-	query := `
-	SELECT slug, repo_path, git_branch, title, category, content_markdown, mermaid_diagrams, version, updated_at
-	FROM project_docs
-	WHERE 1=1`
-	var args []any
-
-	if repoPath != "" {
-		query += " AND repo_path = ?"
-		args = append(args, repoPath)
-	}
-	if category != "" {
-		query += " AND category = ?"
-		args = append(args, category)
-	}
-	query += " ORDER BY title ASC"
-
-	rows, err := s.db.sqlDB.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list docs: %w", err)
-	}
-	defer rows.Close()
-
-	var docs []domain.ProjectDoc
-	for rows.Next() {
-		var doc domain.ProjectDoc
-		var diagramsJSON string
-		err := rows.Scan(&doc.Slug, &doc.RepoPath, &doc.GitBranch, &doc.Title, &doc.Category, &doc.ContentMarkdown, &diagramsJSON, &doc.Version, &doc.UpdatedAt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan doc: %w", err)
-		}
-		_ = json.Unmarshal([]byte(diagramsJSON), &doc.MermaidDiagrams)
-		if doc.MermaidDiagrams == nil {
-			doc.MermaidDiagrams = []string{}
-		}
-		docs = append(docs, doc)
-	}
-	return docs, rows.Err()
-}
-
-// NormalizePath converts Windows or UNC paths to POSIX Linux paths for WSL compatibility.
-func NormalizePath(p string) string {
-	if p == "" {
-		return ""
-	}
-	p = strings.TrimSpace(p)
-	p = strings.ReplaceAll(p, "\\", "/")
-
-	// 1. Check for UNC WSL format: //wsl.localhost/Ubuntu/path or //wsl$/Ubuntu/path
-	if strings.HasPrefix(p, "//wsl.localhost/") || strings.HasPrefix(p, "//wsl$/") {
-		clean := strings.TrimPrefix(strings.TrimPrefix(p, "//wsl.localhost/"), "//wsl$/")
-		idx := strings.Index(clean, "/")
-		if idx != -1 {
-			return filepath.Clean(clean[idx:])
-		}
-	}
-
-	// 2. Check for Windows Drive letter: C:/path or D:/path
-	if len(p) >= 3 && p[1] == ':' && p[2] == '/' {
-		drive := strings.ToLower(string(p[0]))
-		return filepath.Clean("/mnt/" + drive + "/" + p[3:])
-	}
-
-	return filepath.Clean(p)
-}
-
-// ListProjects returns all distinct repo_paths known to the store.
-func (s *Store) ListProjects(ctx context.Context) ([]string, error) {
-	query := `
-	SELECT DISTINCT repo_path FROM plans WHERE repo_path != ''
-	UNION
-	SELECT DISTINCT repo_path FROM tasks WHERE repo_path != ''
-	ORDER BY repo_path ASC
-	`
-	rows, err := s.db.sqlDB.QueryContext(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query projects: %w", err)
-	}
-	defer rows.Close()
-
-	var projects []string
-	seen := make(map[string]bool)
-	for rows.Next() {
-		var path string
-		if err := rows.Scan(&path); err == nil && path != "" {
-			norm := NormalizePath(path)
-			if !seen[norm] {
-				seen[norm] = true
-				projects = append(projects, norm)
-			}
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	// If no projects in database yet, automatically discover current daemon working directory
-	if len(projects) == 0 {
-		if cwd, err := os.Getwd(); err == nil && cwd != "" {
-			projects = append(projects, NormalizePath(cwd))
-		}
-	}
-
-	return projects, nil
 }
 
 // CreatePlan inserts a single plan.
@@ -1151,19 +762,17 @@ func (s *Store) CreatePlan(ctx context.Context, plan domain.Plan) error {
 	if plan.Status == "" {
 		plan.Status = "ACTIVE"
 	}
-	plan.RepoPath = NormalizePath(plan.RepoPath)
 
 	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
 		query := `
-		INSERT INTO plans (slug, title, repo_path, status, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO plans (slug, title, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(slug) DO UPDATE SET
 			title = excluded.title,
-			repo_path = excluded.repo_path,
 			status = excluded.status,
 			updated_at = excluded.updated_at
 		`
-		_, err := tx.ExecContext(ctx, query, plan.Slug, plan.Title, plan.RepoPath, plan.Status, plan.CreatedAt, plan.UpdatedAt)
+		_, err := tx.ExecContext(ctx, query, plan.Slug, plan.Title, plan.Status, plan.CreatedAt, plan.UpdatedAt)
 		return err
 	})
 }
@@ -1213,6 +822,22 @@ func (s *Store) UpdateTaskNotes(ctx context.Context, taskID string, notes string
 	})
 }
 
+// AppendTaskNotes appends a note to the task's supplemental notes.
+func (s *Store) AppendTaskNotes(ctx context.Context, taskID string, note string) error {
+	if note == "" {
+		return nil
+	}
+	now := time.Now().UTC()
+	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			UPDATE tasks
+			SET notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END, updated_at = ?
+			WHERE id = ?
+		`, note, note, now, taskID)
+		return err
+	})
+}
+
 // AddInputAttachment adds an input artifact (media, screenshot, or spec) to a task.
 func (s *Store) AddInputAttachment(ctx context.Context, taskID string, name string, filePath string, mimeType string, byteSize int64, sha256 string) (*domain.Artifact, error) {
 	now := time.Now().UTC()
@@ -1240,411 +865,4 @@ func (s *Store) AddInputAttachment(ctx context.Context, taskID string, name stri
 		return nil, err
 	}
 	return &art, nil
-}
-
-// UpsertSpec saves a technical specification, incrementing version on update.
-func (s *Store) UpsertSpec(ctx context.Context, spec domain.TechSpec) (*domain.TechSpec, error) {
-	if spec.Slug == "" {
-		return nil, fmt.Errorf("spec slug cannot be empty")
-	}
-	if spec.Title == "" {
-		return nil, fmt.Errorf("spec title cannot be empty")
-	}
-	if spec.Tier < 1 || spec.Tier > 5 {
-		spec.Tier = 1
-	}
-	if spec.StructuredPayload == nil {
-		spec.StructuredPayload = make(map[string]any)
-	}
-	if spec.BoundPaths == nil {
-		spec.BoundPaths = []string{}
-	}
-
-	payloadBytes, err := json.Marshal(spec.StructuredPayload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal structured_payload: %w", err)
-	}
-	boundBytes, err := json.Marshal(spec.BoundPaths)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal bound_paths: %w", err)
-	}
-
-	now := time.Now().UTC()
-	var result *domain.TechSpec
-
-	err = s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		var existingVersion int
-		query := `SELECT version FROM tech_specs WHERE slug = ?`
-		err := tx.QueryRowContext(ctx, query, spec.Slug).Scan(&existingVersion)
-
-		if errors.Is(err, sql.ErrNoRows) {
-			spec.Version = 1
-			spec.UpdatedAt = now
-			insertSQL := `
-			INSERT INTO tech_specs (slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			_, err = tx.ExecContext(ctx, insertSQL,
-				spec.Slug, spec.RepoPath, spec.Tier, spec.Kind, spec.Title,
-				spec.DiagramType, spec.DiagramCode, string(payloadBytes), spec.Notes,
-				string(boundBytes), spec.Version, spec.UpdatedAt)
-			if err != nil {
-				return err
-			}
-			result = &spec
-			return nil
-		} else if err != nil {
-			return err
-		}
-
-		spec.Version = existingVersion + 1
-		spec.UpdatedAt = now
-		updateSQL := `
-		UPDATE tech_specs 
-		SET repo_path=?, tier=?, kind=?, title=?, diagram_type=?, diagram_code=?, structured_payload=?, notes=?, bound_paths=?, version=?, updated_at=?
-		WHERE slug=?`
-		_, err = tx.ExecContext(ctx, updateSQL,
-			spec.RepoPath, spec.Tier, spec.Kind, spec.Title,
-			spec.DiagramType, spec.DiagramCode, string(payloadBytes), spec.Notes,
-			string(boundBytes), spec.Version, spec.UpdatedAt, spec.Slug)
-		if err != nil {
-			return err
-		}
-		result = &spec
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-const specSelectCols = `slug, repo_path, tier, kind, title, diagram_type, diagram_code, structured_payload, notes, bound_paths, version, updated_at`
-
-func scanSpec(s scanner) (*domain.TechSpec, error) {
-	var spec domain.TechSpec
-	var payloadStr, boundStr string
-	err := s.Scan(
-		&spec.Slug, &spec.RepoPath, &spec.Tier, &spec.Kind, &spec.Title,
-		&spec.DiagramType, &spec.DiagramCode, &payloadStr, &spec.Notes,
-		&boundStr, &spec.Version, &spec.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	_ = json.Unmarshal([]byte(payloadStr), &spec.StructuredPayload)
-	if spec.StructuredPayload == nil {
-		spec.StructuredPayload = make(map[string]any)
-	}
-	_ = json.Unmarshal([]byte(boundStr), &spec.BoundPaths)
-	if spec.BoundPaths == nil {
-		spec.BoundPaths = []string{}
-	}
-	return &spec, nil
-}
-
-// GetSpec fetches a spec by slug without acquiring writeMu.
-func (s *Store) GetSpec(ctx context.Context, slug string) (*domain.TechSpec, error) {
-	query := fmt.Sprintf(`SELECT %s FROM tech_specs WHERE slug = ?`, specSelectCols)
-	row := s.db.QueryRow(ctx, query, slug)
-	return scanSpec(row)
-}
-
-func (s *Store) getSpecTx(ctx context.Context, tx *sql.Tx, slug string) (*domain.TechSpec, error) {
-	query := fmt.Sprintf(`SELECT %s FROM tech_specs WHERE slug = ?`, specSelectCols)
-	row := tx.QueryRowContext(ctx, query, slug)
-	return scanSpec(row)
-}
-
-// ListSpecs lists specs filtered optionally by repoPath and/or tier without acquiring writeMu.
-func (s *Store) ListSpecs(ctx context.Context, repoPath string, tier int) ([]domain.TechSpec, error) {
-	query := fmt.Sprintf(`
-	SELECT %s
-	FROM tech_specs WHERE 1=1`, specSelectCols)
-	var args []any
-
-	if repoPath != "" {
-		query += " AND repo_path = ?"
-		args = append(args, repoPath)
-	}
-	if tier > 0 {
-		query += " AND tier = ?"
-		args = append(args, tier)
-	}
-	query += " ORDER BY tier ASC, slug ASC"
-
-	rows, err := s.db.Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list specs: %w", err)
-	}
-	defer rows.Close()
-
-	var specs []domain.TechSpec
-	for rows.Next() {
-		spec, err := scanSpec(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan spec: %w", err)
-		}
-		specs = append(specs, *spec)
-	}
-	return specs, rows.Err()
-}
-
-// SearchSpecs executes an FTS5 full-text query across tech_specs_fts without acquiring writeMu.
-func (s *Store) SearchSpecs(ctx context.Context, query string) ([]domain.TechSpec, error) {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return s.ListSpecs(ctx, "", 0)
-	}
-
-	sqlQuery := `
-	SELECT t.slug, t.repo_path, t.tier, t.kind, t.title, t.diagram_type, t.diagram_code, t.structured_payload, t.notes, t.bound_paths, t.version, t.updated_at
-	FROM tech_specs_fts f
-	JOIN tech_specs t ON f.rowid = t.rowid
-	WHERE tech_specs_fts MATCH ?`
-
-	rows, err := s.db.Query(ctx, sqlQuery, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search specs: %w", err)
-	}
-	defer rows.Close()
-
-	var results []domain.TechSpec
-	for rows.Next() {
-		spec, err := scanSpec(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan spec: %w", err)
-		}
-		results = append(results, *spec)
-	}
-	return results, rows.Err()
-}
-
-// AutoLinkSpecs matches target files against bound paths of all registered specs without acquiring writeMu.
-func (s *Store) AutoLinkSpecs(ctx context.Context, targetFiles []string) ([]string, error) {
-	if len(targetFiles) == 0 {
-		return nil, nil
-	}
-
-	rows, err := s.db.Query(ctx, `SELECT slug, bound_paths FROM tech_specs`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query tech_specs: %w", err)
-	}
-	defer rows.Close()
-
-	return matchBoundPaths(rows, targetFiles)
-}
-
-func (s *Store) autoLinkSpecsTx(ctx context.Context, tx *sql.Tx, targetFiles []string) ([]string, error) {
-	if len(targetFiles) == 0 {
-		return nil, nil
-	}
-
-	rows, err := tx.QueryContext(ctx, `SELECT slug, bound_paths FROM tech_specs`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return matchBoundPaths(rows, targetFiles)
-}
-
-func matchBoundPaths(rows *sql.Rows, targetFiles []string) ([]string, error) {
-	matchedSlugsMap := make(map[string]bool)
-	for rows.Next() {
-		var slug, boundStr string
-		if err := rows.Scan(&slug, &boundStr); err != nil {
-			continue
-		}
-		var boundPaths []string
-		_ = json.Unmarshal([]byte(boundStr), &boundPaths)
-
-		for _, targetFile := range targetFiles {
-			for _, bound := range boundPaths {
-				if bound != "" && (strings.HasPrefix(targetFile, bound) || strings.Contains(targetFile, bound)) {
-					matchedSlugsMap[slug] = true
-					break
-				}
-			}
-		}
-	}
-
-	var matched []string
-	for slug := range matchedSlugsMap {
-		matched = append(matched, slug)
-	}
-	sort.Strings(matched)
-	return matched, rows.Err()
-}
-
-// SavePlanSnapshot saves an atomic directory snapshot for a plan at a given revision.
-func (s *Store) SavePlanSnapshot(ctx context.Context, planSlug, revision, author, summary string, files []domain.SnapshotFile) error {
-	if planSlug == "" {
-		return fmt.Errorf("plan_slug cannot be empty")
-	}
-	if revision == "" {
-		revision = "v1.0"
-	}
-	now := time.Now().UTC()
-
-	return s.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		// 1. Insert or update plan revision record
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO plan_revisions (plan_slug, revision, author, summary, created_at)
-			VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT(plan_slug, revision) DO UPDATE SET
-				author = excluded.author,
-				summary = excluded.summary,
-				created_at = excluded.created_at
-		`, planSlug, revision, author, summary, now)
-		if err != nil {
-			return fmt.Errorf("failed to save plan revision: %w", err)
-		}
-
-		// 2. Clear previous snapshot files for this exact (plan_slug, revision) to support in-place re-push
-		_, _ = tx.ExecContext(ctx, `DELETE FROM plan_snapshots WHERE plan_slug = ? AND revision = ?`, planSlug, revision)
-
-		// 3. Insert each file
-		insertFileStmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO plan_snapshots (plan_slug, revision, file_path, content, byte_size, sha256, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)
-		`)
-		if err != nil {
-			return err
-		}
-		defer insertFileStmt.Close()
-
-		for _, f := range files {
-			h := sha256.Sum256([]byte(f.Content))
-			shaStr := hex.EncodeToString(h[:])
-			byteSize := int64(len(f.Content))
-			_, err = insertFileStmt.ExecContext(ctx, planSlug, revision, f.FilePath, f.Content, byteSize, shaStr, now)
-			if err != nil {
-				return fmt.Errorf("failed to save snapshot file %s: %w", f.FilePath, err)
-			}
-		}
-
-		return nil
-	})
-}
-
-// GetPlanSnapshot retrieves all snapshot files for a plan at a given revision without acquiring writeMu.
-func (s *Store) GetPlanSnapshot(ctx context.Context, planSlug, revision string) ([]domain.SnapshotFile, error) {
-	rows, err := s.db.Query(ctx, `
-		SELECT plan_slug, revision, file_path, content, byte_size, sha256, created_at
-		FROM plan_snapshots
-		WHERE plan_slug = ? AND revision = ?
-		ORDER BY file_path ASC
-	`, planSlug, revision)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query plan snapshots: %w", err)
-	}
-	defer rows.Close()
-
-	var files []domain.SnapshotFile
-	for rows.Next() {
-		var f domain.SnapshotFile
-		if err := rows.Scan(&f.PlanSlug, &f.Revision, &f.FilePath, &f.Content, &f.ByteSize, &f.SHA256, &f.CreatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan snapshot file: %w", err)
-		}
-		files = append(files, f)
-	}
-	return files, rows.Err()
-}
-
-// ListPlanRevisions lists all revision records for a given plan without acquiring writeMu.
-func (s *Store) ListPlanRevisions(ctx context.Context, planSlug string) ([]domain.PlanRevision, error) {
-	rows, err := s.db.Query(ctx, `
-		SELECT id, plan_slug, revision, author, summary, created_at
-		FROM plan_revisions
-		WHERE plan_slug = ?
-		ORDER BY id ASC
-	`, planSlug)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query plan revisions: %w", err)
-	}
-	defer rows.Close()
-
-	var revs []domain.PlanRevision
-	for rows.Next() {
-		var r domain.PlanRevision
-		if err := rows.Scan(&r.ID, &r.PlanSlug, &r.Revision, &r.Author, &r.Summary, &r.CreatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan plan revision: %w", err)
-		}
-		revs = append(revs, r)
-	}
-	return revs, rows.Err()
-}
-
-// GetPlanDiff computes differences between two plan revisions.
-func (s *Store) GetPlanDiff(ctx context.Context, planSlug, fromRev, toRev string) ([]domain.FileDiff, error) {
-	fromFiles, err := s.GetPlanSnapshot(ctx, planSlug, fromRev)
-	if err != nil {
-		return nil, err
-	}
-	toFiles, err := s.GetPlanSnapshot(ctx, planSlug, toRev)
-	if err != nil {
-		return nil, err
-	}
-
-	fromMap := make(map[string]string)
-	for _, f := range fromFiles {
-		fromMap[f.FilePath] = f.Content
-	}
-
-	toMap := make(map[string]string)
-	for _, f := range toFiles {
-		toMap[f.FilePath] = f.Content
-	}
-
-	var diffs []domain.FileDiff
-
-	// Check modified and added files
-	for path, newContent := range toMap {
-		if oldContent, exists := fromMap[path]; exists {
-			if oldContent == newContent {
-				diffs = append(diffs, domain.FileDiff{
-					FilePath:   path,
-					ChangeType: "IDENTICAL",
-					OldContent: oldContent,
-					NewContent: newContent,
-				})
-			} else {
-				diffs = append(diffs, domain.FileDiff{
-					FilePath:   path,
-					ChangeType: "MODIFIED",
-					OldContent: oldContent,
-					NewContent: newContent,
-				})
-			}
-		} else {
-			diffs = append(diffs, domain.FileDiff{
-				FilePath:   path,
-				ChangeType: "ADDED",
-				OldContent: "",
-				NewContent: newContent,
-			})
-		}
-	}
-
-	// Check deleted files
-	for path, oldContent := range fromMap {
-		if _, exists := toMap[path]; !exists {
-			diffs = append(diffs, domain.FileDiff{
-				FilePath:   path,
-				ChangeType: "DELETED",
-				OldContent: oldContent,
-				NewContent: "",
-			})
-		}
-	}
-
-	sort.Slice(diffs, func(i, j int) bool {
-		return diffs[i].FilePath < diffs[j].FilePath
-	})
-
-	return diffs, nil
 }
