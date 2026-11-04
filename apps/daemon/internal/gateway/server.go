@@ -43,6 +43,9 @@ type Server struct {
 	sseMu      sync.RWMutex
 	sseClients map[chan domain.EventMessage]struct{}
 
+	watchMu     sync.Mutex
+	watchCancel context.CancelFunc
+
 	mux        *http.ServeMux
 	httpServer *http.Server
 	listener   net.Listener
@@ -721,7 +724,67 @@ func (s *Server) Serve(ln net.Listener) error {
 	s.httpServer = &http.Server{
 		Handler: s.Handler(),
 	}
-	return s.httpServer.Serve(ln)
+
+	watchCtx, cancel := context.WithCancel(context.Background())
+	s.watchMu.Lock()
+	s.watchCancel = cancel
+	s.watchMu.Unlock()
+	go s.watchStateChanges(watchCtx, stateWatchInterval)
+
+	err := s.httpServer.Serve(ln)
+	cancel()
+	return err
+}
+
+// stateWatchInterval controls how often the gateway fingerprints the SQLite
+// state to detect writes from processes outside the daemon event hub.
+const stateWatchInterval = 3 * time.Second
+
+// stateFingerprinter is implemented by storage engines that can summarize
+// plans/tasks state cheaply. It is optional so lightweight test doubles do not
+// need to implement it.
+type stateFingerprinter interface {
+	StateFingerprint(ctx context.Context) (string, error)
+}
+
+// watchStateChanges polls the storage fingerprint and broadcasts state:changed
+// when an external writer (MCP stdio server, CLI, raw SQLite) commits. This
+// keeps SSE as the single update channel for the web cockpit without requiring
+// every writer to publish events.
+func (s *Server) watchStateChanges(ctx context.Context, interval time.Duration) {
+	fp, ok := s.storage.(stateFingerprinter)
+	if !ok {
+		return
+	}
+
+	last, err := fp.StateFingerprint(ctx)
+	if err != nil {
+		return
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			current, err := fp.StateFingerprint(ctx)
+			if err != nil {
+				continue
+			}
+			if current == last {
+				continue
+			}
+			last = current
+			s.Broadcast(domain.EventMessage{
+				Type:      "state:changed",
+				Payload:   "{}",
+				Timestamp: time.Now().UTC(),
+			})
+		}
+	}
 }
 
 // Start begins listening on the specified address (e.g. "127.0.0.1:1123" or ":1123").
@@ -735,6 +798,13 @@ func (s *Server) Start(addr string) error {
 
 // Shutdown gracefully stops the HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.watchMu.Lock()
+	if s.watchCancel != nil {
+		s.watchCancel()
+		s.watchCancel = nil
+	}
+	s.watchMu.Unlock()
+
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)
 	}
@@ -799,24 +869,19 @@ func (s *Server) handleGetGlobalEnv(w http.ResponseWriter, r *http.Request) {
 
 // GET /api/v1/plans
 func (s *Server) handleListPlans(w http.ResponseWriter, r *http.Request) {
-	tasks, err := s.storage.ListTasks(r.Context(), "")
+	plans, err := s.storage.ListPlans(r.Context())
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to list tasks: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to list plans: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	planMap := make(map[string]bool)
-	for _, t := range tasks {
-		if t.PlanID != "" {
-			planMap[t.PlanID] = true
-		}
+	slugs := make([]string, 0, len(plans))
+	for _, p := range plans {
+		slugs = append(slugs, p.Slug)
 	}
-	var plans []string
-	for p := range planMap {
-		plans = append(plans, p)
-	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"plans": plans})
+	_ = json.NewEncoder(w).Encode(map[string]any{"plans": slugs})
 }
 
 // DELETE /api/v1/plans/{slug}

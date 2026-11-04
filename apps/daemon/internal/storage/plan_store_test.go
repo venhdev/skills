@@ -358,6 +358,49 @@ func TestPlanStore_CRUD(t *testing.T) {
 	}
 }
 
+func TestPlanStore_ListPlansIncludesEmptyPlan(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_list_plans.db")
+	db, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	store := storage.NewStore(db)
+	ctx := context.Background()
+
+	// A plan with a task and a plan without any tasks.
+	if err := store.CreatePlan(ctx, domain.Plan{Slug: "plan-with-tasks", Title: "With tasks", Status: "ACTIVE"}); err != nil {
+		t.Fatalf("CreatePlan (with tasks) failed: %v", err)
+	}
+	if err := store.CreatePlan(ctx, domain.Plan{Slug: "plan-empty", Title: "Empty", Status: "ACTIVE"}); err != nil {
+		t.Fatalf("CreatePlan (empty) failed: %v", err)
+	}
+	if err := store.CreateTask(ctx, domain.Task{
+		ID:           "LT-01",
+		PlanID:       "plan-with-tasks",
+		Title:        "First slice",
+		Status:       domain.StatusReady,
+		Dependencies: []string{},
+	}); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	plans, err := store.ListPlans(ctx)
+	if err != nil {
+		t.Fatalf("ListPlans failed: %v", err)
+	}
+
+	got := make(map[string]bool, len(plans))
+	for _, p := range plans {
+		got[p.Slug] = true
+	}
+	if !got["plan-with-tasks"] || !got["plan-empty"] {
+		t.Fatalf("expected ListPlans to include empty plan, got: %+v", plans)
+	}
+}
+
 func TestConcurrentReadWrite(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_concurrent_read_write.db")

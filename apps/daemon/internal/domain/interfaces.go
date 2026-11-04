@@ -43,6 +43,10 @@ type StorageEngine interface {
 	// GetPlan retrieves a plan by slug.
 	GetPlan(ctx context.Context, slug string) (*Plan, error)
 
+	// ListPlans returns every plan registered in the plans table, including
+	// plans that do not have any tasks yet.
+	ListPlans(ctx context.Context) ([]Plan, error)
+
 	// GetTasksByPlan retrieves all tasks belonging to a plan.
 	GetTasksByPlan(ctx context.Context, planSlug string) ([]Task, error)
 

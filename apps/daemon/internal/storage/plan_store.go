@@ -37,6 +37,25 @@ func NewStore(db *DB) *Store {
 	}
 }
 
+// StateFingerprint returns a cheap fingerprint of the plans/tasks state. The
+// gateway polls it to detect commits made by other processes (for example the
+// stdio MCP server) that never pass through the daemon event hub.
+func (s *Store) StateFingerprint(ctx context.Context) (string, error) {
+	var plansCount, tasksCount int64
+	var plansUpdated, tasksUpdated string
+	err := s.db.QueryRow(ctx, `
+		SELECT
+			(SELECT COUNT(*) FROM plans),
+			(SELECT COALESCE(MAX(updated_at), '') FROM plans),
+			(SELECT COUNT(*) FROM tasks),
+			(SELECT COALESCE(MAX(updated_at), '') FROM tasks)
+	`).Scan(&plansCount, &plansUpdated, &tasksCount, &tasksUpdated)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d|%s|%d|%s", plansCount, plansUpdated, tasksCount, tasksUpdated), nil
+}
+
 // SetPromptCompiler sets or overrides the prompt compiler for the store.
 func (s *Store) SetPromptCompiler(c prompt.Compiler) {
 	s.promptCompiler = c
@@ -295,6 +314,28 @@ func (s *Store) GetPlan(ctx context.Context, slug string) (*domain.Plan, error) 
 	}
 
 	return &p, nil
+}
+
+// ListPlans returns every plan in the plans table ordered by slug. Unlike
+// deriving plans from tasks, this includes plans that have no tasks yet.
+func (s *Store) ListPlans(ctx context.Context) ([]domain.Plan, error) {
+	query := `SELECT slug, title, status, created_at, updated_at FROM plans ORDER BY slug ASC`
+	rows, err := s.db.sqlDB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list plans: %w", err)
+	}
+	defer rows.Close()
+
+	var plans []domain.Plan
+	for rows.Next() {
+		var p domain.Plan
+		if err := rows.Scan(&p.Slug, &p.Title, &p.Status, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("failed to scan plan: %w", err)
+		}
+		plans = append(plans, p)
+	}
+
+	return plans, rows.Err()
 }
 
 // GetTask retrieves a single task by its unique ID.

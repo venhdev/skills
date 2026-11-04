@@ -124,6 +124,41 @@ func TestGateway_PlansAndTasksLifecycle(t *testing.T) {
 	}
 }
 
+func TestGateway_ListPlansIncludesPlanWithoutTasks(t *testing.T) {
+	_, baseURL, _, _, cleanup := setupTestGateway(t)
+	defer cleanup()
+
+	bodyBytes, _ := json.Marshal(CreatePlanRequest{Slug: "empty-plan", Title: "Empty Plan"})
+	resp, err := http.Post(baseURL+"/api/v1/plans", "application/json", bytes.NewReader(bodyBytes))
+	if err != nil {
+		t.Fatalf("failed to post plan: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected status 201 Created, got %d", resp.StatusCode)
+	}
+
+	listResp, err := http.Get(baseURL + "/api/v1/plans")
+	if err != nil {
+		t.Fatalf("failed to list plans: %v", err)
+	}
+	defer listResp.Body.Close()
+
+	var payload struct {
+		Plans []string `json:"plans"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode plans response: %v", err)
+	}
+
+	for _, slug := range payload.Plans {
+		if slug == "empty-plan" {
+			return
+		}
+	}
+	t.Fatalf("expected empty plan in /api/v1/plans, got: %+v", payload.Plans)
+}
+
 func TestGateway_SSEEventStreaming(t *testing.T) {
 	srv, baseURL, _, _, cleanup := setupTestGateway(t)
 	defer cleanup()
