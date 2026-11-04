@@ -49,26 +49,60 @@ function estimateNodeHeight(task: Task): number {
 // Focus handler sub-component that uses useReactFlow hook
 function FlowFocusHandler({
   focusTarget,
+  tasks,
 }: {
   focusTarget?: { id: string; timestamp: number } | null
+  tasks: Task[]
 }) {
-  const { fitView, getNode } = useReactFlow()
+  const { fitView, getInternalNode } = useReactFlow()
+  // Keep the latest task list without making data refreshes restart the
+  // camera animation. Only an explicit focusTarget change should move it.
+  const tasksRef = useRef(tasks)
+  tasksRef.current = tasks
 
   useEffect(() => {
     if (!focusTarget?.id) return
-    const timer = setTimeout(() => {
-      const node = getNode(focusTarget.id)
-      if (node && node.measured?.width) {
-        fitView({
-          nodes: [{ id: focusTarget.id }],
-          duration: 400,
-          padding: 0.3,
-          maxZoom: 1.2,
-        })
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const focus = (remainingRetries: number) => {
+      if (cancelled) return
+
+      // getNode() returns the user node (without measured); the internal node
+      // is the one that carries the measured width/height.
+      const selectedNode = getInternalNode(focusTarget.id)
+      if (!selectedNode?.measured?.width) {
+        if (remainingRetries > 0) {
+          timer = setTimeout(() => focus(remainingRetries - 1), 50)
+        }
+        return
       }
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [focusTarget, fitView, getNode])
+
+      // Frame the selected task together with its direct prerequisites and
+      // dependents so the focused relations stay in view.
+      const focusNodeIds = [...getDirectNeighbors(focusTarget.id, tasksRef.current)]
+        .filter((id) => getInternalNode(id))
+
+      if (focusNodeIds.length === 0) return
+
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      fitView({
+        nodes: focusNodeIds.map((id) => ({ id })),
+        duration: reduceMotion ? 0 : 450,
+        padding: 0.25,
+        maxZoom: 1.0,
+      })
+    }
+
+    // Nodes are usually measured on the next frame after a plan/layout change.
+    timer = setTimeout(() => focus(10), 50)
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [focusTarget, fitView, getInternalNode])
 
   return null
 }
@@ -533,7 +567,7 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
             className="h-full w-full"
             defaultEdgeOptions={{ type: 'smoothstep' }}
           >
-            <FlowFocusHandler focusTarget={focusTarget} />
+            <FlowFocusHandler focusTarget={focusTarget} tasks={tasks} />
             <Background color="#27272a" gap={24} size={1} />
             <Controls className="!border-zinc-800 !bg-zinc-900 !text-zinc-300" />
             <MiniMap
