@@ -29,11 +29,6 @@ export default function App() {
     fetchPlan,
     fetchTasks,
     fetchTaskArtifacts,
-    deletePlan,
-    updateTaskDependencies,
-    updateTaskNotes,
-    evictTask,
-    uploadAttachment,
     fetchGlobalEnv,
   } = useZenfdAPI()
 
@@ -62,57 +57,47 @@ export default function App() {
       return
     }
 
-    if (taskList.length === 0) {
-      // Check if there are any empty plans
-      const availablePlans = await fetchPlans()
-      if (availablePlans.length > 0) {
-        setPlans(availablePlans)
-        let targetSlug = activePlanRef.current?.slug
-        if (!targetSlug || !availablePlans.includes(targetSlug)) {
-          targetSlug = availablePlans[0]
-        }
-        const planData = await fetchPlan(targetSlug)
-        if (planData?.plan) {
-          setActivePlan(planData.plan)
-          setTasks(planData.tasks || [])
-        }
-      } else {
-        setTasks([])
-        setPlans([])
-        setActivePlan(null)
-        setSelectedTaskId(null)
-        setArtifacts([])
-      }
+    // The plans endpoint is the source of truth for the selector and includes
+    // plans that do not have any tasks yet.
+    const availablePlans = await fetchPlans()
+    setPlans(availablePlans)
+
+    // Determine target plan. When nothing is selected, prefer a plan that has
+    // tasks so the canvas is not empty on first load, while still exposing
+    // plans without tasks through the selector.
+    let targetPlanSlug = activePlanRef.current?.slug
+    if (!targetPlanSlug || !availablePlans.includes(targetPlanSlug)) {
+      const planWithTasks = taskList.find((t) => availablePlans.includes(t.plan_id))?.plan_id
+      targetPlanSlug = planWithTasks || availablePlans[0]
+    }
+
+    if (!targetPlanSlug) {
+      setTasks([])
+      setActivePlan(null)
+      setSelectedTaskId(null)
+      setArtifacts([])
       return
     }
 
-    // Extract unique plan slugs
-    const uniquePlans = Array.from(
-      new Set(taskList.map((t) => t.plan_id))
-    ).filter(Boolean)
-    setPlans(uniquePlans)
+    const planData = await fetchPlan(targetPlanSlug)
+    if (planData?.plan) {
+      setActivePlan(planData.plan)
+      const planTasks = planData.tasks || []
+      setTasks(planTasks)
 
-    // Determine target plan
-    let targetPlanSlug = activePlanRef.current?.slug
-    if (!targetPlanSlug || !uniquePlans.includes(targetPlanSlug)) {
-      targetPlanSlug = uniquePlans[0]
-    }
-
-    if (targetPlanSlug) {
-      const planData = await fetchPlan(targetPlanSlug)
-      if (planData?.plan) {
-        setActivePlan(planData.plan)
-        const planTasks = planData.tasks || []
-        setTasks(planTasks)
-
-        // Select task
-        setSelectedTaskId((prev) => {
-          if (prev && planTasks.some((t) => t.id === prev)) {
-            return prev
-          }
-          return planTasks[0]?.id || null
-        })
-      }
+      // Select task
+      setSelectedTaskId((prev) => {
+        if (prev && planTasks.some((t) => t.id === prev)) {
+          return prev
+        }
+        return planTasks[0]?.id || null
+      })
+    } else {
+      // The selected plan disappeared (e.g. deleted externally).
+      setActivePlan(null)
+      setTasks([])
+      setSelectedTaskId(null)
+      setArtifacts([])
     }
   }, [fetchTasks, fetchPlans, fetchPlan])
 
@@ -121,6 +106,24 @@ export default function App() {
     refreshData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Safety-net reconcile when the tab regains focus. Primary updates arrive
+  // through the daemon's state:changed event (which covers MCP/CLI writers).
+  useEffect(() => {
+    const reconcile = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData()
+      }
+    }
+    document.addEventListener('visibilitychange', reconcile)
+    window.addEventListener('focus', reconcile)
+    const interval = window.setInterval(reconcile, 30000)
+    return () => {
+      document.removeEventListener('visibilitychange', reconcile)
+      window.removeEventListener('focus', reconcile)
+      window.clearInterval(interval)
+    }
+  }, [refreshData])
 
   // Real-time SSE updates
   const { connected } = useSSE({
@@ -132,6 +135,7 @@ export default function App() {
         evt.type === 'task:notes_updated' ||
         evt.type === 'plan:created' ||
         evt.type === 'plan:deleted' ||
+        evt.type === 'state:changed' ||
         evt.type === 'run:killed'
       ) {
         refreshData()
@@ -160,20 +164,6 @@ export default function App() {
     }
   }
 
-  const handleDeletePlan = async () => {
-    if (!activePlan) return
-    if (
-      window.confirm(
-        `Are you sure you want to delete plan '${activePlan.slug}' and all its tasks? This action deletes from SQLite SSOT.`
-      )
-    ) {
-      const ok = await deletePlan(activePlan.slug)
-      if (ok) {
-        await refreshData()
-      }
-    }
-  }
-
   const handleSelectTask = (task: Task, source: 'sidebar' | 'canvas' | 'dock' = 'sidebar') => {
     setSelectedTaskId(task.id)
     if (source !== 'canvas') {
@@ -191,38 +181,6 @@ export default function App() {
     }
   }
 
-  const handleUploadAttachment = async (taskId: string, file: File, name?: string) => {
-    const res = await uploadAttachment(taskId, file, name)
-    if (res) {
-      refreshArtifacts(taskId)
-    }
-    return res
-  }
-
-  const handleUpdateDependencies = async (taskId: string, dependencies: string[]) => {
-    const ok = await updateTaskDependencies(taskId, dependencies)
-    if (ok) {
-      refreshData()
-    }
-    return ok
-  }
-
-  const handleUpdateNotes = async (taskId: string, notes: string) => {
-    const ok = await updateTaskNotes(taskId, notes)
-    if (ok) {
-      refreshData()
-    }
-    return ok
-  }
-
-  const handleEvictTask = async (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => {
-    const ok = await evictTask(taskId, reason, action)
-    if (ok) {
-      refreshData()
-    }
-    return ok
-  }
-
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100">
       {/* 1. Header Bar with Plan CRUD & Active Worker Count */}
@@ -232,7 +190,6 @@ export default function App() {
         plans={plans}
         onSelectPlan={handleSelectPlan}
         activeWorkers={activeWorkerCount}
-        onDeletePlanClick={handleDeletePlan}
         currentView={currentView}
         onChangeView={(v) => setCurrentView(v)}
       />
@@ -249,24 +206,20 @@ export default function App() {
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           />
 
-          {/* Center: Topological DAG Flow Canvas with Interactive Connection & Blast Radius */}
+          {/* Center: Topological DAG Flow Canvas (read-only view) */}
           <DAGCanvas
             tasks={tasks}
             selectedTaskId={selectedTaskId}
             onSelectTask={handleSelectTask}
             focusTarget={focusTarget}
-            onUpdateDependencies={handleUpdateDependencies}
           />
 
-          {/* Right: Inspection Dock with Seeding Hub, Review Status & Suspended Recovery */}
+          {/* Right: Read-only Inspection Dock (spec, artifacts & logs) */}
           <InspectionDock
             selectedTask={selectedTask}
             allTasks={tasks}
             artifacts={artifacts}
             onSelectTaskId={handleSelectTaskId}
-            onUploadAttachment={handleUploadAttachment}
-            onUpdateNotes={handleUpdateNotes}
-            onEvictTask={handleEvictTask}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
           />

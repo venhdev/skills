@@ -9,9 +9,6 @@ interface InspectionDockProps {
   allTasks: Task[]
   artifacts: Artifact[]
   onSelectTaskId?: (taskId: string) => void
-  onUploadAttachment?: (taskId: string, file: File, name?: string) => Promise<any>
-  onUpdateNotes?: (taskId: string, notes: string) => Promise<any>
-  onEvictTask?: (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => Promise<any>
   collapsed: boolean
   onToggleCollapse: () => void
 }
@@ -21,9 +18,6 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
   allTasks,
   artifacts,
   onSelectTaskId,
-  onUploadAttachment,
-  onUpdateNotes,
-  onEvictTask,
   collapsed,
   onToggleCollapse,
 }) => {
@@ -91,9 +85,6 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
               task={selectedTask}
               allTasks={allTasks}
               onSelectTaskId={onSelectTaskId}
-              onUploadAttachment={onUploadAttachment}
-              onUpdateNotes={onUpdateNotes}
-              onEvictTask={onEvictTask}
               isMaximized={activePane === 'spec'}
               onToggleMaximize={() =>
                 setActivePane(activePane === 'spec' ? 'split' : 'spec')
@@ -106,13 +97,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
           <div className={activePane === 'split' ? 'h-1/2 overflow-hidden' : 'h-full overflow-hidden'}>
             <ArtifactLightbox
               taskId={selectedTask?.id}
-              taskStatus={selectedTask?.status}
               artifacts={artifacts}
-              onUploadAttachment={
-                onUploadAttachment && selectedTask
-                  ? (file) => onUploadAttachment(selectedTask.id, file)
-                  : undefined
-              }
             />
           </div>
         )}

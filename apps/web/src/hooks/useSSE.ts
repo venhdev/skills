@@ -85,6 +85,7 @@ export function useSSE({
       'task:notes_updated',
       'task:artifact_added',
       'run:killed',
+      'state:changed',
     ]
 
     eventTypes.forEach((type) => {

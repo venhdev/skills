@@ -1,36 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Download,
   Image as ImageIcon,
   FileText,
-  UploadCloud,
   FileSpreadsheet,
   Paperclip,
   Maximize2,
   X,
   Lock,
 } from 'lucide-react'
-import type { Artifact, TaskStatus } from '../../types/contracts'
+import type { Artifact } from '../../types/contracts'
 
 interface ArtifactLightboxProps {
   taskId?: string
-  taskStatus?: TaskStatus
   artifacts: Artifact[]
-  onUploadAttachment?: (file: File) => Promise<void>
 }
 
 export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
   taskId,
-  taskStatus,
   artifacts,
-  onUploadAttachment,
 }) => {
   const [activeTab, setActiveTab] = useState<'inputs' | 'logs'>('inputs')
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
   const [taskLogs, setTaskLogs] = useState<string>('')
-  const [isUploading, setIsUploading] = useState(false)
   const [zoomImageSrc, setZoomImageSrc] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const inputArtifacts = artifacts.filter((a) => a.role === 'INPUT')
 
@@ -58,32 +51,6 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
       return () => controller.abort()
     }
   }, [activeTab, taskId])
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0 || !onUploadAttachment) return
-    const file = e.target.files[0]
-    setIsUploading(true)
-    try {
-      await onUploadAttachment(file)
-    } finally {
-      setIsUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    if (!onUploadAttachment) return
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0]
-      setIsUploading(true)
-      try {
-        await onUploadAttachment(file)
-      } finally {
-        setIsUploading(false)
-      }
-    }
-  }
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-zinc-950 font-sans select-none">
@@ -130,36 +97,13 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
         {/* TAB 1: INPUTS (Mockups, Specs & Attachments) */}
         {activeTab === 'inputs' && (
           <div className="space-y-3">
-            {/* Drag & Drop Upload Zone (Writable only when READY or PENDING) */}
-            {taskStatus && taskStatus !== 'READY' && taskStatus !== 'PENDING' ? (
-              <div className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-400">
-                <Lock className="h-4 w-4 text-zinc-500 shrink-0" />
-                <span>
-                  Media attachments locked (Task is <strong className="text-zinc-200 font-mono">{taskStatus}</strong>). Uploads permitted only when READY or PENDING.
-                </span>
-              </div>
-            ) : (
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-4 transition-colors hover:border-violet-500/50 hover:bg-zinc-900/60"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <UploadCloud className="h-6 w-6 text-zinc-500 mb-1" />
-                <p className="text-xs font-medium text-zinc-300">
-                  {isUploading ? 'Uploading file...' : 'Drop design mockups / specs here, or click to upload'}
-                </p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">
-                  PNG, JPG, WebP, PDF, Markdown up to 25MB (Agent context)
-                </p>
-              </div>
-            )}
+            {/* Read-only notice: artifacts are seeded by agents/MCP/CLI */}
+            <div className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-400">
+              <Lock className="h-4 w-4 text-zinc-500 shrink-0" />
+              <span>
+                Read-only hub. Attachments are added by the agent / MCP / CLI, not from this cockpit.
+              </span>
+            </div>
 
             {/* List of Attached Input Artifacts */}
             {inputArtifacts.length === 0 ? (

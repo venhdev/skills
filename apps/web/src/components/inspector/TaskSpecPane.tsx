@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import {
   Terminal,
   Copy,
@@ -15,11 +15,7 @@ import {
   ShieldAlert,
   FileCode,
   FileCheck,
-  Image,
-  Upload,
-  Save,
-  Unplug,
-  RotateCcw,
+  FileText,
 } from 'lucide-react'
 import type { Task } from '../../types/contracts'
 import { getTaskStatusStyle } from '../stage/taskStatusTheme'
@@ -28,9 +24,6 @@ interface TaskSpecPaneProps {
   task: Task | null
   allTasks: Task[]
   onSelectTaskId?: (taskId: string) => void
-  onUploadAttachment?: (taskId: string, file: File, name?: string) => Promise<any>
-  onUpdateNotes?: (taskId: string, notes: string) => Promise<any>
-  onEvictTask?: (taskId: string, reason?: string, action?: 'RESET_TO_READY' | 'CANCEL') => Promise<any>
   isMaximized?: boolean
   onToggleMaximize?: () => void
 }
@@ -39,56 +32,11 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   task,
   allTasks,
   onSelectTaskId,
-  onUploadAttachment,
-  onUpdateNotes,
-  onEvictTask,
   isMaximized = false,
   onToggleMaximize,
 }) => {
   const [copiedCmd, setCopiedCmd] = useState(false)
   const [copiedWorktree, setCopiedWorktree] = useState(false)
-  const [notesInput, setNotesInput] = useState('')
-  const [isSavingNotes, setIsSavingNotes] = useState(false)
-  const [savedNotesSuccess, setSavedNotesSuccess] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadSuccess, setUploadSuccess] = useState(false)
-
-  useEffect(() => {
-    if (task) {
-      setNotesInput(task.notes || '')
-    }
-  }, [task?.id, task?.notes])
-
-  // Clipboard paste listener for images when task is READY
-  useEffect(() => {
-    if (!task || task.status !== 'READY' || !onUploadAttachment) return
-
-    const handlePaste = async (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items
-      if (!items) return
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const blob = items[i].getAsFile()
-          if (blob) {
-            setIsUploading(true)
-            try {
-              const filename = `paste_${Date.now()}.png`
-              const file = new File([blob], filename, { type: blob.type })
-              await onUploadAttachment(task.id, file, 'Pasted Screenshot')
-              setUploadSuccess(true)
-              setTimeout(() => setUploadSuccess(false), 2500)
-            } finally {
-              setIsUploading(false)
-            }
-          }
-        }
-      }
-    }
-
-    window.addEventListener('paste', handlePaste)
-    return () => window.removeEventListener('paste', handlePaste)
-  }, [task?.id, task?.status, onUploadAttachment])
 
   if (!task) {
     return (
@@ -123,36 +71,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     } catch {
       // ignore
     }
-  }
-
-  const handleSaveNotesSubmit = async () => {
-    if (!onUpdateNotes) return
-    setIsSavingNotes(true)
-    try {
-      await onUpdateNotes(task.id, notesInput)
-      setSavedNotesSuccess(true)
-      setTimeout(() => setSavedNotesSuccess(false), 2000)
-    } finally {
-      setIsSavingNotes(false)
-    }
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !onUploadAttachment) return
-    setIsUploading(true)
-    try {
-      await onUploadAttachment(task.id, file, file.name)
-      setUploadSuccess(true)
-      setTimeout(() => setUploadSuccess(false), 2500)
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleEvictSubmit = async () => {
-    if (!onEvictTask) return
-    await onEvictTask(task.id, 'Reset by operator', 'RESET_TO_READY')
   }
 
   const taskMap = new Map<string, Task>()
@@ -214,96 +132,34 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
                 <span>Claimed by: <strong className="text-zinc-200 font-mono">{task.claimed_by}</strong></span>
                 {task.pid ? <span className="text-[10px] text-zinc-500 font-mono">PID {task.pid}</span> : null}
               </div>
-              {task.status === 'RUNNING' && onEvictTask && (
-                <button
-                  onClick={handleEvictSubmit}
-                  className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-300 hover:bg-rose-500/20 transition shrink-0"
-                  title="Evict hung subagent and reset task to READY"
-                >
-                  Evict Worker
-                </button>
-              )}
             </div>
           )}
         </div>
 
-        {/* INTERACTIVE GATE 1: Developer Seeding Hub (When READY) */}
-        {task.status === 'READY' && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-950/15 p-3.5 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
-              <Image className="h-4 w-4 text-amber-400 shrink-0" />
-              <span>Developer Context & Media Seeding Hub</span>
-            </div>
-            <p className="text-[11px] text-zinc-400 leading-relaxed">
-              Enrich this task before an agent claims it. Upload visual UI mockups, screenshots, or paste (Ctrl+V) directly from clipboard.
+        {/* READ-ONLY: Supplemental notes supplied by the agent / operator via MCP or CLI */}
+        {task.notes && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-1.5">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              <FileText className="h-3 w-3 text-zinc-400" />
+              <span>Supplemental Notes</span>
+            </span>
+            <p className="whitespace-pre-wrap text-xs text-zinc-300 select-text leading-relaxed">
+              {task.notes}
             </p>
-
-            {/* Drag & Drop / Paste / File Input */}
-            <div className="relative flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-700 hover:border-amber-500/50 bg-black/30 p-3 transition text-center cursor-pointer group">
-              <input
-                type="file"
-                accept="image/*,.pdf,.txt,.md,.json"
-                onChange={handleFileUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                disabled={isUploading}
-              />
-              <Upload className="h-5 w-5 text-zinc-500 group-hover:text-amber-400 mb-1" />
-              <span className="text-[11px] font-medium text-zinc-300 group-hover:text-white">
-                {isUploading ? 'Uploading Attachment...' : 'Drop screenshots / mockups or click to browse'}
-              </span>
-              <span className="text-[10px] text-zinc-500 mt-0.5">
-                Tip: You can also paste screenshots directly with <kbd className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-400 font-mono">Ctrl+V</kbd>
-              </span>
-              {uploadSuccess && (
-                <span className="text-[11px] font-bold text-emerald-400 mt-1">✓ Attachment uploaded to ContextPacket!</span>
-              )}
-            </div>
-
-            {/* Supplemental Architectural Notes */}
-            <div className="space-y-1.5 pt-1">
-              <label className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                Supplemental Architectural Hints & Notes:
-              </label>
-              <textarea
-                value={notesInput}
-                onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="Type guidance, constraints, or gotchas for the agent..."
-                rows={2}
-                className="w-full rounded border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-200 focus:border-amber-500 focus:outline-none resize-none"
-              />
-              <button
-                onClick={handleSaveNotesSubmit}
-                disabled={isSavingNotes}
-                className="flex items-center justify-center gap-1.5 rounded border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-medium py-1 px-3 text-xs transition disabled:opacity-50"
-              >
-                <Save className="h-3 w-3" />
-                <span>{savedNotesSuccess ? '✓ Notes Saved!' : isSavingNotes ? 'Saving...' : 'Save Notes to Task'}</span>
-              </button>
-            </div>
           </div>
         )}
 
-        {/* INTERACTIVE GATE 2: Suspended Recovery Handshake */}
+        {/* READ-ONLY GATE: Suspended Worker Notice */}
         {task.status === 'SUSPENDED' && (
-          <div className="rounded-lg border border-amber-600/50 bg-amber-950/25 p-3.5 space-y-3">
+          <div className="rounded-lg border border-amber-600/50 bg-amber-950/25 p-3.5 space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
-              <Unplug className="h-4 w-4 text-amber-400 shrink-0" />
+              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
               <span>Worker PID Disconnected (Suspended)</span>
             </div>
             <p className="text-[11px] text-zinc-300">
               The assigned agent runner terminated unexpectedly. Worktree files and logs are preserved.
+              Recovery is performed from the orchestrator/CLI, not from this read-only cockpit.
             </p>
-            <div className="flex gap-2 pt-1">
-              {onEvictTask && (
-                <button
-                  onClick={handleEvictSubmit}
-                  className="flex items-center justify-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-1.5 px-3 text-xs transition"
-                >
-                  <RotateCcw className="h-3.5 w-3.5 text-zinc-400" />
-                  <span>Reset to READY</span>
-                </button>
-              )}
-            </div>
           </div>
         )}
 

@@ -13,13 +13,32 @@ import { TASK_STATUS_CONFIG } from './taskStatusTheme'
 export interface TaskNodeData {
   task: Task
   isSelected: boolean
+  isFocusNeighbor?: boolean
   isBlastRadius?: boolean
+  isDimmed?: boolean
+  blastDepth?: number
   onSelect: (task: Task) => void
 }
 
 export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
-  const { task, isSelected, isBlastRadius, onSelect } = data
+  const {
+    task,
+    isSelected,
+    isFocusNeighbor,
+    isBlastRadius,
+    isDimmed,
+    blastDepth,
+    onSelect,
+  } = data
   const style = TASK_STATUS_CONFIG[task.status] || TASK_STATUS_CONFIG.PENDING
+  const blastOpacity =
+    isBlastRadius && blastDepth
+      ? blastDepth <= 2
+        ? 'opacity-80'
+        : blastDepth === 3
+        ? 'opacity-60'
+        : 'opacity-40'
+      : ''
 
   return (
     <div
@@ -29,10 +48,12 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
       } ${style.bg} ${style.glow} ${
         isSelected
           ? 'ring-2 ring-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.4)]'
+          : isFocusNeighbor
+          ? 'ring-1 ring-violet-500/45 shadow-[0_0_14px_rgba(139,92,246,0.2)]'
           : isBlastRadius
           ? 'ring-1 ring-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.25)] border-amber-500/50'
           : ''
-      }`}
+      } ${isDimmed ? 'opacity-30' : blastOpacity}`}
     >
       <Handle
         type="target"

@@ -4,7 +4,6 @@ import {
   Activity,
   GitFork,
   Cpu,
-  Trash2,
   Bot,
 } from 'lucide-react'
 import type { Plan } from '../../types/contracts'
@@ -17,7 +16,6 @@ interface HeaderBarProps {
   plans: string[]
   onSelectPlan: (slug: string) => void
   activeWorkers: number
-  onDeletePlanClick?: () => void
   currentView?: CockpitView
   onChangeView?: (view: CockpitView) => void
 }
@@ -28,7 +26,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   plans,
   onSelectPlan,
   activeWorkers,
-  onDeletePlanClick,
   currentView = 'dag',
   onChangeView,
 }) => {
@@ -66,16 +63,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             ))}
             {plans.length === 0 && !activePlan && <option value="">(No active plans)</option>}
           </select>
-
-          {activePlan && onDeletePlanClick && (
-            <button
-              onClick={onDeletePlanClick}
-              className="rounded border border-zinc-800 bg-zinc-950 p-1 text-zinc-500 hover:border-rose-900/50 hover:bg-rose-950/20 hover:text-rose-400"
-              title={`Delete plan '${activePlan.slug}' and cascading tasks`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
 
           {activePlan && (
             <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-500/20">

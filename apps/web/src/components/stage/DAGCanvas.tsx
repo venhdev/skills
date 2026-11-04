@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -8,11 +8,11 @@ import {
   MiniMap,
   type Node,
   type Edge,
-  type Connection,
   MarkerType,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { GitFork, Kanban } from 'lucide-react'
+import dagre from '@dagrejs/dagre'
+import { GitFork, Kanban, Zap } from 'lucide-react'
 import { TaskNode } from './TaskNode'
 import { SwimlanesView } from './SwimlanesView'
 import type { Task } from '../../types/contracts'
@@ -22,11 +22,28 @@ interface DAGCanvasProps {
   selectedTaskId: string | null
   onSelectTask: (task: Task, source?: 'sidebar' | 'canvas' | 'dock') => void
   focusTarget?: { id: string; timestamp: number } | null
-  onUpdateDependencies?: (taskId: string, dependencies: string[]) => Promise<any>
 }
 
 const nodeTypes = {
   taskNode: TaskNode,
+}
+
+const NODE_WIDTH = 256
+
+// Task cards grow with their status-specific sections. Feeding an estimated
+// height into Dagre keeps nodes from overlapping without needing a DOM
+// measurement pass.
+function estimateNodeHeight(task: Task): number {
+  let height = 120
+  if (task.dependencies && task.dependencies.length > 0) height += 16
+  if (task.status === 'RUNNING') {
+    height += task.orchestrator_id ? 36 : 20
+  } else if (task.status === 'SUSPENDED') {
+    height += 22
+  } else if (task.status === 'COMPLETED' && task.claimed_by) {
+    height += 20
+  }
+  return height
 }
 
 // Focus handler sub-component that uses useReactFlow hook
@@ -57,7 +74,11 @@ function FlowFocusHandler({
 }
 
 // Compute topological depths for left-to-right DAG layout
-function computeLayout(tasks: Task[]): { nodes: Node[]; edges: Edge[] } {
+function computeLayout(tasks: Task[]): {
+  nodes: Node[]
+  edges: Edge[]
+  depthMap: Map<string, number>
+} {
   const taskMap = new Map<string, Task>()
   tasks.forEach((t) => taskMap.set(t.id, t))
 
@@ -85,32 +106,58 @@ function computeLayout(tasks: Task[]): { nodes: Node[]; edges: Edge[] } {
 
   tasks.forEach((t) => getDepth(t.id))
 
-  // Group tasks by depth level
-  const levels = new Map<number, Task[]>()
-  tasks.forEach((t) => {
-    const d = depthMap.get(t.id) || 0
-    if (!levels.has(d)) levels.set(d, [])
-    levels.get(d)!.push(t)
+  // Dagre performs rank assignment, crossing minimization, and variable
+  // node-height spacing. Depth is still derived from dependencies because the
+  // edge hierarchy must not depend on pixel positions.
+  const graph = new dagre.graphlib.Graph()
+  graph.setGraph({
+    rankdir: 'LR',
+    nodesep: 36,
+    ranksep: 90,
+    marginx: 24,
+    marginy: 24,
+    acyclicer: 'greedy',
+    ranker: 'network-simplex',
+  })
+  graph.setDefaultEdgeLabel(() => ({}))
+
+  tasks.forEach((task) => {
+    graph.setNode(task.id, {
+      width: NODE_WIDTH,
+      height: estimateNodeHeight(task),
+    })
+  })
+  tasks.forEach((task) => {
+    task.dependencies?.forEach((depId) => {
+      if (taskMap.has(depId)) {
+        graph.setEdge(depId, task.id)
+      }
+    })
   })
 
-  // Build nodes with (x, y) coordinates
-  const nodes: Node[] = []
-  levels.forEach((levelTasks, depth) => {
-    levelTasks.forEach((task, index) => {
-      nodes.push({
-        id: task.id,
-        type: 'taskNode',
-        position: {
-          x: depth * 320 + 50,
-          y: index * 160 + 50,
-        },
-        data: {
-          task,
-          isSelected: false,
-          onSelect: () => {},
-        },
-      })
-    })
+  dagre.layout(graph)
+
+  // Build nodes from Dagre's top-left coordinates.
+  const nodes: Node[] = tasks.map((task) => {
+    const position = graph.node(task.id) as
+      | { x: number; y: number; width: number; height: number }
+      | undefined
+    const width = position?.width ?? NODE_WIDTH
+    const height = position?.height ?? estimateNodeHeight(task)
+
+    return {
+      id: task.id,
+      type: 'taskNode',
+      position: {
+        x: (position?.x ?? 0) - width / 2,
+        y: (position?.y ?? 0) - height / 2,
+      },
+      data: {
+        task,
+        isSelected: false,
+        onSelect: () => {},
+      },
+    }
   })
 
   // Build directed edges
@@ -144,24 +191,67 @@ function computeLayout(tasks: Task[]): { nodes: Node[]; edges: Edge[] } {
     }
   })
 
-  return { nodes, edges }
+  return { nodes, edges, depthMap }
 }
 
-// Compute topological blast radius: set of all tasks that transitively depend on selectedId
-function getDownstreamBlastRadius(selectedId: string | null, tasks: Task[]): Set<string> {
-  const downstream = new Set<string>()
-  if (!selectedId) return downstream
-  const queue = [selectedId]
-  while (queue.length > 0) {
-    const current = queue.shift()!
-    for (const t of tasks) {
-      if (t.dependencies && t.dependencies.includes(current) && !downstream.has(t.id)) {
-        downstream.add(t.id)
-        queue.push(t.id)
-      }
+// Direct neighborhood of the selected task: the task itself, its prerequisites,
+// and the tasks that depend on it.
+function getDirectNeighbors(selectedId: string | null, tasks: Task[]): Set<string> {
+  const neighbors = new Set<string>()
+  if (!selectedId) return neighbors
+
+  neighbors.add(selectedId)
+  const selected = tasks.find((t) => t.id === selectedId)
+  selected?.dependencies?.forEach((depId) => neighbors.add(depId))
+
+  for (const task of tasks) {
+    if (task.dependencies?.includes(selectedId)) {
+      neighbors.add(task.id)
     }
   }
-  return downstream
+  return neighbors
+}
+
+// BFS depth map for every task downstream of the selected task.
+// Depth 1 = direct dependent, depth 2 = its dependents, and so on.
+function getDownstreamDepth(selectedId: string | null, tasks: Task[]): Map<string, number> {
+  const depths = new Map<string, number>()
+  if (!selectedId) return depths
+
+  let frontier = [selectedId]
+  let depth = 0
+
+  while (frontier.length > 0) {
+    depth += 1
+    const next: string[] = []
+    for (const current of frontier) {
+      for (const task of tasks) {
+        if (
+          task.dependencies?.includes(current) &&
+          task.id !== selectedId &&
+          !depths.has(task.id)
+        ) {
+          depths.set(task.id, depth)
+          next.push(task.id)
+        }
+      }
+    }
+    frontier = next
+  }
+
+  return depths
+}
+
+// Blast edges are edges that stay inside the downstream subgraph so the
+// selected task and every task it can impact remain connected.
+function isDownstreamEdge(
+  edge: Edge,
+  selectedId: string | null,
+  depths: Map<string, number>
+): boolean {
+  if (!selectedId) return false
+  if (edge.source === selectedId) return depths.has(edge.target)
+  return depths.has(edge.source) && depths.has(edge.target)
 }
 
 const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
@@ -169,50 +259,11 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
   selectedTaskId,
   onSelectTask,
   focusTarget,
-  onUpdateDependencies,
 }) => {
   const [viewMode, setViewMode] = useState<'dag' | 'swimlanes'>('dag')
+  const [showBlast, setShowBlast] = useState(false)
   const [isMapActive, setIsMapActive] = useState(false)
   const mapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const handleConnect = useCallback(
-    (connection: Connection) => {
-      if (!onUpdateDependencies || !connection.source || !connection.target) return
-      if (connection.source === connection.target) return
-      const targetTask = tasks.find((t) => t.id === connection.target)
-      if (!targetTask) return
-      const currentDeps = targetTask.dependencies || []
-      if (!currentDeps.includes(connection.source)) {
-        const newDeps = [...currentDeps, connection.source]
-        onUpdateDependencies(targetTask.id, newDeps)
-      }
-    },
-    [onUpdateDependencies, tasks]
-  )
-
-  const handleEdgesDelete = useCallback(
-    (deletedEdges: Edge[]) => {
-      if (!onUpdateDependencies || deletedEdges.length === 0) return
-      const targetMap = new Map<string, Set<string>>()
-      deletedEdges.forEach((edge) => {
-        if (!targetMap.has(edge.target)) {
-          targetMap.set(edge.target, new Set())
-        }
-        targetMap.get(edge.target)!.add(edge.source)
-      })
-
-      targetMap.forEach((deletedSources, targetId) => {
-        const targetTask = tasks.find((t) => t.id === targetId)
-        if (targetTask) {
-          const newDeps = (targetTask.dependencies || []).filter(
-            (dep) => !deletedSources.has(dep)
-          )
-          onUpdateDependencies(targetTask.id, newDeps)
-        }
-      })
-    },
-    [onUpdateDependencies, tasks]
-  )
 
   const handleMapActivity = () => {
     setIsMapActive(true)
@@ -242,43 +293,153 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
 
   const { nodes, edges } = useMemo(() => {
     const layout = computeLayout(tasks)
-    const blastSet = getDownstreamBlastRadius(selectedTaskId, tasks)
+    const directNeighbors = getDirectNeighbors(selectedTaskId, tasks)
+    const blastDepth = showBlast
+      ? getDownstreamDepth(selectedTaskId, tasks)
+      : new Map<string, number>()
 
-    const updatedNodes = layout.nodes.map((node) => ({
-      ...node,
-      data: {
-        task: (node.data as { task: Task }).task,
-        isSelected: node.id === selectedTaskId,
-        isBlastRadius: blastSet.has(node.id),
-        onSelect: (t: Task) => onSelectTask(t, 'canvas'),
-      },
-    }))
+    const updatedNodes = layout.nodes.map((node) => {
+      const isSelected = node.id === selectedTaskId
+      const isDirectNeighbor = directNeighbors.has(node.id)
+      const blastDepthValue = blastDepth.get(node.id)
+      // Depth 1 nodes are immediate dependents and already part of the direct
+      // neighborhood; only deeper descendants get the blast badge/ring.
+      const isBlastRadius =
+        !!selectedTaskId &&
+        !isSelected &&
+        blastDepthValue !== undefined &&
+        blastDepthValue > 1
+      // Direct neighbors stay readable; only nodes outside the focused
+      // neighborhood (and blast radius when enabled) are dimmed.
+      const isDimmed =
+        !!selectedTaskId && !isSelected && !isDirectNeighbor && !isBlastRadius
+
+      return {
+        ...node,
+        data: {
+          task: (node.data as { task: Task }).task,
+          isSelected,
+          isFocusNeighbor: !!selectedTaskId && !isSelected && isDirectNeighbor,
+          isBlastRadius,
+          isDimmed,
+          blastDepth: blastDepthValue,
+          onSelect: (t: Task) => onSelectTask(t, 'canvas'),
+        },
+      }
+    })
 
     const updatedEdges = layout.edges.map((edge) => {
-      const isBlastEdge =
-        (edge.source === selectedTaskId && blastSet.has(edge.target)) ||
-        (blastSet.has(edge.source) && blastSet.has(edge.target))
+      const touchesSelected =
+        edge.source === selectedTaskId || edge.target === selectedTaskId
+      const isBlastEdge = isDownstreamEdge(edge, selectedTaskId, blastDepth)
+      const isRelated = touchesSelected || isBlastEdge
+      const sourceDepth = layout.depthMap.get(edge.source)
+      const targetDepth = layout.depthMap.get(edge.target)
+      // A level edge connects adjacent topological columns. Direct edges that
+      // skip columns are visually redundant (the intermediate path already
+      // explains the flow) and cause long lines across unrelated nodes.
+      const isLevelEdge =
+        sourceDepth !== undefined &&
+        targetDepth !== undefined &&
+        targetDepth === sourceDepth + 1
+      const isShortcutEdge = touchesSelected && !isLevelEdge
 
-      if (isBlastEdge) {
+      // Fade every edge outside the focused neighborhood. Without this, a
+      // root selection leaves nearly every dependency line equally bright.
+      if (selectedTaskId && !isRelated) {
         return {
           ...edge,
-          animated: true,
+          animated: false,
+          zIndex: 0,
+          style: {
+            ...edge.style,
+            stroke: '#3f3f46',
+            strokeWidth: 1,
+            opacity: 0.06,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#3f3f46',
+            width: 10,
+            height: 10,
+          },
+        }
+      }
+
+      // Skip-level direct edges are real dependencies, but drawing them as
+      // strongly as the adjacent-column path creates long lines across the
+      // graph. Keep them visible as a quiet secondary cue.
+      if (selectedTaskId && isShortcutEdge) {
+        return {
+          ...edge,
+          animated: false,
+          zIndex: 0,
+          style: {
+            ...edge.style,
+            stroke: '#8b5cf6',
+            strokeWidth: 1,
+            opacity: 0.35,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#8b5cf6',
+            width: 10,
+            height: 10,
+          },
+        }
+      }
+
+      // Nodes carry the focus; direct edges stay as quiet, solid guides.
+      if (selectedTaskId && touchesSelected) {
+        return {
+          ...edge,
+          animated: false,
+          zIndex: 1,
+          style: {
+            ...edge.style,
+            stroke: '#8b5cf6',
+            strokeWidth: 1.75,
+            opacity: 0.55,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: '#8b5cf6',
+            width: 13,
+            height: 13,
+          },
+        }
+      }
+
+      if (selectedTaskId && isBlastEdge) {
+        const depth = Math.max(
+          2,
+          blastDepth.get(edge.target) ?? blastDepth.get(edge.source) ?? 2
+        )
+        const opacity = depth <= 2 ? 0.4 : depth === 3 ? 0.25 : 0.15
+        return {
+          ...edge,
+          animated: false,
+          zIndex: 1,
           style: {
             ...edge.style,
             stroke: '#f59e0b',
-            strokeWidth: 2.5,
+            strokeWidth: 1.5,
+            opacity,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: '#f59e0b',
+            width: 12,
+            height: 12,
           },
         }
       }
+
       return edge
     })
 
     return { nodes: updatedNodes, edges: updatedEdges }
-  }, [tasks, selectedTaskId, onSelectTask])
+  }, [tasks, selectedTaskId, showBlast, onSelectTask])
 
   return (
     <main className="relative flex flex-1 flex-col h-full w-full min-h-0 overflow-hidden bg-zinc-950">
@@ -309,8 +470,29 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
           </button>
         </div>
 
-        <div className="text-[11px] font-mono text-zinc-500">
-          {tasks.length} total tasks
+        <div className="flex items-center gap-3">
+          {viewMode === 'dag' && selectedTaskId && (
+            <button
+              onClick={() => setShowBlast((value) => !value)}
+              className={`flex items-center gap-1.5 rounded border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                showBlast
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                  : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Show depth-graded downstream blast radius"
+            >
+              <Zap
+                className={`h-3.5 w-3.5 ${
+                  showBlast ? 'fill-amber-400 text-amber-400' : 'text-zinc-500'
+                }`}
+              />
+              <span>Blast Radius {showBlast ? 'On' : 'Off'}</span>
+            </button>
+          )}
+
+          <div className="text-[11px] font-mono text-zinc-500">
+            {tasks.length} total tasks
+          </div>
         </div>
       </div>
 
@@ -341,8 +523,8 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
-            onConnect={handleConnect}
-            onEdgesDelete={handleEdgesDelete}
+            nodesConnectable={false}
+            deleteKeyCode={null}
             fitView
             fitViewOptions={{ padding: 0.25, includeHiddenNodes: false }}
             minZoom={0.1}
