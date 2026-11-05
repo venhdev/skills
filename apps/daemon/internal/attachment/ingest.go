@@ -113,6 +113,33 @@ func Ingest(taskID, srcPath, displayName string) (domain.Artifact, error) {
 	}, nil
 }
 
+// Remove deletes a copied attachment. Paths outside the attachment root are
+// refused. A missing file is treated as already removed.
+func Remove(filePath string) error {
+	root, err := storageRoot()
+	if err != nil {
+		return err
+	}
+
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return err
+	}
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(absRoot, absFile)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("%s is outside the attachment store", filePath)
+	}
+
+	if err := os.Remove(absFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove %s: %w", filePath, err)
+	}
+	return nil
+}
+
 // ValidateTaskID rejects values that would escape the attachment directory when
 // used as a path component.
 func ValidateTaskID(taskID string) error {

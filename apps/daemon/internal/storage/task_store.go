@@ -270,6 +270,86 @@ func (r *TaskRepository) ListTasks(ctx context.Context, status domain.TaskStatus
 	return tasks, rows.Err()
 }
 
+// UpdateTaskMetadata applies a partial metadata patch to a READY or PENDING
+// task. Dependency changes revalidate the plan graph and re-derive the status.
+func (r *TaskRepository) UpdateTaskMetadata(ctx context.Context, taskID string, patch domain.TaskPatch) error {
+	now := time.Now().UTC()
+	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		task, err := getTaskTx(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if task.Status != domain.StatusReady && task.Status != domain.StatusPending {
+			return fmt.Errorf("%w: task %s is %s; metadata can only change while READY or PENDING", ErrInvalidState, taskID, task.Status)
+		}
+
+		applyTaskPatch(task, patch)
+		if err := patchTaskTx(ctx, tx, task, now); err != nil {
+			return err
+		}
+		if err := validateTaskGraphTx(ctx, tx, task.PlanID); err != nil {
+			return err
+		}
+		return resyncTaskStatuses(ctx, tx, task.PlanID, []domain.Task{*task}, now)
+	})
+}
+
+// applyTaskPatch copies non-nil patch fields onto the task.
+func applyTaskPatch(task *domain.Task, patch domain.TaskPatch) {
+	if patch.Title != nil {
+		task.Title = *patch.Title
+	}
+	if patch.Description != nil {
+		task.Description = *patch.Description
+	}
+	if patch.Dependencies != nil {
+		task.Dependencies = *patch.Dependencies
+	}
+	if patch.Priority != nil {
+		task.Priority = *patch.Priority
+	}
+	if patch.Complexity != nil {
+		task.Complexity = *patch.Complexity
+	}
+	if patch.RiskLevel != nil {
+		task.RiskLevel = *patch.RiskLevel
+	}
+	if patch.RequiredSkills != nil {
+		task.RequiredSkills = *patch.RequiredSkills
+	}
+	if patch.RequiredTools != nil {
+		task.RequiredTools = *patch.RequiredTools
+	}
+	if patch.TargetFiles != nil {
+		task.TargetFiles = *patch.TargetFiles
+	}
+	if patch.AcceptanceCriteria != nil {
+		task.AcceptanceCriteria = *patch.AcceptanceCriteria
+	}
+	if patch.VerificationCommands != nil {
+		task.VerificationCommands = *patch.VerificationCommands
+	}
+	if patch.Harness != nil {
+		task.Harness = *patch.Harness
+	}
+	if patch.WorktreePath != nil {
+		task.WorktreePath = *patch.WorktreePath
+	}
+}
+
+// getTaskTx reads a task inside an existing transaction.
+func getTaskTx(ctx context.Context, tx *sql.Tx, taskID string) (*domain.Task, error) {
+	query := fmt.Sprintf("SELECT %s FROM tasks WHERE id = ?", taskSelectCols)
+	task, err := scanTask(tx.QueryRowContext(ctx, query, taskID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("%w: task %s", ErrNotFound, taskID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query task %s: %w", taskID, err)
+	}
+	return task, nil
+}
+
 // CreateTask inserts a single task. It fails with ErrAlreadyExists when the ID
 // is taken; callers that mean to edit authoring metadata must not use it.
 func (r *TaskRepository) CreateTask(ctx context.Context, task domain.Task) error {

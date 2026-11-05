@@ -166,6 +166,25 @@ type Task struct {
 	DependenciesCorrupt bool `json:"-"`
 }
 
+// TaskPatch carries authoring metadata for a partial update. Nil fields are
+// left untouched; a non-nil empty slice clears a list, and a non-nil empty
+// string clears a text field.
+type TaskPatch struct {
+	Title                *string
+	Description          *string
+	Dependencies         *[]string
+	Priority             *TaskPriority
+	Complexity           *TaskComplexity
+	RiskLevel            *TaskRisk
+	RequiredSkills       *[]string
+	RequiredTools        *[]string
+	TargetFiles          *[]string
+	AcceptanceCriteria   *[]string
+	VerificationCommands *[]string
+	Harness              *string
+	WorktreePath         *string
+}
+
 // Validate checks task integrity.
 func (t *Task) Validate() error {
 	if t.ID == "" {

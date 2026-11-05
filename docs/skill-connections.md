@@ -8,7 +8,7 @@ updated: 2026-11-02
 
 # ZenForge Skill Connections
 
-This document owns the connection map for all 38 skills. Three views show the same
+This document owns the connection map for all 39 skills. Three views show the same
 network; repeated nodes refer to the same skill. Arrows describe conditional
 handoffs, not a required sequence of invocations.
 
@@ -34,6 +34,7 @@ flowchart LR
         distill["/distill"]
         clarify["/clarify"]
         architect["/architect-decision"]
+        conform["/conform-design"]
         freeze["/freeze-contracts"]
         seam["/plan-seam"]
     end
@@ -78,6 +79,10 @@ flowchart LR
     skeleton -->|Architecture plumbing rejected| architect
     diagnose -->|Candidate and direction supplied| spike
     diagnose -->|Solution direction needs selection| architect
+    diagnose -->|Confirmed root-cause in settled architecture| conform
+    conform -->|Settled conformant design| changeset
+    conform -->|Needs empirical proof| spike
+    conform -->|Ambiguous trade-off requires deliberation| clarify
     spike -->|Proven solution accepted| changeset
     spike -->|Requirements need resolution| clarify
     spike -->|Original direction cannot hold| architect

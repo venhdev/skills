@@ -70,6 +70,6 @@ PLAN | slug: <slug> | rev: <v1.N> | status: <STATUS> | active: <phase-id> | veri
 
 1. **Ingest & Parse**: Ingest operation (`init`, `claim`, `verify`, `drift`, `amend`), initiative slug, and target phase ID or proof payload.
 2. **Authorize & Mutate**:
-   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the plan and the complete task DAG in SQLite SSOT with `plans(action=create)` then one batched `tasks(action=create)`. If the phase needs design references, attach them with `attach_media` while the task is still `READY`/`PENDING`.
+   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the plan and the complete task DAG in SQLite SSOT with `plans(action=create)` then one batched `tasks(action=create)`. If a phase needs design references, pass them in that task's `media[]` while the task is still `READY`/`PENDING`.
    - For `claim / verify / drift / amend`: Read existing dashboard, validate state transition rules, apply atomic update to `README.md`, and reconcile overall initiative state.
 3. **Emit & Report**: Render Canonical Output Contract (or micro-token for autonomous runners) and halt turn.

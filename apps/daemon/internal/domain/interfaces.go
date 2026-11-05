@@ -45,6 +45,10 @@ type TaskRepository interface {
 	// CreateTasks inserts a batch atomically and validates the plan graph once.
 	CreateTasks(ctx context.Context, tasks []Task) error
 
+	// UpdateTaskMetadata patches authoring metadata on a READY or PENDING task.
+	// Dependency changes revalidate the graph and re-derive the task status.
+	UpdateTaskMetadata(ctx context.Context, taskID string, patch TaskPatch) error
+
 	// UpdateTaskDependencies updates the task dependency list.
 	UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error
 
@@ -97,6 +101,10 @@ type ArtifactRepository interface {
 
 	// GetArtifactsByTask returns all artifacts associated with a task, optionally filtered by role ("INPUT" | "OUTPUT").
 	GetArtifactsByTask(ctx context.Context, taskID string, role string) ([]Artifact, error)
+
+	// DeleteArtifact removes an artifact owned by taskID and returns it so the
+	// caller can delete the backing file.
+	DeleteArtifact(ctx context.Context, taskID string, artifactID string) (*Artifact, error)
 }
 
 // ArtifactReader is the narrow read seam used by context packet assembly.

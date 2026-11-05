@@ -66,8 +66,9 @@ Conditions and proof limits: <assumptions, substitutions, missing evidence, and 
 
 ### Routing
 
+- Root-cause findings in an established architecture need eco-conformant design → (via /conform-design).
 - An existing candidate and direction need solution proof → (via /spike).
-- Root-cause findings need a solution direction → (via /architect-decision).
+- Root-cause findings need a macro architectural direction or trade-off decision → (via /architect-decision).
 - Environment defects or missing runtime dependencies prevent reproduction → (via /env-doctor).
 
 ## Execution Protocol

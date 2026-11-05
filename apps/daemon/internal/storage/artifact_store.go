@@ -83,20 +83,29 @@ func (r *ArtifactRepository) GetArtifact(ctx context.Context, id string) (*domai
 	query := `SELECT ` + artifactSelectCols + ` FROM artifacts WHERE id = ?`
 	row := r.db.QueryRow(ctx, query, id)
 
-	var art domain.Artifact
-	var typeStr string
-	var name sql.NullString
-
-	err := row.Scan(
-		&art.ID, &art.TaskID, &art.Role, &name,
-		&typeStr, &art.FilePath, &art.MimeType, &art.ByteSize,
-		&art.Sha256, &art.CreatedAt,
-	)
+	art, err := scanArtifact(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query artifact: %w", err)
+	}
+	return art, nil
+}
+
+// scanArtifact maps one artifacts row. The destination order must match
+// artifactSelectCols.
+func scanArtifact(s scanner) (*domain.Artifact, error) {
+	var art domain.Artifact
+	var typeStr string
+	var name sql.NullString
+
+	if err := s.Scan(
+		&art.ID, &art.TaskID, &art.Role, &name,
+		&typeStr, &art.FilePath, &art.MimeType, &art.ByteSize,
+		&art.Sha256, &art.CreatedAt,
+	); err != nil {
+		return nil, err
 	}
 
 	if name.Valid {
@@ -104,6 +113,46 @@ func (r *ArtifactRepository) GetArtifact(ctx context.Context, id string) (*domai
 	}
 	art.Type = domain.ArtifactType(typeStr)
 	return &art, nil
+}
+
+// DeleteArtifact removes an artifact owned by taskID and returns it so the
+// caller can delete the backing file.
+func (r *ArtifactRepository) DeleteArtifact(ctx context.Context, taskID string, artifactID string) (*domain.Artifact, error) {
+	var deleted *domain.Artifact
+	err := r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		query := fmt.Sprintf("SELECT %s FROM artifacts WHERE id = ? AND task_id = ?", artifactSelectCols)
+		art, err := scanArtifact(tx.QueryRowContext(ctx, query, artifactID, taskID))
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: artifact %s for task %s", ErrNotFound, artifactID, taskID)
+		}
+		if err != nil {
+			return err
+		}
+
+		if art.Role == domain.ArtifactRoleInput {
+			if err := assertInputAllowed(ctx, tx, taskID); err != nil {
+				return err
+			}
+		}
+
+		res, err := tx.ExecContext(ctx, "DELETE FROM artifacts WHERE id = ?", artifactID)
+		if err != nil {
+			return err
+		}
+		rows, err := affectedOrErr(res, "delete artifact", artifactID)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return fmt.Errorf("%w: artifact %s", ErrNotFound, artifactID)
+		}
+		deleted = art
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return deleted, nil
 }
 
 // GetArtifactsByTask retrieves all artifacts associated with a task, optionally filtered by role ("INPUT" | "OUTPUT").
@@ -133,23 +182,11 @@ func (r *ArtifactRepository) GetArtifactsByTask(ctx context.Context, taskID stri
 
 	var artifacts []domain.Artifact
 	for rows.Next() {
-		var art domain.Artifact
-		var typeStr string
-		var name sql.NullString
-
-		err := rows.Scan(
-			&art.ID, &art.TaskID, &art.Role, &name,
-			&typeStr, &art.FilePath, &art.MimeType, &art.ByteSize,
-			&art.Sha256, &art.CreatedAt,
-		)
+		art, err := scanArtifact(rows)
 		if err != nil {
 			return nil, err
 		}
-		if name.Valid {
-			art.Name = name.String
-		}
-		art.Type = domain.ArtifactType(typeStr)
-		artifacts = append(artifacts, art)
+		artifacts = append(artifacts, *art)
 	}
 
 	return artifacts, rows.Err()

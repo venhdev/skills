@@ -85,3 +85,34 @@ func TestIngest_RejectsMissingAndDirectorySources(t *testing.T) {
 		t.Error("expected directory source to be rejected")
 	}
 }
+
+func TestRemove_ConstrainsToAttachmentRoot(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv(attachment.RootEnv, root)
+
+	inside := filepath.Join(root, "T-01", "a.png")
+	if err := os.MkdirAll(filepath.Dir(inside), 0o755); err != nil {
+		t.Fatalf("failed to create dir: %v", err)
+	}
+	if err := os.WriteFile(inside, []byte("x"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	if err := attachment.Remove(inside); err != nil {
+		t.Fatalf("Remove inside root failed: %v", err)
+	}
+	if err := attachment.Remove(inside); err != nil {
+		t.Fatalf("Remove should be idempotent: %v", err)
+	}
+
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("x"), 0o644); err != nil {
+		t.Fatalf("failed to write outside file: %v", err)
+	}
+	if err := attachment.Remove(outside); err == nil {
+		t.Fatal("expected Remove outside the root to fail")
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Errorf("outside file must be preserved: %v", err)
+	}
+}

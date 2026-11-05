@@ -123,12 +123,11 @@ unless `include_archived` / `Show archived` is enabled.
 
 | Tool | Behavior | Required | Optional |
 | :--- | :--- | :--- | :--- |
-| `plans` | `create` a plan or retitle an existing one; `archive`/`unarchive`; `list`. | `action` | `slug`, `title`, `include_archived` |
-| `tasks` | `create` a batch atomically; `get` one task with its `ContextPacket`; `list` by plan or status. | `action`; `plan_id` + `tasks[]` (create), `task_id` (get) | per task: `description`, `dependencies`, `target_files`, `skills`, `acceptance_criteria`, `verification_commands`, `priority`, `harness`, `worktree_path`; `status` (list) |
+| `plans` | `create` a plan or retitle an existing one, optionally with the whole `tasks[]` DAG; `archive`/`unarchive`; `list`. | `action` | `slug`, `title`, `include_archived`, `tasks[]` |
+| `tasks` | `create` an atomic batch with optional inline media; `get` metadata or the `ContextPacket`; `list`; `update` authoring metadata and media. | `action`; `plan_id` + `tasks[]` (create), `task_id` (get/update) | per create task: `description`, `dependencies`, `target_files`, `skills`, `acceptance_criteria`, `verification_commands`, `priority`, `harness`, `worktree_path`, `media[]`; get: `include_packet`; list: `plan_id` or `status`; update: metadata fields, `media_add[]`, `media_remove[]` |
 | `claim_task` | Claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` | `worker_id`, `orchestrator_id`, `worker_role` |
 | `review` | `request` pauses at `AWAITING_REVIEW` with a drift question; `resolve` records the human decision and returns to `READY`. | `action`, `task_id` | `reason`, `details`, `options` (request); `response` (resolve) |
 | `transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL` to many tasks; returns `results[]`. | `task_ids`, `action` | `reason`, `summary`, `merge_outcome` |
-| `attach_media` | Copy a local image/PDF/document into the attachment store as an `INPUT` artifact for the next claim. | `task_id`, `file_path` | `name` |
 
 Clients namespace tools by server name. OpenCode shows them as `zenfd.plans`,
 `zenfd.tasks`, and so on; Claude Code uses `mcp__zenfd__plans`.
@@ -141,13 +140,31 @@ self-dependencies are rejected, and initial status is derived from prerequisites
 
 | Surface | Use |
 | :--- | :--- |
-| MCP (stdio) | Agent path: plans, batched tasks, claim, review, transitions, media. |
+| MCP (stdio) | Agent path: plans, batched tasks with inline media, claim, review, transitions. |
 | `zenfd` CLI | `zenfd push`, task status, claim. |
 | HTTP API | Scripted clients: `POST /api/v1/plans`, `PATCH|DELETE /api/v1/plans/{slug}`, `POST /api/v1/tasks`, `POST /api/v1/tasks/{id}/{status,claim,evict}`, `PATCH /api/v1/tasks/{id}/context`, `POST /api/v1/tasks/{id}/attachments`. Cross-origin browser writes are rejected. |
 | Web Cockpit | Read-only: plans/tasks/DAG, artifacts, Live Log (`GET /api/v1/events`). |
 
 Every mutation is recorded by database triggers, so the Live Log shows MCP, CLI,
 HTTP, and raw SQLite writes alike.
+
+## Media
+
+Attach media inline while creating or updating a task:
+
+```json
+{
+  "action": "create",
+  "plan_id": "auth-refactor",
+  "tasks": [
+    { "id": "P-01", "title": "Checkout redesign", "media": [{ "file_path": "/abs/design.png" }] }
+  ]
+}
+```
+
+`tasks(action="update", task_id, media_add=[...], media_remove=[...])` adds or
+removes media on a `READY`/`PENDING` task. Files are copied under
+`~/.zenforge/attachments/<task>/` and capped at 25 MB.
 
 ## Review and merge
 
@@ -163,7 +180,7 @@ and blocks downstream dependents; `RESET`/`CANCEL` apply to `RUNNING`.
 ## Live verification
 
 1. Configure the client (`zenfd mcp check --client <name>`, or edit the manual
-   file), restart the session, and confirm the 6 tools above are listed.
+   file), restart the session, and confirm the 5 tools above are listed.
 2. Call `tasks(action=list)` and confirm the daemon responds.
 3. Create a disposable plan and task, claim it, and complete it with
    `transition_task`; optionally request and resolve a review.

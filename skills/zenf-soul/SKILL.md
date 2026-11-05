@@ -43,6 +43,7 @@ Orchestrate complex initiatives sequentially across 5 canonical gates:
 - Missing production precedent or failure-mode context → (via /scout).
 - A supplied candidate needs proof within its original direction → (via /spike).
 - A defect needs confirmed or inferred root-cause findings → (via /diagnose).
+- A confirmed defect or known problem needs an eco-conformant solution design → (via /conform-design).
 - A settled solution needs file-impact and cascade planning → (via /changeset).
 - Complex work needs in-memory vertical DAG decomposition → (via /split-tasks).
 - Tasks need persistence to configured backlog or issue tracker → (via /track-tasks).

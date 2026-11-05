@@ -79,7 +79,6 @@ func TestMCPServer_Surface(t *testing.T) {
 		"claim_task",
 		"review",
 		"transition_task",
-		"attach_media",
 	}
 	for _, name := range expectedTools {
 		if srv.mcpServer.GetTool(name) == nil {
@@ -88,6 +87,7 @@ func TestMCPServer_Surface(t *testing.T) {
 	}
 
 	removedTools := []string{
+		"attach_media",
 		"zenfd_plans",
 		"zenfd_tasks",
 		"zenfd_claim_task",
@@ -131,12 +131,13 @@ func TestMCPServer_RequiredParams(t *testing.T) {
 	srv, _ := newTestServer(t)
 
 	expected := map[string][]string{
-		"plans":           {"action"},
-		"tasks":           {"action"},
-		"claim_task":      {"task_id"},
-		"review":          {"action", "task_id"},
-		"transition_task": {"task_ids", "action"},
-		"attach_media":    {"task_id", "file_path"},
+		"plans":      {"action"},
+		"tasks":      {"action"},
+		"claim_task": {"task_id"},
+		"review":     {"action", "task_id"},
+		// transition_task accepts either task_ids+action or items[], so the
+		// schema enforces no single required field.
+		"transition_task": {},
 	}
 
 	for name, required := range expected {
@@ -435,52 +436,99 @@ func TestMCPServer_BatchCreateAndArchive(t *testing.T) {
 	}
 }
 
-func TestMCPServer_AttachMediaOnlyBeforeClaim(t *testing.T) {
+func TestMCPServer_TaskMediaLifecycle(t *testing.T) {
 	t.Setenv("ZENFD_ATTACHMENTS_DIR", t.TempDir())
 
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
 	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "media-plan", "title": "Media Plan"})
-	createTaskTool(t, srv, "media-plan", map[string]any{"id": "m-01", "title": "media task"})
 
 	src := filepath.Join(t.TempDir(), "design.png")
 	if err := os.WriteFile(src, []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
 		t.Fatalf("failed to write fixture: %v", err)
 	}
 
-	res := callTool(t, srv, "attach_media", map[string]any{
-		"task_id":   "m-01",
-		"file_path": src,
-		"name":      "Design mockup",
+	res := callTool(t, srv, "tasks", map[string]any{
+		"action":  "create",
+		"plan_id": "media-plan",
+		"tasks": []any{
+			map[string]any{
+				"id":    "m-01",
+				"title": "media task",
+				"media": []any{map[string]any{"file_path": src, "name": "Design mockup"}},
+			},
+		},
 	})
-	var artifact domain.Artifact
-	if err := json.Unmarshal([]byte(resultText(t, res)), &artifact); err != nil {
-		t.Fatalf("failed to decode artifact: %v", err)
+	var created struct {
+		Media []struct {
+			Artifact *domain.Artifact `json:"artifact"`
+			Error    string           `json:"error"`
+		} `json:"media"`
 	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &created); err != nil {
+		t.Fatalf("failed to decode create result: %v", err)
+	}
+	if len(created.Media) != 1 || created.Media[0].Artifact == nil {
+		t.Fatalf("expected one attached artifact, got %+v", created.Media)
+	}
+	artifact := *created.Media[0].Artifact
 	if artifact.Role != domain.ArtifactRoleInput || artifact.Name != "Design mockup" {
 		t.Errorf("unexpected artifact: %+v", artifact)
 	}
-
-	artifacts, err := store.GetArtifactsByTask(ctx, "m-01", string(domain.ArtifactRoleInput))
-	if err != nil {
-		t.Fatalf("GetArtifactsByTask failed: %v", err)
+	if _, err := os.Stat(artifact.FilePath); err != nil {
+		t.Errorf("attached file is missing: %v", err)
 	}
-	if len(artifacts) != 1 {
-		t.Fatalf("expected 1 input artifact, got %d", len(artifacts))
+
+	// Detach while READY: row and file both go away.
+	res = callTool(t, srv, "tasks", map[string]any{
+		"action":       "update",
+		"task_id":      "m-01",
+		"media_remove": []string{artifact.ID},
+	})
+	var removed struct {
+		Removed []struct {
+			ArtifactID string `json:"artifact_id"`
+			Removed    bool   `json:"removed"`
+			Error      string `json:"error"`
+		} `json:"media_removed"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &removed); err != nil {
+		t.Fatalf("failed to decode remove result: %v", err)
+	}
+	if len(removed.Removed) != 1 || !removed.Removed[0].Removed {
+		t.Fatalf("expected media removal, got %+v", removed.Removed)
+	}
+	if _, err := os.Stat(artifact.FilePath); !os.IsNotExist(err) {
+		t.Errorf("expected file removal, stat err = %v", err)
+	}
+	if left, err := store.GetArtifactsByTask(ctx, "m-01", string(domain.ArtifactRoleInput)); err != nil || len(left) != 0 {
+		t.Errorf("expected no input artifacts, got %d (err %v)", len(left), err)
+	}
+
+	// Attach again while READY, then claim.
+	callTool(t, srv, "tasks", map[string]any{
+		"action":    "update",
+		"task_id":   "m-01",
+		"media_add": []any{map[string]any{"file_path": src}},
+	})
+	artifacts, err := store.GetArtifactsByTask(ctx, "m-01", string(domain.ArtifactRoleInput))
+	if err != nil || len(artifacts) != 1 {
+		t.Fatalf("expected one re-attached artifact, got %d (err %v)", len(artifacts), err)
 	}
 
 	if _, err := store.ClaimTaskWithMeta(ctx, "m-01", "worker", "", "CODER"); err != nil {
 		t.Fatalf("claim failed: %v", err)
 	}
 
-	tool := srv.mcpServer.GetTool("attach_media")
+	tool := srv.mcpServer.GetTool("tasks")
 	late, err := tool.Handler(ctx, mcpgo.CallToolRequest{
 		Params: mcpgo.CallToolParams{
-			Name: "attach_media",
+			Name: "tasks",
 			Arguments: map[string]any{
+				"action":    "update",
 				"task_id":   "m-01",
-				"file_path": src,
+				"media_add": []any{map[string]any{"file_path": src}},
 			},
 		},
 	})
@@ -489,5 +537,167 @@ func TestMCPServer_AttachMediaOnlyBeforeClaim(t *testing.T) {
 	}
 	if late == nil || !late.IsError {
 		t.Fatalf("expected RUNNING task to reject media, got %+v", late)
+	}
+}
+
+func TestMCPServer_CreatePlanWithTasksAndMedia(t *testing.T) {
+	t.Setenv("ZENFD_ATTACHMENTS_DIR", t.TempDir())
+
+	srv, store := newTestServer(t)
+	ctx := context.Background()
+
+	src := filepath.Join(t.TempDir(), "spec.pdf")
+	if err := os.WriteFile(src, []byte("%PDF-1.4 fake"), 0o644); err != nil {
+		t.Fatalf("failed to write fixture: %v", err)
+	}
+
+	res := callTool(t, srv, "plans", map[string]any{
+		"action": "create",
+		"slug":   "inline-plan",
+		"title":  "Inline DAG",
+		"tasks": []any{
+			map[string]any{"id": "i-01", "title": "root"},
+			map[string]any{
+				"id":           "i-02",
+				"title":        "child",
+				"dependencies": []string{"i-01"},
+				"media":        []any{map[string]any{"file_path": src, "name": "Spec"}},
+			},
+		},
+	})
+	var payload struct {
+		TaskIDs []string `json:"task_ids"`
+		Media   []struct {
+			Artifact *domain.Artifact `json:"artifact"`
+			Error    string           `json:"error"`
+		} `json:"media"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &payload); err != nil {
+		t.Fatalf("failed to decode create result: %v", err)
+	}
+	if len(payload.TaskIDs) != 2 {
+		t.Fatalf("expected 2 tasks, got %v", payload.TaskIDs)
+	}
+	if len(payload.Media) != 1 || payload.Media[0].Artifact == nil {
+		t.Fatalf("expected media on the child task, got %+v", payload.Media)
+	}
+
+	root, err := store.GetTask(ctx, "i-01")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	child, err := store.GetTask(ctx, "i-02")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if root.Status != domain.StatusReady || child.Status != domain.StatusPending {
+		t.Errorf("unexpected statuses: root=%s child=%s", root.Status, child.Status)
+	}
+}
+
+func TestMCPServer_TaskUpdateMetadata(t *testing.T) {
+	srv, store := newTestServer(t)
+	ctx := context.Background()
+
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "update-plan", "title": "Update"})
+	createTaskTool(t, srv, "update-plan", map[string]any{"id": "u-01", "title": "old title"})
+	createTaskTool(t, srv, "update-plan", map[string]any{"id": "u-02", "title": "blocker"})
+
+	res := callTool(t, srv, "tasks", map[string]any{
+		"action":       "update",
+		"task_id":      "u-01",
+		"title":        "new title",
+		"dependencies": []string{"u-02"},
+		"priority":     "P0",
+	})
+	var payload struct {
+		Task domain.Task `json:"task"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &payload); err != nil {
+		t.Fatalf("failed to decode update result: %v", err)
+	}
+	if payload.Task.Title != "new title" || payload.Task.Priority != domain.PriorityP0 {
+		t.Errorf("metadata not applied: %+v", payload.Task)
+	}
+	if payload.Task.Status != domain.StatusPending {
+		t.Errorf("expected PENDING after adding an unfinished dependency, got %s", payload.Task.Status)
+	}
+
+	if err := store.UpdateTaskStatus(ctx, "u-02", domain.StatusReady, domain.StatusRunning); err != nil {
+		t.Fatalf("failed to start blocker: %v", err)
+	}
+	if err := store.UpdateTaskStatus(ctx, "u-02", domain.StatusRunning, domain.StatusCompleted); err != nil {
+		t.Fatalf("failed to complete blocker: %v", err)
+	}
+	updated, err := store.GetTask(ctx, "u-01")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if updated.Status != domain.StatusReady {
+		t.Errorf("expected READY after blocker completion, got %s", updated.Status)
+	}
+}
+
+func TestMCPServer_GetTaskPacketOptIn(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "get-plan", "title": "Get"})
+	createTaskTool(t, srv, "get-plan", map[string]any{"id": "g-01", "title": "read"})
+
+	res := callTool(t, srv, "tasks", map[string]any{"action": "get", "task_id": "g-01"})
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(resultText(t, res)), &metadata); err != nil {
+		t.Fatalf("failed to decode metadata: %v", err)
+	}
+	if _, ok := metadata["prompt_markdown"]; ok {
+		t.Error("default get must not compile a ContextPacket")
+	}
+
+	res = callTool(t, srv, "tasks", map[string]any{
+		"action": "get", "task_id": "g-01", "include_packet": true,
+	})
+	var packet domain.ContextPacket
+	if err := json.Unmarshal([]byte(resultText(t, res)), &packet); err != nil {
+		t.Fatalf("failed to decode packet: %v", err)
+	}
+	if packet.PromptMarkdown == "" {
+		t.Error("include_packet=true must return the prompt")
+	}
+}
+
+func TestMCPServer_MixedTransitions(t *testing.T) {
+	srv, store := newTestServer(t)
+	ctx := context.Background()
+
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "mix-plan", "title": "Mix"})
+	createTaskTool(t, srv, "mix-plan", map[string]any{"id": "x-01", "title": "pass"})
+	createTaskTool(t, srv, "mix-plan", map[string]any{"id": "x-02", "title": "fail"})
+	for _, id := range []string{"x-01", "x-02"} {
+		callTool(t, srv, "claim_task", map[string]any{"task_id": id})
+	}
+
+	res := callTool(t, srv, "transition_task", map[string]any{
+		"items": []any{
+			map[string]any{"task_id": "x-01", "action": "COMPLETE", "summary": "ok"},
+			map[string]any{"task_id": "x-02", "action": "FAIL", "reason": "bad"},
+		},
+	})
+	var payload struct {
+		Results []struct {
+			TaskID string `json:"task_id"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(resultText(t, res)), &payload); err != nil {
+		t.Fatalf("failed to decode results: %v", err)
+	}
+	if len(payload.Results) != 2 {
+		t.Fatalf("expected 2 results, got %+v", payload.Results)
+	}
+	first, _ := store.GetTask(ctx, "x-01")
+	second, _ := store.GetTask(ctx, "x-02")
+	if first.Status != domain.StatusCompleted || second.Status != domain.StatusFailed {
+		t.Errorf("unexpected statuses: %s / %s", first.Status, second.Status)
 	}
 }
