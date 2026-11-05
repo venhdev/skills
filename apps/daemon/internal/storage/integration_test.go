@@ -48,32 +48,17 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 		t.Fatalf("SavePlanWithTasks failed: %v", err)
 	}
 
-	// Launch concurrent writers: each task creates a run and beats 5 times
+	// Launch concurrent writers: each task is claimed, annotated, audited, and
+	// completed through the same serialized write path.
 	var wg sync.WaitGroup
-	errCh := make(chan error, numTasks*2)
+	errCh := make(chan error, numTasks*3)
 
 	for i := 0; i < numTasks; i++ {
 		taskID := fmt.Sprintf("task-%02d", i)
-		runID := fmt.Sprintf("run-%02d", i)
 
 		wg.Add(1)
-		go func(tID, rID string) {
+		go func(tID string) {
 			defer wg.Done()
-
-			// Create Run
-			run := domain.Run{
-				ID:        rID,
-				TaskID:    tID,
-				PID:       1000,
-				PGID:      1000,
-				Status:    domain.StatusRunning,
-				LogPath:   "/tmp/log",
-				StartedAt: time.Now().UTC(),
-			}
-			if err := store.CreateRun(ctx, run); err != nil {
-				errCh <- fmt.Errorf("CreateRun %s failed: %w", rID, err)
-				return
-			}
 
 			// Claim Task: READY -> RUNNING
 			if err := store.UpdateTaskStatus(ctx, tID, domain.StatusReady, domain.StatusRunning); err != nil {
@@ -81,13 +66,18 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 				return
 			}
 
-			// Heartbeat 3 times
-			for b := 0; b < 3; b++ {
-				if err := store.UpdateRunHeartbeat(ctx, rID, time.Now().UTC()); err != nil {
-					errCh <- fmt.Errorf("Heartbeat %s failed: %w", rID, err)
-					return
-				}
-				time.Sleep(2 * time.Millisecond)
+			if err := store.AppendTaskNotes(ctx, tID, "worker started"); err != nil {
+				errCh <- fmt.Errorf("AppendTaskNotes %s failed: %w", tID, err)
+				return
+			}
+
+			if err := store.AppendEvent(ctx, domain.EventMessage{
+				TaskID:  tID,
+				Type:    "task:status",
+				Payload: `{"status":"RUNNING"}`,
+			}); err != nil {
+				errCh <- fmt.Errorf("AppendEvent %s failed: %w", tID, err)
+				return
 			}
 
 			// Complete Task: RUNNING -> COMPLETED
@@ -95,7 +85,7 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 				errCh <- fmt.Errorf("CompleteTask %s failed: %w", tID, err)
 				return
 			}
-		}(taskID, runID)
+		}(taskID)
 	}
 
 	wg.Wait()
@@ -117,6 +107,9 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 	for _, task := range allTasks {
 		if task.Status != domain.StatusCompleted {
 			t.Errorf("Task %s is not COMPLETED, got: %s", task.ID, task.Status)
+		}
+		if task.Notes != "worker started" {
+			t.Errorf("Task %s notes = %q, want %q", task.ID, task.Notes, "worker started")
 		}
 	}
 }

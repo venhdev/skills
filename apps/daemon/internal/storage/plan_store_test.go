@@ -595,12 +595,11 @@ func TestPlanStore_PromptCompilerDelegation(t *testing.T) {
 	}
 	defer db.Close()
 
-	store := storage.NewStore(db)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	mock := &mockPromptCompiler{}
-	store.SetPromptCompiler(mock)
+	store := storage.NewStore(db, storage.WithPromptCompiler(mock))
 
 	plan := domain.Plan{
 		Slug:   "plan-compiler-test",

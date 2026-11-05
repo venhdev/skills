@@ -2,12 +2,25 @@ package storage_test
 
 import (
 	"context"
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"zenfd/internal/storage"
 )
+
+// execExternal simulates a writer outside the daemon: it opens its own
+// connection and never touches the store's write mutex.
+func execExternal(t *testing.T, db *storage.DB, ctx context.Context, query string, args ...any) {
+	t.Helper()
+	if err := db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, query, args...)
+		return err
+	}); err != nil {
+		t.Fatalf("external write failed: %v", err)
+	}
+}
 
 func TestStore_StateFingerprintDetectsExternalWrites(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "fingerprint.db")
@@ -16,6 +29,13 @@ func TestStore_StateFingerprintDetectsExternalWrites(t *testing.T) {
 		t.Fatalf("Failed to open DB: %v", err)
 	}
 	defer db.Close()
+
+	// Second connection stands in for the stdio MCP server or a CLI writer.
+	external, err := storage.Open(dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open external DB: %v", err)
+	}
+	defer external.Close()
 
 	store := storage.NewStore(db)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -27,12 +47,10 @@ func TestStore_StateFingerprintDetectsExternalWrites(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	if _, err := db.RawDB().ExecContext(ctx,
+	execExternal(t, external, ctx,
 		`INSERT INTO plans (slug, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
 		"external-plan", "External Plan", "ACTIVE", now, now,
-	); err != nil {
-		t.Fatalf("failed to insert plan: %v", err)
-	}
+	)
 
 	afterPlan, err := store.StateFingerprint(ctx)
 	if err != nil {
@@ -42,13 +60,11 @@ func TestStore_StateFingerprintDetectsExternalWrites(t *testing.T) {
 		t.Fatalf("fingerprint did not change after plan insert: %q", afterPlan)
 	}
 
-	if _, err := db.RawDB().ExecContext(ctx,
+	execExternal(t, external, ctx,
 		`INSERT INTO tasks (id, plan_id, title, dependencies, harness, skill_command, worktree_path, status, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"EXT-01", "external-plan", "External Task", "[]", "orchestrator", "", "", "READY", now, now,
-	); err != nil {
-		t.Fatalf("failed to insert task: %v", err)
-	}
+	)
 
 	afterTask, err := store.StateFingerprint(ctx)
 	if err != nil {
@@ -58,12 +74,10 @@ func TestStore_StateFingerprintDetectsExternalWrites(t *testing.T) {
 		t.Fatalf("fingerprint did not change after task insert: %q", afterTask)
 	}
 
-	if _, err := db.RawDB().ExecContext(ctx,
+	execExternal(t, external, ctx,
 		`UPDATE tasks SET notes = ?, updated_at = ? WHERE id = ?`,
 		"external note", now.Add(time.Second), "EXT-01",
-	); err != nil {
-		t.Fatalf("failed to update task: %v", err)
-	}
+	)
 
 	afterUpdate, err := store.StateFingerprint(ctx)
 	if err != nil {

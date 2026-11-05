@@ -13,7 +13,7 @@ import (
 	"zenfd/internal/storage"
 )
 
-func newTestServer(t *testing.T) (*zenfdmcp.Server, domain.StorageEngine) {
+func newTestServer(t *testing.T) (*zenfdmcp.Server, *storage.Store) {
 	t.Helper()
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "test_mcp.db")

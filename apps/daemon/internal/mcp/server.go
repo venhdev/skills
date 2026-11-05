@@ -14,14 +14,22 @@ import (
 	"zenfd/internal/domain"
 )
 
+// Storage is the subset of persistence the MCP tool surface needs. It composes
+// per-aggregate interfaces so each repository stays independently replaceable.
+type Storage interface {
+	domain.PlanRepository
+	domain.TaskRepository
+	domain.TaskLifecycle
+}
+
 // Server implements a Model Context Protocol (MCP) server for zenfd.
 type Server struct {
 	mcpServer *server.MCPServer
-	store     domain.StorageEngine
+	store     Storage
 }
 
 // NewServer initializes the MCP server and registers all tools.
-func NewServer(store domain.StorageEngine) *Server {
+func NewServer(store Storage) *Server {
 	s := &Server{
 		mcpServer: server.NewMCPServer("zenfd", "0.1.0", server.WithToolCapabilities(true)),
 		store:     store,

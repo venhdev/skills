@@ -85,7 +85,7 @@ func (s *ProcessSupervisor) SpawnHeadless(ctx context.Context, task domain.Task,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	runID := fmt.Sprintf("run-%s-%d", task.ID, time.Now().UnixNano())
+	runID := domain.NewRunID(task.ID)
 	if _, exists := s.processes[runID]; exists {
 		return nil, ErrAlreadyRunning
 	}
@@ -188,7 +188,7 @@ func (s *ProcessSupervisor) SpawnPTY(ctx context.Context, task domain.Task, win 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	runID := fmt.Sprintf("run-%s-%d", task.ID, time.Now().UnixNano())
+	runID := domain.NewRunID(task.ID)
 	if _, exists := s.processes[runID]; exists {
 		return nil, nil, ErrAlreadyRunning
 	}

@@ -35,9 +35,19 @@ type CreatePlanRequest struct {
 	Tasks []domain.Task `json:"tasks"`
 }
 
+// Storage is the subset of persistence the HTTP gateway needs. It composes
+// per-aggregate interfaces so each repository stays independently replaceable.
+type Storage interface {
+	domain.PlanRepository
+	domain.TaskRepository
+	domain.TaskLifecycle
+	domain.ArtifactRepository
+	domain.EventLog
+}
+
 // Server provides the HTTP/SSE/WebSocket gateway for zenfd control plane.
 type Server struct {
-	storage    domain.StorageEngine
+	storage    Storage
 	supervisor domain.Supervisor
 
 	sseMu      sync.RWMutex
@@ -53,7 +63,7 @@ type Server struct {
 }
 
 // NewServer constructs a new Gateway Server.
-func NewServer(storage domain.StorageEngine, supervisor domain.Supervisor) *Server {
+func NewServer(storage Storage, supervisor domain.Supervisor) *Server {
 	sub, err := fs.Sub(defaultWebDist, "web_dist")
 	var webFS fs.FS
 	if err == nil {
@@ -740,19 +750,12 @@ func (s *Server) Serve(ln net.Listener) error {
 // state to detect writes from processes outside the daemon event hub.
 const stateWatchInterval = 3 * time.Second
 
-// stateFingerprinter is implemented by storage engines that can summarize
-// plans/tasks state cheaply. It is optional so lightweight test doubles do not
-// need to implement it.
-type stateFingerprinter interface {
-	StateFingerprint(ctx context.Context) (string, error)
-}
-
 // watchStateChanges polls the storage fingerprint and broadcasts state:changed
 // when an external writer (MCP stdio server, CLI, raw SQLite) commits. This
 // keeps SSE as the single update channel for the web cockpit without requiring
 // every writer to publish events.
 func (s *Server) watchStateChanges(ctx context.Context, interval time.Duration) {
-	fp, ok := s.storage.(stateFingerprinter)
+	fp, ok := s.storage.(domain.StateFingerprinter)
 	if !ok {
 		return
 	}

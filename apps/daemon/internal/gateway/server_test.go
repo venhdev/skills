@@ -52,7 +52,6 @@ func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, *superviso
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = srv.Shutdown(ctx)
-		_ = store.Close()
 		_ = db.Close()
 	}
 
