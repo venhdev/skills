@@ -4,11 +4,18 @@ import { PlanTree } from './components/sidebar/PlanTree'
 import { DAGCanvas } from './components/stage/DAGCanvas'
 import { InspectionDock } from './components/inspector/InspectionDock'
 import { GlobalEnvView } from './components/env/GlobalEnvView'
+import { ProjectsView } from './components/workspace/ProjectsView'
+import { DocsView } from './components/workspace/DocsView'
+import { AgentsView } from './components/workspace/AgentsView'
+import { ActivityView } from './components/workspace/ActivityView'
 import { useSSE } from './hooks/useSSE'
 import { useZenfdAPI } from './hooks/useZenfdAPI'
-import type { Plan, Task, Artifact } from './types/contracts'
+import type { Plan, Project, Task, Artifact } from './types/contracts'
 
 export default function App() {
+  const [projects, setProjects] = useState<Project[]>([])
+  const [projectsReady, setProjectsReady] = useState(false)
+  const [activeProjectSlug, setActiveProjectSlug] = useState<string | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [logTick, setLogTick] = useState(0)
@@ -29,6 +36,7 @@ export default function App() {
   const refreshTimerRef = useRef<number | null>(null)
 
   const {
+    fetchProjects,
     fetchPlans,
     fetchPlan,
     fetchTasks,
@@ -53,8 +61,23 @@ export default function App() {
     refreshArtifacts(selectedTaskId)
   }, [selectedTaskId, refreshArtifacts])
 
+  const refreshProjects = useCallback(async () => {
+    const result = await fetchProjects(false)
+    if (!result.ok) return
+    setProjects(result.data)
+    setActiveProjectSlug((current) => {
+      if (current && result.data.some((project) => project.slug === current)) {
+        return current
+      }
+      return result.data.find((project) => project.status === 'ACTIVE')?.slug || result.data[0]?.slug || null
+    })
+    setProjectsReady(true)
+  }, [fetchProjects])
+
   // Real-time synchronization with daemon SQLite state
   const refreshData = useCallback(async () => {
+    if (!projectsReady) return
+
     // Coalesce overlapping refreshes (SSE + focus + interval). Only the most
     // recent generation is allowed to apply its results.
     const seq = ++refreshSeqRef.current
@@ -62,7 +85,7 @@ export default function App() {
     // The plans endpoint is the source of truth for the selector and includes
     // plans that do not have any tasks yet. A failed request must not be
     // interpreted as "no plans".
-    const plansResult = await fetchPlans(showArchived)
+    const plansResult = await fetchPlans(activeProjectSlug || '', showArchived)
     if (!plansResult.ok) return
     if (seq !== refreshSeqRef.current) return
 
@@ -70,18 +93,18 @@ export default function App() {
     setPlans(availablePlans)
     const availableSlugs = new Set(availablePlans.map((p) => p.slug))
 
-    // Determine target plan. When nothing is selected, the global task list is
+    // Determine target plan. When nothing is selected, the project task list is
     // needed once to prefer a plan that has tasks so the canvas is not empty on
     // first load. Once a plan is active, skip that request entirely.
     let targetPlanSlug = activePlanRef.current?.slug
     if (!targetPlanSlug || !availableSlugs.has(targetPlanSlug)) {
-      const taskList = await fetchTasks()
+      const taskList = await fetchTasks(activeProjectSlug ? { projectSlug: activeProjectSlug } : undefined)
       if (taskList === null) {
         // Network error occurred. Retain current state safely without wiping.
         return
       }
       if (seq !== refreshSeqRef.current) return
-      targetPlanSlug = taskList.find((t) => availableSlugs.has(t.plan_id))?.plan_id
+      targetPlanSlug = taskList.find((t) => t.plan_slug && availableSlugs.has(t.plan_slug))?.plan_slug
       targetPlanSlug = targetPlanSlug || availablePlans[0]?.slug
     }
 
@@ -121,7 +144,7 @@ export default function App() {
       }
       return planTasks[0]?.id || null
     })
-  }, [fetchTasks, fetchPlans, fetchPlan, showArchived])
+  }, [activeProjectSlug, fetchTasks, fetchPlans, fetchPlan, projectsReady, showArchived])
 
   // SSE bursts (for example plan:created followed by state:changed) are
   // collapsed into a single refresh instead of one request triple per event.
@@ -143,22 +166,27 @@ export default function App() {
     }
   }, [])
 
-  // Initial fetch on mount
+  // Initial load: projects first, then plans scoped to the selected project.
   useEffect(() => {
-    refreshData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    void refreshProjects()
+  }, [refreshProjects])
 
-  // The archive toggle changes the server-side plan filter, so reload when it
-  // flips (skipping the initial render, which the mount effect already covers).
-  const archiveToggleReady = useRef(false)
+  // A project switch invalidates every in-flight or scheduled refresh from the
+  // previous project before the scoped reload starts.
   useEffect(() => {
-    if (!archiveToggleReady.current) {
-      archiveToggleReady.current = true
-      return
+    refreshSeqRef.current++
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = null
     }
+  }, [activeProjectSlug])
+
+  // Reload whenever the project or archive filter changes. The initial run is
+  // gated on projectsReady so plans are always scoped to a real project.
+  useEffect(() => {
+    if (!projectsReady) return
     void refreshData()
-  }, [showArchived, refreshData])
+  }, [projectsReady, refreshData])
 
   // Safety-net reconcile when the tab regains focus. Primary updates arrive
   // through the daemon's state:changed event (which covers MCP/CLI writers).
@@ -188,16 +216,46 @@ export default function App() {
         refreshArtifacts(selectedTaskId)
         return
       }
-      scheduleRefresh()
-      // An external writer may also have attached media to the selected task.
-      if (evt.type === 'state.changed') {
-        refreshArtifacts(selectedTaskId)
+      if (evt.type.startsWith('project.')) {
+        void refreshProjects()
+        scheduleRefresh()
+        return
+      }
+      if (evt.type.startsWith('plan.') || evt.type.startsWith('task.') || evt.type === 'state.changed') {
+        scheduleRefresh()
+        // An external writer may also have attached media to the selected task.
+        if (evt.type === 'state.changed') {
+          refreshArtifacts(selectedTaskId)
+        }
       }
     },
   })
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null
   const activeWorkerCount = tasks.filter((t) => t.status === 'RUNNING').length
+  const activeProject = projects.find((project) => project.slug === activeProjectSlug) || null
+
+  const handleSelectProject = useCallback((slug: string) => {
+    refreshSeqRef.current++
+    setActiveProjectSlug(slug || null)
+    setActivePlan(null)
+    setPlans([])
+    setTasks([])
+    setSelectedTaskId(null)
+    setArtifacts([])
+  }, [])
+
+  const handleOpenProject = useCallback(
+    (slug: string) => {
+      handleSelectProject(slug)
+      setCurrentView('dag')
+    },
+    [handleSelectProject]
+  )
+
+  const handleProjectsChanged = useCallback(() => {
+    void refreshProjects()
+  }, [refreshProjects])
 
   const handleSelectPlan = useCallback(
     async (slug: string) => {
@@ -247,6 +305,9 @@ export default function App() {
       {/* 1. Header Bar with Plan CRUD & Active Worker Count */}
       <HeaderBar
         connected={connected}
+        projects={projects}
+        activeProject={activeProject}
+        onSelectProject={handleSelectProject}
         activePlan={activePlan}
         plans={plans}
         onSelectPlan={handleSelectPlan}
@@ -287,6 +348,34 @@ export default function App() {
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
           />
+        </div>
+      )}
+
+      {currentView === 'projects' && (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <ProjectsView
+            activeProjectSlug={activeProjectSlug}
+            onOpenProject={handleOpenProject}
+            onProjectsChanged={handleProjectsChanged}
+          />
+        </div>
+      )}
+
+      {currentView === 'docs' && (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <DocsView projects={projects} activeProjectSlug={activeProjectSlug} />
+        </div>
+      )}
+
+      {currentView === 'agents' && (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <AgentsView tick={logTick} />
+        </div>
+      )}
+
+      {currentView === 'activity' && (
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <ActivityView tick={logTick} projectSlug={activeProjectSlug} />
         </div>
       )}
 

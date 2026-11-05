@@ -25,7 +25,7 @@ type blockingCompiler struct {
 
 var _ prompt.Compiler = (*blockingCompiler)(nil)
 
-func (c *blockingCompiler) Compile(ctx context.Context, task domain.Task, attachments []domain.Artifact) (*domain.ContextPacket, error) {
+func (c *blockingCompiler) Compile(ctx context.Context, input prompt.Input) (*domain.ContextPacket, error) {
 	c.startOnce.Do(func() { close(c.started) })
 	select {
 	case <-c.release:
@@ -36,8 +36,8 @@ func (c *blockingCompiler) Compile(ctx context.Context, task domain.Task, attach
 		return nil, c.err
 	}
 	return &domain.ContextPacket{
-		Task:             task,
-		InputAttachments: attachments,
+		Task:             input.Task,
+		InputAttachments: input.InputAttachments,
 	}, nil
 }
 
@@ -47,22 +47,29 @@ func (c *blockingCompiler) Release() {
 
 func seedClaimTasks(t *testing.T, store *Store, ids ...string) {
 	t.Helper()
+	ctx := context.Background()
+	if err := store.CreateProject(ctx, domain.Project{
+		Slug: "claim-project", Name: "Claim Project", RootPath: t.TempDir(),
+	}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
 	tasks := make([]domain.Task, len(ids))
 	for i, id := range ids {
 		tasks[i] = domain.Task{
 			ID:           id,
-			PlanID:       "claim-preflight",
+			PlanSlug:     "claim-preflight",
 			Title:        id,
 			Status:       domain.StatusReady,
 			Dependencies: []string{},
 		}
 	}
-	if err := store.SavePlanWithTasks(context.Background(), domain.Plan{
-		Slug:   "claim-preflight",
-		Title:  "Claim Preflight",
-		Status: "ACTIVE",
+	if err := store.CreatePlanWithTasks(ctx, domain.Plan{
+		Slug:        "claim-preflight",
+		ProjectSlug: "claim-project",
+		Title:       "Claim Preflight",
+		Status:      domain.PlanStatusActive,
 	}, tasks); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
+		t.Fatalf("CreatePlanWithTasks failed: %v", err)
 	}
 }
 
@@ -81,7 +88,7 @@ func newClaimTestStore(t *testing.T, compiler prompt.Compiler) (*Store, context.
 	return store, context.Background()
 }
 
-func TestClaimTaskWithMeta_BuildsPacketOutsideWriteLock(t *testing.T) {
+func TestClaimTask_BuildsPacketOutsideWriteLock(t *testing.T) {
 	compiler := &blockingCompiler{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -92,7 +99,7 @@ func TestClaimTaskWithMeta_BuildsPacketOutsideWriteLock(t *testing.T) {
 
 	claimErr := make(chan error, 1)
 	go func() {
-		_, err := store.ClaimTaskWithMeta(ctx, "T-CLAIM-A", "worker-a", "", "CODER")
+		_, err := store.ClaimTask(ctx, "T-CLAIM-A", domain.ClaimOptions{WorkerID: "worker-a", WorkerRole: "CODER"})
 		claimErr <- err
 	}()
 
@@ -122,7 +129,7 @@ func TestClaimTaskWithMeta_BuildsPacketOutsideWriteLock(t *testing.T) {
 
 	compiler.Release()
 	if err := <-claimErr; err != nil {
-		t.Fatalf("ClaimTaskWithMeta failed: %v", err)
+		t.Fatalf("ClaimTask failed: %v", err)
 	}
 
 	task, err := store.GetTask(ctx, "T-CLAIM-A")
@@ -134,7 +141,7 @@ func TestClaimTaskWithMeta_BuildsPacketOutsideWriteLock(t *testing.T) {
 	}
 }
 
-func TestClaimTaskWithMeta_PacketFailureLeavesTaskReady(t *testing.T) {
+func TestClaimTask_PacketFailureLeavesTaskReady(t *testing.T) {
 	compiler := &blockingCompiler{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -144,7 +151,7 @@ func TestClaimTaskWithMeta_PacketFailureLeavesTaskReady(t *testing.T) {
 	store, ctx := newClaimTestStore(t, compiler)
 	seedClaimTasks(t, store, "T-FAIL")
 
-	if _, err := store.ClaimTaskWithMeta(ctx, "T-FAIL", "worker-fail", "", "CODER"); err == nil {
+	if _, err := store.ClaimTask(ctx, "T-FAIL", domain.ClaimOptions{WorkerID: "worker-fail", WorkerRole: "CODER"}); err == nil {
 		t.Fatal("expected claim to fail when packet compilation fails")
 	}
 
@@ -157,7 +164,7 @@ func TestClaimTaskWithMeta_PacketFailureLeavesTaskReady(t *testing.T) {
 	}
 }
 
-func TestClaimTaskWithMeta_ConcurrentSameTask(t *testing.T) {
+func TestClaimTask_ConcurrentSameTask(t *testing.T) {
 	store, ctx := newClaimTestStore(t, nil)
 	seedClaimTasks(t, store, "T-RACE")
 
@@ -168,7 +175,7 @@ func TestClaimTaskWithMeta_ConcurrentSameTask(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			_, err := store.ClaimTaskWithMeta(ctx, "T-RACE", "worker-race", "", "CODER")
+			_, err := store.ClaimTask(ctx, "T-RACE", domain.ClaimOptions{WorkerID: "worker-race", WorkerRole: "CODER"})
 			results <- err
 		}(i)
 	}
@@ -196,5 +203,35 @@ func TestClaimTaskWithMeta_ConcurrentSameTask(t *testing.T) {
 	}
 	if task.Status != domain.StatusRunning {
 		t.Fatalf("expected task RUNNING, got %s", task.Status)
+	}
+}
+
+func TestClaimTask_RecordsClaimMetadata(t *testing.T) {
+	store, ctx := newClaimTestStore(t, nil)
+	seedClaimTasks(t, store, "T-META")
+
+	packet, err := store.ClaimTask(ctx, "T-META", domain.ClaimOptions{
+		WorkerID:       "worker-meta",
+		OrchestratorID: "main-session",
+		WorkerRole:     "CODER",
+		SessionID:      "sess-meta",
+	})
+	if err != nil {
+		t.Fatalf("ClaimTask failed: %v", err)
+	}
+	if packet.Task.Status != domain.StatusRunning {
+		t.Fatalf("packet task status = %s, want RUNNING", packet.Task.Status)
+	}
+
+	task, err := store.GetTask(ctx, "T-META")
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if task.ClaimedBy != "worker-meta" || task.OrchestratorID != "main-session" ||
+		task.WorkerRole != "CODER" || task.ClaimSessionID != "sess-meta" {
+		t.Fatalf("claim metadata not persisted: %+v", task)
+	}
+	if task.ClaimedAt == nil {
+		t.Fatal("expected claimed_at to be set")
 	}
 }

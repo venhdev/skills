@@ -50,7 +50,7 @@ func ParseMarkdownPlan(r io.Reader, fallbackSlug string) (domain.Plan, []domain.
 
 	var title string
 	slug := fallbackSlug
-	planStatus := "ACTIVE"
+	planStatus := domain.PlanStatusActive
 
 	var tasks []domain.Task
 	var inTable bool
@@ -74,7 +74,10 @@ func ParseMarkdownPlan(r io.Reader, fallbackSlug string) (domain.Plan, []domain.
 					slug = extractedSlug
 				}
 				if len(matches) > 2 && matches[2] != "" {
-					planStatus = strings.ToUpper(matches[2])
+					candidate := domain.PlanStatus(strings.ToUpper(matches[2]))
+					if candidate.IsValid() {
+						planStatus = candidate
+					}
 				}
 			}
 			continue
@@ -199,7 +202,7 @@ func buildHeaderMap(headers []string) map[string]int {
 	return m
 }
 
-func parseTaskRow(parts []string, colMap map[string]int, planID string) domain.Task {
+func parseTaskRow(parts []string, colMap map[string]int, planSlug string) domain.Task {
 	idIdx, hasID := colMap["id"]
 	if !hasID || idIdx >= len(parts) {
 		return domain.Task{}
@@ -251,7 +254,7 @@ func parseTaskRow(parts []string, colMap map[string]int, planID string) domain.T
 	now := time.Now().UTC()
 	return domain.Task{
 		ID:           rawID,
-		PlanID:       planID,
+		PlanSlug:     planSlug,
 		Title:        title,
 		Dependencies: deps,
 		Harness:      harness,

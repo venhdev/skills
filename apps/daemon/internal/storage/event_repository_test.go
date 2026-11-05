@@ -1,128 +1,155 @@
 package storage_test
 
 import (
-	"context"
 	"encoding/json"
-	"path/filepath"
 	"testing"
-	"time"
 
 	"zenfd/internal/domain"
-	"zenfd/internal/storage"
 )
 
-func newEventStore(t *testing.T) (*storage.Store, context.Context) {
-	t.Helper()
-	db, err := storage.Open(filepath.Join(t.TempDir(), "events.db"))
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+func eventTypes(events []domain.EventMessage) map[string]int {
+	counts := make(map[string]int, len(events))
+	for _, event := range events {
+		counts[event.Type]++
 	}
-	t.Cleanup(func() { _ = db.Close() })
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	return storage.NewStore(db), ctx
+	return counts
 }
 
-func TestEvents_TriggersRecordEveryWriter(t *testing.T) {
-	store, ctx := newEventStore(t)
+func TestEventRepository_TriggersRecordEveryMutation(t *testing.T) {
+	store, ctx := newTestStore(t)
 
-	if err := store.SavePlanWithTasks(ctx, domain.Plan{Slug: "log-plan", Title: "Log", Status: "ACTIVE"}, []domain.Task{
-		{ID: "A", PlanID: "log-plan", Title: "A", Status: domain.StatusReady},
-		{ID: "B", PlanID: "log-plan", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
-	}); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
-	}
-
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{
+		{ID: "A", Title: "A", Status: domain.StatusReady},
+		{ID: "B", Title: "B", Dependencies: []string{"A"}},
+	})
 	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusReady, domain.StatusRunning); err != nil {
 		t.Fatalf("UpdateTaskStatus failed: %v", err)
 	}
-	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusRunning, domain.StatusCompleted); err != nil {
-		t.Fatalf("UpdateTaskStatus failed: %v", err)
+	if err := store.CreateDocument(ctx, newDocument("alpha", "ARCH")); err != nil {
+		t.Fatalf("CreateDocument failed: %v", err)
+	}
+	if err := store.CreateAgent(ctx, domain.Agent{Slug: "coder", Name: "Coder", Enabled: true}); err != nil {
+		t.Fatalf("CreateAgent failed: %v", err)
+	}
+	if err := store.CreateSession(ctx, domain.AgentSession{
+		ID: "main-1", SessionType: domain.SessionMain, Status: domain.SessionActive,
+	}); err != nil {
+		t.Fatalf("CreateSession failed: %v", err)
+	}
+	if err := store.RecordArtifact(ctx, domain.Artifact{
+		ID: "out-1", TaskID: "A", Type: domain.ArtifactTypeFile, FilePath: "/tmp/out",
+	}); err != nil {
+		t.Fatalf("RecordArtifact failed: %v", err)
 	}
 
-	events, err := store.ListEvents(ctx, 0, 200)
+	events, err := store.ListEvents(ctx, 0, 500)
 	if err != nil {
 		t.Fatalf("ListEvents failed: %v", err)
 	}
-	if len(events) == 0 {
-		t.Fatal("expected events")
-	}
-
-	var sawCreated, sawStatus, sawUnlock bool
-	for _, evt := range events {
-		switch evt.Type {
-		case "task.created":
-			if evt.TaskID == "A" && evt.PlanID == "log-plan" {
-				sawCreated = true
-			}
-		case "task.updated":
-			var payload struct {
-				Kind string `json:"kind"`
-				From string `json:"from"`
-				To   string `json:"to"`
-			}
-			if err := json.Unmarshal([]byte(evt.Payload), &payload); err != nil {
-				t.Fatalf("update payload is not JSON: %v", err)
-			}
-			if evt.TaskID == "A" && payload.Kind == "status" && payload.From == "RUNNING" && payload.To == "COMPLETED" {
-				sawStatus = true
-			}
-			// Completing A unlocks B; that transition is an UPDATE too.
-			if evt.TaskID == "B" && payload.To == "READY" {
-				sawUnlock = true
-			}
+	counts := eventTypes(events)
+	for _, want := range []string{
+		"project.created", "plan.created", "task.created", "task.updated",
+		"document.created", "document.tagged", "agent.created",
+		"session.registered", "artifact.added",
+	} {
+		if counts[want] == 0 {
+			t.Errorf("expected at least one %s event, got counts %+v", want, counts)
 		}
 	}
-	if !sawCreated {
-		t.Error("missing task.created event")
-	}
-	if !sawStatus {
-		t.Error("missing status update event with from/to")
-	}
-	if !sawUnlock {
-		t.Error("missing dependency-unlock update event")
+
+	// Events must be ordered ascending by id.
+	for i := 1; i < len(events); i++ {
+		if events[i].ID <= events[i-1].ID {
+			t.Fatalf("events not ascending at index %d: %d <= %d", i, events[i].ID, events[i-1].ID)
+		}
 	}
 }
 
-func TestEvents_ListWindowAndCursor(t *testing.T) {
-	store, ctx := newEventStore(t)
-
-	if err := store.SavePlanWithTasks(ctx, domain.Plan{Slug: "window-plan", Title: "Window", Status: "ACTIVE"}, []domain.Task{
-		{ID: "A", PlanID: "window-plan", Title: "A", Status: domain.StatusReady},
-		{ID: "B", PlanID: "window-plan", Title: "B", Status: domain.StatusReady},
-		{ID: "C", PlanID: "window-plan", Title: "C", Status: domain.StatusReady},
-	}); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
+func TestEventRepository_CarriesEntityContextAndPayload(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{{ID: "A", Title: "A", Status: domain.StatusReady}})
+	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusReady, domain.StatusRunning); err != nil {
+		t.Fatalf("UpdateTaskStatus failed: %v", err)
 	}
 
-	all, err := store.ListEvents(ctx, 0, 100)
+	events, err := store.ListEvents(ctx, 0, 100)
 	if err != nil {
 		t.Fatalf("ListEvents failed: %v", err)
 	}
-	if len(all) < 4 {
-		t.Fatalf("expected at least 4 events, got %d", len(all))
+
+	var statusEvent *domain.EventMessage
+	for i := range events {
+		event := &events[i]
+		if event.Type == "task.updated" {
+			var payload map[string]any
+			if err := json.Unmarshal([]byte(event.Payload), &payload); err != nil {
+				t.Fatalf("event payload is not JSON: %v", err)
+			}
+			if payload["kind"] == "status" {
+				statusEvent = event
+				break
+			}
+		}
+	}
+	if statusEvent == nil {
+		t.Fatal("expected a task.updated status event")
+	}
+	if statusEvent.ProjectSlug != "alpha" || statusEvent.PlanSlug != "p1" ||
+		statusEvent.TaskID != "A" || statusEvent.EntityType != "task" || statusEvent.EntityID != "A" {
+		t.Fatalf("event context mismatch: %+v", statusEvent)
 	}
 
-	window, err := store.ListEvents(ctx, 0, 2)
+	var payload map[string]any
+	_ = json.Unmarshal([]byte(statusEvent.Payload), &payload)
+	if payload["from"] != "READY" || payload["to"] != "RUNNING" {
+		t.Fatalf("unexpected status payload: %+v", payload)
+	}
+}
+
+func TestEventRepository_WindowAndLatestID(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+
+	first, err := store.LatestEventID(ctx)
+	if err != nil {
+		t.Fatalf("LatestEventID failed: %v", err)
+	}
+	if first == 0 {
+		t.Fatal("expected project.created event")
+	}
+
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{{ID: "A", Title: "A"}})
+	latest, err := store.LatestEventID(ctx)
+	if err != nil {
+		t.Fatalf("LatestEventID failed: %v", err)
+	}
+	if latest <= first {
+		t.Fatalf("expected latest id to advance, got %d <= %d", latest, first)
+	}
+
+	window, err := store.ListEvents(ctx, first, 100)
 	if err != nil {
 		t.Fatalf("ListEvents failed: %v", err)
 	}
-	if len(window) != 2 {
-		t.Fatalf("expected 2 events, got %d", len(window))
+	if len(window) == 0 {
+		t.Fatal("expected events after the first project event")
 	}
-	if window[0].ID >= window[1].ID {
-		t.Errorf("window is not ascending: %d, %d", window[0].ID, window[1].ID)
-	}
-	if window[1].ID != all[len(all)-1].ID {
-		t.Errorf("window should end at the newest event")
+	for _, event := range window {
+		if event.ID <= first {
+			t.Fatalf("window leaked event %d <= afterID %d", event.ID, first)
+		}
+		if event.Type == "project.created" {
+			t.Fatalf("window should exclude the first project event: %+v", event)
+		}
 	}
 
-	cursor, err := store.ListEvents(ctx, window[0].ID, 100)
+	clamped, err := store.ListEvents(ctx, 0, 1)
 	if err != nil {
-		t.Fatalf("ListEvents failed: %v", err)
+		t.Fatalf("ListEvents(limit=1) failed: %v", err)
 	}
-	if len(cursor) == 0 || cursor[0].ID <= window[0].ID {
-		t.Errorf("cursor did not advance: %+v", cursor)
+	if len(clamped) != 1 {
+		t.Fatalf("expected one event, got %d", len(clamped))
 	}
 }

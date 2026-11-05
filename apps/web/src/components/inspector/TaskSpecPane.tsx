@@ -87,7 +87,8 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             Task Specification Hub
           </span>
           <span className="text-[11px] font-mono text-zinc-500 truncate">
-            [{task.plan_id}]
+            [{task.project_slug ? `${task.project_slug} / ` : ''}
+            {task.plan_slug || 'orphan'}]
           </span>
         </div>
 

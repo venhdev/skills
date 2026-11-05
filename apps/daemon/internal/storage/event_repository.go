@@ -25,9 +25,12 @@ func (r *EventRepository) ListEvents(ctx context.Context, afterID int64, limit i
 	}
 
 	rows, err := r.db.Query(ctx, `
-		SELECT id, COALESCE(plan_id, ''), COALESCE(task_id, ''), type, payload, timestamp
+		SELECT id, COALESCE(project_slug, ''), COALESCE(plan_slug, ''),
+		       COALESCE(task_id, ''), entity_type, entity_id, type,
+		       COALESCE(actor, ''), payload, timestamp
 		FROM (
-			SELECT id, plan_id, task_id, type, payload, timestamp
+			SELECT id, project_slug, plan_slug, task_id, entity_type, entity_id,
+			       type, actor, payload, timestamp
 			FROM events
 			WHERE id > ?
 			ORDER BY id DESC
@@ -46,7 +49,11 @@ func (r *EventRepository) ListEvents(ctx context.Context, afterID int64, limit i
 			evt       domain.EventMessage
 			timestamp time.Time
 		)
-		if err := rows.Scan(&evt.ID, &evt.PlanID, &evt.TaskID, &evt.Type, &evt.Payload, &timestamp); err != nil {
+		if err := rows.Scan(
+			&evt.ID, &evt.ProjectSlug, &evt.PlanSlug, &evt.TaskID,
+			&evt.EntityType, &evt.EntityID, &evt.Type, &evt.Actor,
+			&evt.Payload, &timestamp,
+		); err != nil {
 			return nil, fmt.Errorf("failed to scan event: %w", err)
 		}
 		evt.Timestamp = timestamp
@@ -56,4 +63,13 @@ func (r *EventRepository) ListEvents(ctx context.Context, afterID int64, limit i
 		return nil, fmt.Errorf("failed to read events: %w", err)
 	}
 	return events, nil
+}
+
+// LatestEventID returns the highest event id, or zero when the log is empty.
+func (r *EventRepository) LatestEventID(ctx context.Context) (int64, error) {
+	var id int64
+	if err := r.db.QueryRow(ctx, "SELECT COALESCE(MAX(id), 0) FROM events").Scan(&id); err != nil {
+		return 0, fmt.Errorf("failed to read latest event id: %w", err)
+	}
+	return id, nil
 }

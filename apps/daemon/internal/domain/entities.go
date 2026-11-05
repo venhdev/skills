@@ -106,31 +106,33 @@ const (
 	RiskCritical TaskRisk = "CRITICAL"
 )
 
-// Plan represents a living plan dossier and its associated task DAG.
-type Plan struct {
-	Slug       string     `json:"slug"`
-	Title      string     `json:"title"`
-	Status     string     `json:"status"` // ACTIVE, COMPLETED, DRIFTED
-	ArchivedAt *time.Time `json:"archived_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
-}
+// TaskScope is the ownership container of a task.
+type TaskScope string
 
-// Task represents an atomic vertical slice of execution in the DAG.
+const (
+	ScopePlan    TaskScope = "PLAN"
+	ScopeProject TaskScope = "PROJECT"
+	ScopeOrphan  TaskScope = "ORPHAN"
+)
+
+// Task represents an atomic vertical slice of execution in a DAG.
 type Task struct {
-	// 1. Identity & DAG Topology
+	// 1. Identity, Scope & DAG Topology
 	ID           string   `json:"id"`
-	PlanID       string   `json:"plan_id"`
+	ProjectSlug  string   `json:"project_slug,omitempty"`
+	PlanSlug     string   `json:"plan_slug,omitempty"`
 	Title        string   `json:"title"`
 	Description  string   `json:"description,omitempty"`
-	Dependencies []string `json:"dependencies"` // List of prerequisite Task IDs
+	Dependencies []string `json:"dependencies"` // Prerequisite task IDs inside the same scope
 
 	// 2. Triage & Fan-out Attributes
 	Priority             TaskPriority   `json:"priority,omitempty"`
 	Complexity           TaskComplexity `json:"complexity,omitempty"`
 	RiskLevel            TaskRisk       `json:"risk_level,omitempty"`
+	AgentSlug            string         `json:"agent_slug,omitempty"`
 	RequiredSkills       []string       `json:"required_skills,omitempty"`
 	RequiredTools        []string       `json:"required_tools,omitempty"`
+	RequiredDocs         []string       `json:"required_docs,omitempty"` // document keys
 	TargetFiles          []string       `json:"target_files,omitempty"`
 	AcceptanceCriteria   []string       `json:"acceptance_criteria,omitempty"`
 	VerificationCommands []string       `json:"verification_commands,omitempty"`
@@ -142,6 +144,7 @@ type Task struct {
 	ClaimedBy      string     `json:"claimed_by,omitempty"`
 	OrchestratorID string     `json:"orchestrator_id,omitempty"`
 	WorkerRole     string     `json:"worker_role,omitempty"`
+	ClaimSessionID string     `json:"claim_session_id,omitempty"`
 	ClaimedAt      *time.Time `json:"claimed_at,omitempty"`
 
 	// 4. Developer Seeding & Supplemental Notes
@@ -166,6 +169,47 @@ type Task struct {
 	DependenciesCorrupt bool `json:"-"`
 }
 
+// Scope derives the ownership container from the persisted slugs.
+func (t Task) Scope() TaskScope {
+	switch {
+	case t.PlanSlug != "":
+		return ScopePlan
+	case t.ProjectSlug != "":
+		return ScopeProject
+	default:
+		return ScopeOrphan
+	}
+}
+
+// ContainerKey identifies the dependency namespace a task belongs to.
+func (t Task) ContainerKey() string {
+	switch t.Scope() {
+	case ScopePlan:
+		return "plan:" + t.PlanSlug
+	case ScopeProject:
+		return "project:" + t.ProjectSlug
+	default:
+		return "orphan"
+	}
+}
+
+// Validate checks task integrity.
+func (t *Task) Validate() error {
+	if t.ID == "" {
+		return fmt.Errorf("task ID cannot be empty")
+	}
+	if t.Title == "" {
+		return fmt.Errorf("task title cannot be empty")
+	}
+	if t.PlanSlug != "" && t.ProjectSlug == "" {
+		return fmt.Errorf("task %s belongs to plan %s without a project", t.ID, t.PlanSlug)
+	}
+	if !t.Status.IsValid() {
+		return fmt.Errorf("invalid task status: %s", t.Status)
+	}
+	return nil
+}
+
 // TaskPatch carries authoring metadata for a partial update. Nil fields are
 // left untouched; a non-nil empty slice clears a list, and a non-nil empty
 // string clears a text field.
@@ -176,8 +220,10 @@ type TaskPatch struct {
 	Priority             *TaskPriority
 	Complexity           *TaskComplexity
 	RiskLevel            *TaskRisk
+	AgentSlug            *string
 	RequiredSkills       *[]string
 	RequiredTools        *[]string
+	RequiredDocs         *[]string
 	TargetFiles          *[]string
 	AcceptanceCriteria   *[]string
 	VerificationCommands *[]string
@@ -185,77 +231,34 @@ type TaskPatch struct {
 	WorktreePath         *string
 }
 
-// Validate checks task integrity.
-func (t *Task) Validate() error {
-	if t.ID == "" {
-		return fmt.Errorf("task ID cannot be empty")
-	}
-	if t.PlanID == "" {
-		return fmt.Errorf("task plan_id cannot be empty")
-	}
-	if !t.Status.IsValid() {
-		return fmt.Errorf("invalid task status: %s", t.Status)
-	}
-	return nil
+// TaskFilter narrows a task query. Empty fields are not applied.
+type TaskFilter struct {
+	ProjectSlug string
+	PlanSlug    string
+	Status      TaskStatus
+	AgentSlug   string
+	OrphanOnly  bool
+}
+
+// ClaimOptions carries the identity of the claimer. SessionID links the claim
+// to an observed MAIN/SUBAGENT session when the client registers one.
+type ClaimOptions struct {
+	WorkerID       string
+	OrchestratorID string
+	WorkerRole     string
+	SessionID      string
 }
 
 // ContextPacket is the prompt-ready manifest delivered to an agent upon claim.
 type ContextPacket struct {
-	Task                 Task       `json:"task"`
-	TargetFiles          []string   `json:"target_files"`
-	SkillPaths           []string   `json:"skill_paths"`
-	InputAttachments     []Artifact `json:"input_attachments"`
-	VerificationCommands []string   `json:"verification_commands"`
-	PromptMarkdown       string     `json:"prompt_markdown"`
-}
-
-// ArtifactType categorizes concrete outputs produced during task execution.
-type ArtifactType string
-
-const (
-	ArtifactTypeImage    ArtifactType = "IMAGE"
-	ArtifactTypeMarkdown ArtifactType = "MARKDOWN"
-	ArtifactTypeDoc      ArtifactType = "DOC"
-	ArtifactTypeFile     ArtifactType = "FILE"
-)
-
-const (
-	ArtifactRoleInput  = "INPUT"
-	ArtifactRoleOutput = "OUTPUT"
-)
-
-// IsValid checks if the artifact type is supported.
-func (a ArtifactType) IsValid() bool {
-	switch a {
-	case ArtifactTypeImage, ArtifactTypeMarkdown, ArtifactTypeDoc, ArtifactTypeFile:
-		return true
-	default:
-		return false
-	}
-}
-
-// Artifact represents a concrete file input or output tracked via the Claim-Check pattern.
-type Artifact struct {
-	ID        string       `json:"id"`
-	TaskID    string       `json:"task_id"`
-	Role      string       `json:"role"` // "INPUT" (spec/mockup) or "OUTPUT" (log/result)
-	Name      string       `json:"name"` // Display filename or caption
-	Type      ArtifactType `json:"type"`
-	FilePath  string       `json:"file_path"`
-	MimeType  string       `json:"mime_type"`
-	ByteSize  int64        `json:"byte_size"`
-	Sha256    string       `json:"sha256"`
-	CreatedAt time.Time    `json:"created_at"`
-}
-
-// EventMessage is one entry of the append-only activity log. Rows are produced
-// by database triggers, so every writer (MCP, CLI, HTTP, raw SQL) is recorded
-// and the daemon can stream the same log it shows in the UI.
-type EventMessage struct {
-	ID        int64     `json:"id"`
-	PlanID    string    `json:"plan_id,omitempty"`
-	TaskID    string    `json:"task_id,omitempty"`
-	Type      string    `json:"type"` // e.g. "task.created", "task.updated", "plan.archived"
-	Payload   string    `json:"payload"`
-	Timestamp time.Time `json:"timestamp"`
+	Task                 Task            `json:"task"`
+	Project              *Project        `json:"project,omitempty"`
+	Plan                 *Plan           `json:"plan,omitempty"`
+	Agent                *Agent          `json:"agent,omitempty"`
+	TargetFiles          []string        `json:"target_files"`
+	SkillPaths           []string        `json:"skill_paths"`
+	InputAttachments     []Artifact      `json:"input_attachments"`
+	LinkedDocuments      []DocumentBrief `json:"linked_documents,omitempty"`
+	VerificationCommands []string        `json:"verification_commands"`
+	PromptMarkdown       string          `json:"prompt_markdown"`
 }

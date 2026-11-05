@@ -84,7 +84,18 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 		t.Fatalf("status command failed: %v, out: %s", err, string(out))
 	}
 
-	// 4. Create dummy markdown plan
+	// 4. Register the owning project
+	projectPayload := fmt.Sprintf(`{"slug":"e2e-project","name":"E2E Project","root_path":%q}`, tempDir)
+	projectResp, err := http.Post(daemonURL+"/api/v1/projects", "application/json", strings.NewReader(projectPayload))
+	if err != nil {
+		t.Fatalf("failed to create project: %v", err)
+	}
+	projectResp.Body.Close()
+	if projectResp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 creating project, got %d", projectResp.StatusCode)
+	}
+
+	// 5. Create dummy markdown plan
 	planFile := filepath.Join(tempDir, "plan.md")
 	mdContent := `
 # Plan Dossier: e2e-system · ACTIVE
@@ -98,42 +109,42 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 		t.Fatalf("failed to write plan file: %v", err)
 	}
 
-	// 5. Test `zenfd plan push`
-	pushCmd := exec.Command(binPath, "plan", "push", planFile, "--url", daemonURL)
+	// 6. Test `zenfd plan push`
+	pushCmd := exec.Command(binPath, "plan", "push", planFile, "--project", "e2e-project", "--url", daemonURL)
 	out, err = pushCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "Ingested Plan 'e2e-system'") {
 		t.Fatalf("plan push failed: %v, out: %s", err, string(out))
 	}
 
-	// 6. Test `zenfd plan get e2e-system`
+	// 7. Test `zenfd plan get e2e-system`
 	getCmd := exec.Command(binPath, "plan", "get", "e2e-system", "--url", daemonURL)
 	out, err = getCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "SLICE-01") {
 		t.Fatalf("plan get failed: %v, out: %s", err, string(out))
 	}
 
-	// 7. Test `zenfd task list`
+	// 8. Test `zenfd task list`
 	listCmd := exec.Command(binPath, "task", "list", "--url", daemonURL)
 	out, err = listCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "SLICE-01") {
 		t.Fatalf("task list failed: %v, out: %s", err, string(out))
 	}
 
-	// 8. Test `zenfd task start SLICE-01`
+	// 9. Test `zenfd task start SLICE-01`
 	startCmd := exec.Command(binPath, "task", "start", "SLICE-01", "--url", daemonURL)
 	out, err = startCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "status updated to RUNNING") {
 		t.Fatalf("task start failed: %v, out: %s", err, string(out))
 	}
 
-	// 9. Test `zenfd task done SLICE-01`
+	// 10. Test `zenfd task done SLICE-01`
 	doneCmd := exec.Command(binPath, "task", "done", "SLICE-01", "--url", daemonURL)
 	out, err = doneCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "status updated to COMPLETED") {
 		t.Fatalf("task done failed: %v, out: %s", err, string(out))
 	}
 
-	// 10. Test `zenfd task update SLICE-02 --status READY`
+	// 11. Test `zenfd task update SLICE-02 --status READY`
 	updateCmd := exec.Command(binPath, "task", "update", "SLICE-02", "--status", "READY", "--url", daemonURL)
 	out, err = updateCmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "status updated to READY") {

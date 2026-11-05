@@ -1,109 +1,94 @@
 package domain
 
-import (
-	"context"
-)
+import "context"
 
-// PlanRepository persists plans and the plan/task bundles written by authoring
-// tools.
+// ProjectRepository persists the top-level working environments.
+type ProjectRepository interface {
+	CreateProject(ctx context.Context, project Project) error
+	GetProject(ctx context.Context, slug string) (*Project, error)
+	ListProjects(ctx context.Context, includeArchived bool) ([]Project, error)
+	UpdateProject(ctx context.Context, slug string, patch ProjectPatch) error
+	ArchiveProject(ctx context.Context, slug string, archived bool) error
+	DeleteProject(ctx context.Context, slug string) error
+}
+
+// PlanRepository persists plans and the atomic plan/task authoring bundle.
 type PlanRepository interface {
-	// SavePlanWithTasks writes a plan and its tasks in a single atomic transaction.
-	SavePlanWithTasks(ctx context.Context, plan Plan, tasks []Task) error
-
-	// CreatePlan inserts or updates a single plan.
-	CreatePlan(ctx context.Context, plan Plan) error
-
-	// GetPlan retrieves a plan by slug.
+	// CreatePlanWithTasks writes a plan and its tasks in one atomic transaction.
+	CreatePlanWithTasks(ctx context.Context, plan Plan, tasks []Task) error
 	GetPlan(ctx context.Context, slug string) (*Plan, error)
-
-	// ListPlans returns plans ordered by archive state and slug. Archived plans
-	// are included only when includeArchived is true.
-	ListPlans(ctx context.Context, includeArchived bool) ([]Plan, error)
-
-	// ArchivePlan sets or clears archived_at. Archived plans stay readable but
-	// are hidden from the default selector and DAG.
+	// ListPlans filters by project when projectSlug is non-empty.
+	ListPlans(ctx context.Context, projectSlug string, includeArchived bool) ([]Plan, error)
+	UpdatePlan(ctx context.Context, slug string, patch PlanPatch) error
 	ArchivePlan(ctx context.Context, slug string, archived bool) error
-
-	// DeletePlan deletes a plan and cascades to its tasks and artifacts.
 	DeletePlan(ctx context.Context, slug string) error
 }
 
 // TaskRepository persists task records and their read projections.
 type TaskRepository interface {
-	// GetTask retrieves a single task by its unique ID.
 	GetTask(ctx context.Context, taskID string) (*Task, error)
-
-	// GetTasksByPlan retrieves all tasks belonging to a plan.
 	GetTasksByPlan(ctx context.Context, planSlug string) ([]Task, error)
-
-	// ListTasks returns tasks filtered optionally by status.
-	ListTasks(ctx context.Context, status TaskStatus) ([]Task, error)
-
-	// CreateTask inserts a single task and fails when the ID is taken.
-	CreateTask(ctx context.Context, task Task) error
-
-	// CreateTasks inserts a batch atomically and validates the plan graph once.
+	ListTasks(ctx context.Context, filter TaskFilter) ([]Task, error)
 	CreateTasks(ctx context.Context, tasks []Task) error
-
-	// UpdateTaskMetadata patches authoring metadata on a READY or PENDING task.
-	// Dependency changes revalidate the graph and re-derive the task status.
 	UpdateTaskMetadata(ctx context.Context, taskID string, patch TaskPatch) error
-
-	// UpdateTaskDependencies updates the task dependency list.
 	UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error
-
-	// UpdateTaskNotes updates developer supplemental notes.
 	UpdateTaskNotes(ctx context.Context, taskID string, notes string) error
-
-	// AppendTaskNotes appends a note to the task's supplemental notes.
 	AppendTaskNotes(ctx context.Context, taskID string, note string) error
 }
 
 // TaskLifecycle owns the task state machine, claim mutual exclusion, and the
 // review handshake.
 type TaskLifecycle interface {
-	// UpdateTaskStatus atomically transitions task status from an expected current state.
 	UpdateTaskStatus(ctx context.Context, taskID string, from TaskStatus, to TaskStatus) error
-
-	// UpdateTaskStatusWithNote applies a transition and appends an audit note in
-	// the same transaction.
 	UpdateTaskStatusWithNote(ctx context.Context, taskID string, from TaskStatus, to TaskStatus, note string) error
-
-	// ClaimTask atomically verifies readiness, sets the claim lock, transitions to RUNNING, and returns the ContextPacket.
-	ClaimTask(ctx context.Context, taskID string, workerID string) (*ContextPacket, error)
-
-	// ClaimTaskWithMeta atomically claims a ready task with full metadata.
-	ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string) (*ContextPacket, error)
-
-	// EvictTask evicts a running task, resetting it to READY (or
-	// BLOCKED when prerequisites are unmet) or cancelling it. It returns the
-	// status actually written.
+	ClaimTask(ctx context.Context, taskID string, opts ClaimOptions) (*ContextPacket, error)
 	EvictTask(ctx context.Context, taskID string, reason string, action string) (TaskStatus, error)
-
-	// RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
 	RequestReview(ctx context.Context, taskID string, reason string, details string, options []string) error
-
-	// ResolveReview records the human guidance relayed by the main agent and transitions task back to READY.
 	ResolveReview(ctx context.Context, taskID string, response string) error
-
-	// GetTaskContextPacket compiles full context packet (task, target files, skill paths, media).
 	GetTaskContextPacket(ctx context.Context, taskID string) (*ContextPacket, error)
+}
+
+// DocumentRepository persists the file-canonical document registry.
+type DocumentRepository interface {
+	CreateDocument(ctx context.Context, document Document) error
+	GetDocument(ctx context.Context, id string) (*Document, error)
+	GetDocumentByKey(ctx context.Context, projectSlug string, key string) (*Document, error)
+	GetDocumentBySlug(ctx context.Context, projectSlug string, slug string) (*Document, error)
+	ListDocuments(ctx context.Context, filter DocumentFilter) ([]Document, error)
+	UpdateDocument(ctx context.Context, id string, patch DocumentPatch) error
+	RefreshDocument(ctx context.Context, id string, content string, contentHash string, byteSize int64) error
+	ArchiveDocument(ctx context.Context, id string, archived bool) error
+	DeleteDocument(ctx context.Context, id string) error
+	SearchDocuments(ctx context.Context, query string, filter DocumentFilter) ([]DocumentSearchResult, error)
+	CreateDocumentLink(ctx context.Context, link DocumentLink) error
+	ListDocumentLinks(ctx context.Context, fromID string) ([]DocumentLink, error)
+}
+
+// AgentRepository persists reusable worker definitions.
+type AgentRepository interface {
+	CreateAgent(ctx context.Context, agent Agent) error
+	GetAgent(ctx context.Context, slug string) (*Agent, error)
+	ListAgents(ctx context.Context, includeDisabled bool) ([]Agent, error)
+	UpdateAgent(ctx context.Context, slug string, patch AgentPatch) error
+	DeleteAgent(ctx context.Context, slug string) error
+}
+
+// SessionRepository persists observed MAIN/SUBAGENT sessions and WORKER
+// sessions registered by external runners.
+type SessionRepository interface {
+	CreateSession(ctx context.Context, session AgentSession) error
+	GetSession(ctx context.Context, id string) (*AgentSession, error)
+	ListSessions(ctx context.Context, filter SessionFilter) ([]AgentSession, error)
+	HeartbeatSession(ctx context.Context, id string, status SessionStatus) error
+	CloseSession(ctx context.Context, id string) error
 }
 
 // ArtifactRepository persists artifact metadata following the claim-check
 // pattern.
 type ArtifactRepository interface {
-	// RecordArtifact registers a file artifact in the database.
 	RecordArtifact(ctx context.Context, artifact Artifact) error
-
-	// GetArtifact retrieves artifact metadata by ID.
 	GetArtifact(ctx context.Context, id string) (*Artifact, error)
-
-	// GetArtifactsByTask returns all artifacts associated with a task, optionally filtered by role ("INPUT" | "OUTPUT").
 	GetArtifactsByTask(ctx context.Context, taskID string, role string) ([]Artifact, error)
-
-	// DeleteArtifact removes an artifact owned by taskID and returns it so the
-	// caller can delete the backing file.
 	DeleteArtifact(ctx context.Context, taskID string, artifactID string) (*Artifact, error)
 }
 
@@ -112,17 +97,41 @@ type ArtifactReader interface {
 	GetArtifactsByTask(ctx context.Context, taskID string, role string) ([]Artifact, error)
 }
 
-// EventRepository reads the trigger-produced activity log.
-type EventRepository interface {
-	// ListEvents returns up to limit events newer than afterID in ascending
-	// order. When afterID is zero it returns the most recent window.
-	ListEvents(ctx context.Context, afterID int64, limit int) ([]EventMessage, error)
+// ProjectReader is the narrow read seam used by context packet assembly.
+type ProjectReader interface {
+	GetProject(ctx context.Context, slug string) (*Project, error)
 }
 
-// StateFingerprinter summarizes plans/tasks state so callers can detect writes
-// made by another process.
+// PlanReader is the narrow read seam used by context packet assembly.
+type PlanReader interface {
+	GetPlan(ctx context.Context, slug string) (*Plan, error)
+}
+
+// DocumentReader is the narrow read seam used by context packet assembly.
+type DocumentReader interface {
+	GetDocumentByKey(ctx context.Context, projectSlug string, key string) (*Document, error)
+}
+
+// AgentReader is the narrow read seam used by context packet assembly.
+type AgentReader interface {
+	GetAgent(ctx context.Context, slug string) (*Agent, error)
+}
+
+// EventRepository reads the trigger-produced activity log.
+type EventRepository interface {
+	ListEvents(ctx context.Context, afterID int64, limit int) ([]EventMessage, error)
+	LatestEventID(ctx context.Context) (int64, error)
+}
+
+// StateFingerprinter summarizes state so callers can detect writes made by
+// another process.
 type StateFingerprinter interface {
 	StateFingerprint(ctx context.Context) (string, error)
+}
+
+// SearchRepository provides cross-entity search.
+type SearchRepository interface {
+	Search(ctx context.Context, query string, projectSlug string, limit int) ([]SearchResult, error)
 }
 
 // ContextPacketBuilder assembles the prompt-ready packet for a task.

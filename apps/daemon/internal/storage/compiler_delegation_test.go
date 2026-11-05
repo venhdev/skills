@@ -12,23 +12,25 @@ import (
 	"zenfd/internal/domain/prompt"
 )
 
-// mockPromptCompiler records the task passed through the packet builder.
+// mockPromptCompiler records the packet input passed through the builder.
 type mockPromptCompiler struct {
-	called           bool
-	task             domain.Task
-	inputAttachments []domain.Artifact
+	called bool
+	input  prompt.Input
 }
 
 var _ prompt.Compiler = (*mockPromptCompiler)(nil)
 
-func (m *mockPromptCompiler) Compile(ctx context.Context, task domain.Task, inputAttachments []domain.Artifact) (*domain.ContextPacket, error) {
+func (m *mockPromptCompiler) Compile(ctx context.Context, input prompt.Input) (*domain.ContextPacket, error) {
 	m.called = true
-	m.task = task
-	m.inputAttachments = inputAttachments
+	m.input = input
 	return &domain.ContextPacket{
-		Task:           task,
-		TargetFiles:    task.TargetFiles,
-		PromptMarkdown: fmt.Sprintf("# MOCK PROMPT: %s", task.Title),
+		Task:            input.Task,
+		Project:         input.Project,
+		Plan:            input.Plan,
+		Agent:           input.Agent,
+		TargetFiles:     input.Task.TargetFiles,
+		LinkedDocuments: input.LinkedDocuments,
+		PromptMarkdown:  fmt.Sprintf("# MOCK PROMPT: %s", input.Task.Title),
 	}, nil
 }
 
@@ -47,23 +49,32 @@ func TestPlanStore_PromptCompilerDelegation(t *testing.T) {
 
 	mock := &mockPromptCompiler{}
 	store := NewStore(db)
-	store.TaskLifecycle.packets = contextpacket.New(store.ArtifactRepository, mock)
+	store.TaskLifecycle.packets = contextpacket.New(store.ArtifactRepository, mock,
+		contextpacket.WithProjectReader(store.ProjectRepository),
+		contextpacket.WithPlanReader(store.PlanRepository),
+		contextpacket.WithAgentReader(store.AgentRepository),
+		contextpacket.WithDocumentReader(store.DocumentRepository),
+	)
 
+	if err := store.CreateProject(ctx, domain.Project{Slug: "compiler-project", Name: "Compiler Project"}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
 	plan := domain.Plan{
-		Slug:   "plan-compiler-test",
-		Title:  "Compiler Delegation Plan",
-		Status: "ACTIVE",
+		Slug:        "plan-compiler-test",
+		ProjectSlug: "compiler-project",
+		Title:       "Compiler Delegation Plan",
+		Status:      domain.PlanStatusActive,
 	}
 	task := domain.Task{
 		ID:          "T-DELEGATE-01",
-		PlanID:      plan.Slug,
+		PlanSlug:    plan.Slug,
 		Title:       "Test Compiler Delegation",
 		TargetFiles: []string{"a.go"},
 		Status:      domain.StatusReady,
 	}
 
-	if err := store.SavePlanWithTasks(ctx, plan, []domain.Task{task}); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
+	if err := store.CreatePlanWithTasks(ctx, plan, []domain.Task{task}); err != nil {
+		t.Fatalf("CreatePlanWithTasks failed: %v", err)
 	}
 
 	packet, err := store.GetTaskContextPacket(ctx, task.ID)
@@ -74,8 +85,14 @@ func TestPlanStore_PromptCompilerDelegation(t *testing.T) {
 	if !mock.called {
 		t.Fatal("expected mock prompt compiler to be called")
 	}
-	if mock.task.ID != "T-DELEGATE-01" {
-		t.Errorf("expected task ID 'T-DELEGATE-01', got: %s", mock.task.ID)
+	if mock.input.Task.ID != "T-DELEGATE-01" {
+		t.Errorf("expected task ID 'T-DELEGATE-01', got: %s", mock.input.Task.ID)
+	}
+	if mock.input.Project == nil || mock.input.Project.Slug != "compiler-project" {
+		t.Errorf("expected project context, got %+v", mock.input.Project)
+	}
+	if mock.input.Plan == nil || mock.input.Plan.Slug != "plan-compiler-test" {
+		t.Errorf("expected plan context, got %+v", mock.input.Plan)
 	}
 	if packet.PromptMarkdown != "# MOCK PROMPT: Test Compiler Delegation" {
 		t.Errorf("unexpected PromptMarkdown: %s", packet.PromptMarkdown)

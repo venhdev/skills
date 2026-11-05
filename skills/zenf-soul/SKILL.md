@@ -60,6 +60,10 @@ Orchestrate complex initiatives sequentially across 5 canonical gates:
 - Dependency upgrade candidates or breaking trade-offs need isolated audit → (via /inspect-deps).
 - Documentation authority needs reconciliation → (via /ssot).
 - Repository tracking, harness, or privacy setup is missing → (via /zenf-init).
+- ZenForge projects, plans, tasks, or execution board need operation → (via /zenf-project).
+- SSOT documents need registration, classification, refresh, or search → (via /zenf-docs).
+- WORKER personas, goals, schedules, or observed sessions need management → (via /zenf-agent).
+- Exact ZenForge MCP payloads, claim/review, or transitions are required → (via /zenfd-tools).
 - Runtime environment health, containers, or test fixtures need verification → (via /env-doctor).
 - Worktree creation, listing, or removal is requested → (via /worktree).
 - Workspace hygiene, scratch files, or completed tasks need purging → (via /sweep).

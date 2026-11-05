@@ -108,25 +108,41 @@ func TestTaskStatus_StateTransitions(t *testing.T) {
 
 func TestTask_Validate(t *testing.T) {
 	validTask := domain.Task{
-		ID:     "task-01",
-		PlanID: "plan-01",
-		Status: domain.StatusReady,
+		ID:          "task-01",
+		ProjectSlug: "project-01",
+		PlanSlug:    "plan-01",
+		Title:       "Valid task",
+		Status:      domain.StatusReady,
 	}
 	if err := validTask.Validate(); err != nil {
 		t.Errorf("Expected valid task, got error: %v", err)
 	}
 
-	missingID := domain.Task{PlanID: "plan-01", Status: domain.StatusReady}
+	orphanTask := domain.Task{ID: "task-02", Title: "Orphan task", Status: domain.StatusReady}
+	if err := orphanTask.Validate(); err != nil {
+		t.Errorf("Expected orphan task to be valid, got error: %v", err)
+	}
+
+	missingID := domain.Task{Title: "No id", Status: domain.StatusReady}
 	if err := missingID.Validate(); err == nil {
 		t.Error("Expected error for missing task ID, got nil")
 	}
 
-	missingPlanID := domain.Task{ID: "task-01", Status: domain.StatusReady}
-	if err := missingPlanID.Validate(); err == nil {
-		t.Error("Expected error for missing plan ID, got nil")
+	missingTitle := domain.Task{ID: "task-01", Status: domain.StatusReady}
+	if err := missingTitle.Validate(); err == nil {
+		t.Error("Expected error for missing title, got nil")
 	}
 
-	invalidStatus := domain.Task{ID: "task-01", PlanID: "plan-01", Status: "BAD"}
+	planWithoutProject := domain.Task{
+		ID: "task-01", PlanSlug: "plan-01", Title: "Plan task", Status: domain.StatusReady,
+	}
+	if err := planWithoutProject.Validate(); err == nil {
+		t.Error("Expected error for a plan task without a project, got nil")
+	}
+
+	invalidStatus := domain.Task{
+		ID: "task-01", ProjectSlug: "project-01", Title: "Bad status", Status: "BAD",
+	}
 	if err := invalidStatus.Validate(); err == nil {
 		t.Error("Expected error for invalid status, got nil")
 	}
@@ -137,11 +153,12 @@ func TestEntities_JSONSerialization(t *testing.T) {
 
 	// Test Plan
 	plan := domain.Plan{
-		Slug:      "test-plan",
-		Title:     "Test Plan",
-		Status:    "ACTIVE",
-		CreatedAt: now,
-		UpdatedAt: now,
+		Slug:        "test-plan",
+		ProjectSlug: "test-project",
+		Title:       "Test Plan",
+		Status:      domain.PlanStatusActive,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	data, err := json.Marshal(plan)
 	if err != nil {
@@ -158,7 +175,8 @@ func TestEntities_JSONSerialization(t *testing.T) {
 	// Test Task
 	task := domain.Task{
 		ID:           "task-01",
-		PlanID:       "test-plan",
+		ProjectSlug:  "test-project",
+		PlanSlug:     "test-plan",
 		Title:        "Implement Feature",
 		Dependencies: []string{"task-00"},
 		Harness:      "claude-code",

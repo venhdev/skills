@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Scratch Exclusivity & DB SSOT**: Mutate plan artifacts inside `.agents/scratch/plans/<slug>/`; never modify production source code or permanent `docs/` directly (delegate durable promotion to `/ssot`). In repositories governed by `zenfd` (ZenForge Daemon), persist the living plan with `plans(action=create)` and the whole task DAG in one batched `tasks(action=create)` call.
+- **Scratch Exclusivity & DB SSOT**: Mutate plan artifacts inside `.agents/scratch/plans/<slug>/`; never modify production source code or permanent `docs/` directly (delegate durable promotion to `/ssot`). In repositories governed by `zenfd` (ZenForge Daemon), persist the living plan with `plans(action=create, project_slug=...)` and either embed the whole task DAG as `tasks[]` in that call or add tasks with `tasks(action=create, plan_slug=...)`.
 - **Authorization Gate on Init**: Stage the planned dossier structure and halt for affirmative human authorization before creating files on disk; honor prior explicit approval.
 - **Evidence-Backed Verification**: Transition phase status to `VERIFIED` strictly when supported by concrete proof (automated test command exit code 0 and git commit SHA); never accept unverified verbal claims of completion.
 - **Drift Breaker**: Transition phase status to `DRIFTED` and halt implementation immediately upon detecting architectural divergence between code reality and staged contracts; require caller re-planning before amending the plan.
@@ -70,6 +70,6 @@ PLAN | slug: <slug> | rev: <v1.N> | status: <STATUS> | active: <phase-id> | veri
 
 1. **Ingest & Parse**: Ingest operation (`init`, `claim`, `verify`, `drift`, `amend`), initiative slug, and target phase ID or proof payload.
 2. **Authorize & Mutate**:
-   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the plan and the complete task DAG in SQLite SSOT with `plans(action=create)` then one batched `tasks(action=create)`. If a phase needs design references, pass them in that task's `media[]` while the task is still `READY`/`PENDING`.
+   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the plan under its owning project and the complete task DAG in SQLite SSOT with `plans(action=create, project_slug=..., tasks=[...])`, or add tasks later with `tasks(action=create, plan_slug=...)`. If a phase needs design references, pass them in that task's `media[]` while the task is still `READY`/`PENDING`.
    - For `claim / verify / drift / amend`: Read existing dashboard, validate state transition rules, apply atomic update to `README.md`, and reconcile overall initiative state.
 3. **Emit & Report**: Render Canonical Output Contract (or micro-token for autonomous runners) and halt turn.

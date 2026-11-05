@@ -18,7 +18,7 @@ func TestGateway_MutationRejectsForeignOrigin(t *testing.T) {
 	_, baseURL, _, cleanup := setupTestGateway(t)
 	defer cleanup()
 
-	body := strings.NewReader(`{"slug":"x","title":"x"}`)
+	body := strings.NewReader(`{"slug":"x","project_slug":"test-project","title":"x"}`)
 
 	foreign, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/plans", body)
 	if err != nil {
@@ -35,7 +35,7 @@ func TestGateway_MutationRejectsForeignOrigin(t *testing.T) {
 		t.Fatalf("foreign origin: expected 403, got %d", resp.StatusCode)
 	}
 
-	loopback, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/plans", strings.NewReader(`{"slug":"x","title":"x"}`))
+	loopback, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/plans", strings.NewReader(`{"slug":"x","project_slug":"test-project","title":"x"}`))
 	if err != nil {
 		t.Fatalf("failed to build request: %v", err)
 	}

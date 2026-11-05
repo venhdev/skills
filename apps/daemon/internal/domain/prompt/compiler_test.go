@@ -15,7 +15,8 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 
 	task := domain.Task{
 		ID:                   "P-03",
-		PlanID:               "plan-engine-v1",
+		ProjectSlug:          "project-engine",
+		PlanSlug:             "plan-engine-v1",
 		Title:                "Prompt Context Compiler Domain Seam",
 		Description:          "Extract prompt markdown assembly into domain service.",
 		Priority:             "P2",
@@ -37,7 +38,7 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 		},
 	}
 
-	packet, err := compiler.Compile(ctx, task, inputAttachments)
+	packet, err := compiler.Compile(ctx, prompt.Input{Task: task, InputAttachments: inputAttachments})
 	if err != nil {
 		t.Fatalf("unexpected error compiling context packet: %v", err)
 	}
@@ -134,12 +135,13 @@ func TestMarkdownPromptCompiler_Compile_MinimalAndDefaults(t *testing.T) {
 	ctx := context.Background()
 
 	task := domain.Task{
-		ID:     "T-01",
-		PlanID: "minimal-plan",
-		Title:  "Minimal Task",
+		ID:          "T-01",
+		ProjectSlug: "minimal-project",
+		PlanSlug:    "minimal-plan",
+		Title:       "Minimal Task",
 	}
 
-	packet, err := compiler.Compile(ctx, task, nil)
+	packet, err := compiler.Compile(ctx, prompt.Input{Task: task})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,5 +173,74 @@ func TestMarkdownPromptCompiler_Compile_MinimalAndDefaults(t *testing.T) {
 	}
 	if strings.Contains(packet.PromptMarkdown, "## 4. Verification Commands") {
 		t.Error("did not expect verification commands section when empty")
+	}
+}
+
+func TestMarkdownPromptCompiler_Compile_EntityContextAndLinkedDocs(t *testing.T) {
+	compiler := prompt.NewCompiler()
+	ctx := context.Background()
+
+	task := domain.Task{
+		ID:           "T-CTX",
+		ProjectSlug:  "alpha",
+		PlanSlug:     "p1",
+		AgentSlug:    "coder",
+		Title:        "Context task",
+		RequiredDocs: []string{"ARCH"},
+	}
+	input := prompt.Input{
+		Task:    task,
+		Project: &domain.Project{Slug: "alpha", Name: "Alpha"},
+		Plan:    &domain.Plan{Slug: "p1", ProjectSlug: "alpha", Title: "Plan One"},
+		Agent: &domain.Agent{
+			Slug: "coder", Name: "Coder", Persona: domain.PersonaCoder, Goal: "ship the slice",
+		},
+		LinkedDocuments: []domain.DocumentBrief{
+			{Key: "ARCH", Type: domain.DocTypeArchitecture, Scope: domain.DocScopeProject, Title: "Architecture", Path: "/tmp/arch.md", Summary: "system map"},
+		},
+	}
+
+	packet, err := compiler.Compile(ctx, input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	md := packet.PromptMarkdown
+	for _, want := range []string{
+		"- **Project**: `alpha` — Alpha",
+		"- **Plan**: `p1` — Plan One",
+		"- **Agent persona**: `coder` (CODER) — Coder",
+		"- **Agent goal**: ship the slice",
+		"## 2. Linked SSOT Documents",
+		"- `ARCH` [ARCHITECTURE/PROJECT] — Architecture (`/tmp/arch.md`): system map",
+		"## 3. MCP Tool Handshake Protocol",
+	} {
+		if !strings.Contains(md, want) {
+			t.Errorf("prompt markdown missing %q\n---\n%s", want, md)
+		}
+	}
+}
+
+func TestMarkdownPromptCompiler_Compile_ScopeWording(t *testing.T) {
+	compiler := prompt.NewCompiler()
+	ctx := context.Background()
+
+	projectPacket, err := compiler.Compile(ctx, prompt.Input{
+		Task: domain.Task{ID: "T-PROJ", ProjectSlug: "alpha", Title: "Project task"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(projectPacket.PromptMarkdown, "**Scope**: project task (no plan wrapper)") {
+		t.Error("expected project task scope wording")
+	}
+
+	orphanPacket, err := compiler.Compile(ctx, prompt.Input{
+		Task: domain.Task{ID: "T-ORPHAN", Title: "Orphan task"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(orphanPacket.PromptMarkdown, "**Scope**: orphan task (no project or plan)") {
+		t.Error("expected orphan task scope wording")
 	}
 }

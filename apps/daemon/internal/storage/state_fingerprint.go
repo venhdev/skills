@@ -2,24 +2,23 @@ package storage
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 )
 
-// StateFingerprinter returns a cheap fingerprint of the plans/tasks state. The
-// gateway polls it to detect commits made by other processes (for example the
-// stdio MCP server) that never pass through the daemon event hub.
+// StateFingerprinter returns a cheap fingerprint of the whole tracking plane.
+// The gateway polls it to detect commits made by another process (for example
+// the stdio MCP server) that never pass through the daemon event hub.
 type StateFingerprinter struct {
 	db *DB
 }
 
-// StateFingerprint reads the revision counter maintained by database triggers.
-// It is a single-row lookup, so the watcher can poll frequently without
-// scanning the plans/tasks tables.
+// StateFingerprint reads the highest event id. Every tracked mutation appends an
+// event through database triggers, so a single indexed MAX() is enough and the
+// watcher can poll frequently without scanning entity tables.
 func (f *StateFingerprinter) StateFingerprint(ctx context.Context) (string, error) {
-	var revision int64
-	if err := f.db.QueryRow(ctx, `SELECT revision FROM state_revision WHERE id = 1`).Scan(&revision); err != nil {
-		return "", fmt.Errorf("failed to read state revision: %w", err)
+	var id int64
+	if err := f.db.QueryRow(ctx, "SELECT COALESCE(MAX(id), 0) FROM events").Scan(&id); err != nil {
+		return "", err
 	}
-	return strconv.FormatInt(revision, 10), nil
+	return strconv.FormatInt(id, 10), nil
 }

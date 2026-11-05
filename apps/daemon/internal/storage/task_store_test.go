@@ -1,161 +1,254 @@
 package storage_test
 
 import (
-	"context"
-	"path/filepath"
-	"slices"
+	"errors"
 	"testing"
-	"time"
 
 	"zenfd/internal/domain"
 	"zenfd/internal/storage"
 )
 
-// TestTaskStore_RoundTripPreservesEveryColumn writes a task where every column
-// carries a distinct sentinel value and reads it back. Because taskColumns
-// drives the SELECT projection while scanTask lists destinations positionally,
-// a reordered column pair (for example two adjacent TEXT columns) would swap
-// values here instead of silently corrupting data in production.
-func TestTaskStore_RoundTripPreservesEveryColumn(t *testing.T) {
-	db, err := storage.Open(filepath.Join(t.TempDir(), "task-roundtrip.db"))
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
+func TestTaskStore_CreateScopedTasks(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", nil)
+
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "PROJ-1", ProjectSlug: "alpha", Title: "Project task"},
+	}); err != nil {
+		t.Fatalf("create project task failed: %v", err)
 	}
-	defer db.Close()
-
-	store := storage.NewStore(db)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	claimedAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	createdAt := time.Date(2026, 2, 3, 4, 5, 6, 0, time.UTC)
-
-	want := domain.Task{
-		ID:                   "T-ROUNDTRIP",
-		PlanID:               "plan-roundtrip",
-		Title:                "title-sentinel",
-		Description:          "description-sentinel",
-		Dependencies:         []string{"dep-a", "dep-b"},
-		Priority:             domain.PriorityP0,
-		Complexity:           domain.ComplexityHigh,
-		RiskLevel:            domain.RiskMedium,
-		RequiredSkills:       []string{"skill-a", "skill-b"},
-		RequiredTools:        []string{"tool-a", "tool-b"},
-		TargetFiles:          []string{"file-a.go", "file-b.go"},
-		AcceptanceCriteria:   []string{"criterion-a", "criterion-b"},
-		VerificationCommands: []string{"command-a", "command-b"},
-		Harness:              "harness-sentinel",
-		WorktreePath:         "/worktree/sentinel",
-		Status:               domain.StatusRunning,
-		ClaimedBy:            "worker-sentinel",
-		ClaimedAt:            &claimedAt,
-		OrchestratorID:       "orchestrator-sentinel",
-		WorkerRole:           "CODER",
-		Notes:                "notes-sentinel",
-		ReviewReason:         "review-reason-sentinel",
-		ReviewDetails:        "review-details-sentinel",
-		ReviewOptions:        []string{"option-a", "option-b"},
-		ReviewResponse:       "review-response-sentinel",
-		ResolvedBy:           "resolved-by-sentinel",
-		ConflictFiles:        []string{"conflict-a.go", "conflict-b.go"},
-		CreatedAt:            createdAt,
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "PLAN-1", PlanSlug: "p1", Title: "Plan task"},
+	}); err != nil {
+		t.Fatalf("create plan task failed: %v", err)
+	}
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "ORPHAN-1", Title: "Orphan task"},
+	}); err != nil {
+		t.Fatalf("create orphan task failed: %v", err)
 	}
 
-	plan := domain.Plan{Slug: want.PlanID, Title: "Round Trip Plan", Status: "ACTIVE"}
-	if err := store.CreatePlan(ctx, plan); err != nil {
-		t.Fatalf("CreatePlan failed: %v", err)
+	projectTask := mustTask(t, store, ctx, "PROJ-1")
+	if projectTask.Scope() != domain.ScopeProject || projectTask.ProjectSlug != "alpha" {
+		t.Fatalf("unexpected project task scope: %+v", projectTask)
 	}
-	// CreateTask allows forward references, so the sentinel dependency IDs do
-	// not need real rows; the point here is column round-trip fidelity.
-	if err := store.CreateTask(ctx, want); err != nil {
-		t.Fatalf("CreateTask failed: %v", err)
+	if projectTask.Status != domain.StatusReady {
+		t.Fatalf("project task status = %s, want READY", projectTask.Status)
 	}
 
-	got, err := store.GetTask(ctx, want.ID)
-	if err != nil {
-		t.Fatalf("GetTask failed: %v", err)
+	planTask := mustTask(t, store, ctx, "PLAN-1")
+	if planTask.Scope() != domain.ScopePlan || planTask.ProjectSlug != "alpha" || planTask.PlanSlug != "p1" {
+		t.Fatalf("expected plan task to inherit project, got %+v", planTask)
 	}
 
-	if got.ID != want.ID || got.PlanID != want.PlanID {
-		t.Errorf("identity mismatch: got id=%q plan_id=%q", got.ID, got.PlanID)
+	orphan := mustTask(t, store, ctx, "ORPHAN-1")
+	if orphan.Scope() != domain.ScopeOrphan {
+		t.Fatalf("unexpected orphan scope: %+v", orphan)
 	}
-	if got.Title != want.Title {
-		t.Errorf("title = %q, want %q", got.Title, want.Title)
+}
+
+func TestTaskStore_RejectsCrossContainerBatch(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedProject(t, store, ctx, "beta")
+
+	err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "A", ProjectSlug: "alpha", Title: "A"},
+		{ID: "B", ProjectSlug: "beta", Title: "B"},
+	})
+	if !errors.Is(err, storage.ErrInvalidGraph) {
+		t.Fatalf("expected ErrInvalidGraph for cross-container batch, got %v", err)
 	}
-	if got.Description != want.Description {
-		t.Errorf("description = %q, want %q", got.Description, want.Description)
+	if _, err := store.GetTask(ctx, "A"); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("expected batch rollback, got %v", err)
 	}
-	if !slices.Equal(got.Dependencies, want.Dependencies) {
-		t.Errorf("dependencies = %v, want %v", got.Dependencies, want.Dependencies)
+}
+
+func TestTaskStore_ListFilters(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedProject(t, store, ctx, "beta")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{
+		{ID: "P1-A", Title: "Plan A", Status: domain.StatusReady, AgentSlug: "coder"},
+	})
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "PROJ-A", ProjectSlug: "alpha", Title: "Project A", Status: domain.StatusRunning},
+	}); err != nil {
+		t.Fatalf("create project task failed: %v", err)
 	}
-	if got.Priority != want.Priority {
-		t.Errorf("priority = %q, want %q", got.Priority, want.Priority)
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "ORPHAN-A", Title: "Orphan A"},
+	}); err != nil {
+		t.Fatalf("create orphan task failed: %v", err)
 	}
-	if got.Complexity != want.Complexity {
-		t.Errorf("complexity = %q, want %q", got.Complexity, want.Complexity)
+
+	byPlan, err := store.ListTasks(ctx, domain.TaskFilter{PlanSlug: "p1"})
+	if err != nil || len(byPlan) != 1 || byPlan[0].ID != "P1-A" {
+		t.Fatalf("unexpected plan filter result: %+v, err=%v", byPlan, err)
 	}
-	if got.RiskLevel != want.RiskLevel {
-		t.Errorf("risk_level = %q, want %q", got.RiskLevel, want.RiskLevel)
+	byProject, err := store.ListTasks(ctx, domain.TaskFilter{ProjectSlug: "alpha"})
+	if err != nil || len(byProject) != 2 {
+		t.Fatalf("unexpected project filter result: %+v, err=%v", byProject, err)
 	}
-	if !slices.Equal(got.RequiredSkills, want.RequiredSkills) {
-		t.Errorf("required_skills = %v, want %v", got.RequiredSkills, want.RequiredSkills)
+	byStatus, err := store.ListTasks(ctx, domain.TaskFilter{ProjectSlug: "alpha", Status: domain.StatusRunning})
+	if err != nil || len(byStatus) != 1 || byStatus[0].ID != "PROJ-A" {
+		t.Fatalf("unexpected status filter result: %+v, err=%v", byStatus, err)
 	}
-	if !slices.Equal(got.RequiredTools, want.RequiredTools) {
-		t.Errorf("required_tools = %v, want %v", got.RequiredTools, want.RequiredTools)
+	byAgent, err := store.ListTasks(ctx, domain.TaskFilter{AgentSlug: "coder"})
+	if err != nil || len(byAgent) != 1 || byAgent[0].ID != "P1-A" {
+		t.Fatalf("unexpected agent filter result: %+v, err=%v", byAgent, err)
 	}
-	if !slices.Equal(got.TargetFiles, want.TargetFiles) {
-		t.Errorf("target_files = %v, want %v", got.TargetFiles, want.TargetFiles)
+	orphans, err := store.ListTasks(ctx, domain.TaskFilter{OrphanOnly: true})
+	if err != nil || len(orphans) != 1 || orphans[0].ID != "ORPHAN-A" {
+		t.Fatalf("unexpected orphan filter result: %+v, err=%v", orphans, err)
 	}
-	if !slices.Equal(got.AcceptanceCriteria, want.AcceptanceCriteria) {
-		t.Errorf("acceptance_criteria = %v, want %v", got.AcceptanceCriteria, want.AcceptanceCriteria)
+
+	planTasks, err := store.GetTasksByPlan(ctx, "p1")
+	if err != nil || len(planTasks) != 1 || planTasks[0].ID != "P1-A" {
+		t.Fatalf("unexpected GetTasksByPlan result: %+v, err=%v", planTasks, err)
 	}
-	if !slices.Equal(got.VerificationCommands, want.VerificationCommands) {
-		t.Errorf("verification_commands = %v, want %v", got.VerificationCommands, want.VerificationCommands)
+}
+
+func TestTaskStore_DependencyPolicy(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedProject(t, store, ctx, "beta")
+	seedPlan(t, store, ctx, "alpha", "p1", nil)
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "BETA-1", ProjectSlug: "beta", Title: "Beta task"},
+	}); err != nil {
+		t.Fatalf("create beta task failed: %v", err)
 	}
-	if got.Harness != want.Harness {
-		t.Errorf("harness = %q, want %q", got.Harness, want.Harness)
+
+	if err := store.CreateTasks(ctx, []domain.Task{
+		{ID: "P1-A", PlanSlug: "p1", Title: "A"},
+		{ID: "P1-B", PlanSlug: "p1", Title: "B", Dependencies: []string{"P1-A"}},
+	}); err != nil {
+		t.Fatalf("create plan DAG failed: %v", err)
 	}
-	if got.WorktreePath != want.WorktreePath {
-		t.Errorf("worktree_path = %q, want %q", got.WorktreePath, want.WorktreePath)
+	if got := mustTask(t, store, ctx, "P1-B").Status; got != domain.StatusPending {
+		t.Fatalf("dependent status = %s, want PENDING", got)
 	}
-	if got.Status != want.Status {
-		t.Errorf("status = %q, want %q", got.Status, want.Status)
+
+	crossContainer := []domain.Task{
+		{ID: "P1-C", PlanSlug: "p1", Title: "C", Dependencies: []string{"BETA-1"}},
 	}
-	if got.ClaimedBy != want.ClaimedBy {
-		t.Errorf("claimed_by = %q, want %q", got.ClaimedBy, want.ClaimedBy)
+	if err := store.CreateTasks(ctx, crossContainer); !errors.Is(err, storage.ErrInvalidGraph) {
+		t.Fatalf("expected ErrInvalidGraph for cross-container dependency, got %v", err)
 	}
-	if got.ClaimedAt == nil || !got.ClaimedAt.Equal(claimedAt) {
-		t.Errorf("claimed_at = %v, want %v", got.ClaimedAt, claimedAt)
+
+	selfDependency := []domain.Task{{ID: "SELF", Title: "Self", Dependencies: []string{"SELF"}}}
+	if err := store.CreateTasks(ctx, selfDependency); !errors.Is(err, storage.ErrInvalidGraph) {
+		t.Fatalf("expected ErrInvalidGraph for self dependency, got %v", err)
 	}
-	if got.OrchestratorID != want.OrchestratorID {
-		t.Errorf("orchestrator_id = %q, want %q", got.OrchestratorID, want.OrchestratorID)
+}
+
+func TestTaskStore_CycleRejectedOnMetadataUpdate(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{
+		{ID: "A", Title: "A"},
+		{ID: "B", Title: "B", Dependencies: []string{"A"}},
+	})
+
+	err := store.UpdateTaskMetadata(ctx, "A", domain.TaskPatch{Dependencies: &[]string{"B"}})
+	if !errors.Is(err, storage.ErrInvalidGraph) {
+		t.Fatalf("expected ErrInvalidGraph for cycle, got %v", err)
 	}
-	if got.WorkerRole != want.WorkerRole {
-		t.Errorf("worker_role = %q, want %q", got.WorkerRole, want.WorkerRole)
+	task := mustTask(t, store, ctx, "A")
+	if len(task.Dependencies) != 0 {
+		t.Fatalf("expected failed update to roll back, got %+v", task.Dependencies)
 	}
-	if got.Notes != want.Notes {
-		t.Errorf("notes = %q, want %q", got.Notes, want.Notes)
+}
+
+func TestTaskStore_UpdateMetadataAndDependencies(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{
+		{ID: "A", Title: "Old", Description: "old"},
+		{ID: "B", Title: "B"},
+	})
+
+	patch := domain.TaskPatch{
+		Title:                ptr("New"),
+		Description:          ptr("new"),
+		Priority:             ptr(domain.PriorityP0),
+		Complexity:           ptr(domain.ComplexityHigh),
+		RiskLevel:            ptr(domain.RiskHigh),
+		AgentSlug:            ptr("coder"),
+		RequiredSkills:       &[]string{"tdd"},
+		RequiredTools:        &[]string{"go"},
+		RequiredDocs:         &[]string{"ARCH"},
+		TargetFiles:          &[]string{"a.go"},
+		AcceptanceCriteria:   &[]string{"passes"},
+		VerificationCommands: &[]string{"go test ./..."},
+		Harness:              ptr("codex"),
+		WorktreePath:         ptr("/tmp/wt"),
 	}
-	if got.ReviewReason != want.ReviewReason {
-		t.Errorf("review_reason = %q, want %q", got.ReviewReason, want.ReviewReason)
+	if err := store.UpdateTaskMetadata(ctx, "A", patch); err != nil {
+		t.Fatalf("UpdateTaskMetadata failed: %v", err)
 	}
-	if got.ReviewDetails != want.ReviewDetails {
-		t.Errorf("review_details = %q, want %q", got.ReviewDetails, want.ReviewDetails)
+	task := mustTask(t, store, ctx, "A")
+	if task.Title != "New" || task.Priority != domain.PriorityP0 || task.AgentSlug != "coder" ||
+		task.Harness != "codex" || task.WorktreePath != "/tmp/wt" {
+		t.Fatalf("metadata patch not applied: %+v", task)
 	}
-	if !slices.Equal(got.ReviewOptions, want.ReviewOptions) {
-		t.Errorf("review_options = %v, want %v", got.ReviewOptions, want.ReviewOptions)
+	if len(task.RequiredDocs) != 1 || task.RequiredDocs[0] != "ARCH" {
+		t.Fatalf("required docs not applied: %+v", task.RequiredDocs)
 	}
-	if got.ReviewResponse != want.ReviewResponse {
-		t.Errorf("review_response = %q, want %q", got.ReviewResponse, want.ReviewResponse)
+
+	if err := store.UpdateTaskDependencies(ctx, "A", []string{"B"}); err != nil {
+		t.Fatalf("UpdateTaskDependencies failed: %v", err)
 	}
-	if got.ResolvedBy != want.ResolvedBy {
-		t.Errorf("resolved_by = %q, want %q", got.ResolvedBy, want.ResolvedBy)
+	task = mustTask(t, store, ctx, "A")
+	if len(task.Dependencies) != 1 || task.Dependencies[0] != "B" {
+		t.Fatalf("dependencies not updated: %+v", task.Dependencies)
 	}
-	if !slices.Equal(got.ConflictFiles, want.ConflictFiles) {
-		t.Errorf("conflict_files = %v, want %v", got.ConflictFiles, want.ConflictFiles)
+	if task.Status != domain.StatusPending {
+		t.Fatalf("expected A PENDING after depending on B, got %s", task.Status)
 	}
-	if !got.CreatedAt.Equal(createdAt) {
-		t.Errorf("created_at = %v, want %v", got.CreatedAt, createdAt)
+}
+
+func TestTaskStore_MetadataLockedAfterClaim(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{
+		{ID: "A", Title: "A", Status: domain.StatusRunning},
+	})
+
+	err := store.UpdateTaskMetadata(ctx, "A", domain.TaskPatch{Title: ptr("New")})
+	if !errors.Is(err, storage.ErrInvalidState) {
+		t.Fatalf("expected ErrInvalidState while RUNNING, got %v", err)
 	}
-	// updated_at is intentionally not compared: upsertTaskTx always overwrites it.
+}
+
+func TestTaskStore_NotesAppend(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+	seedPlan(t, store, ctx, "alpha", "p1", []domain.Task{{ID: "A", Title: "A"}})
+
+	if err := store.AppendTaskNotes(ctx, "A", "first"); err != nil {
+		t.Fatalf("AppendTaskNotes failed: %v", err)
+	}
+	if err := store.AppendTaskNotes(ctx, "A", "second"); err != nil {
+		t.Fatalf("AppendTaskNotes failed: %v", err)
+	}
+	task := mustTask(t, store, ctx, "A")
+	if task.Notes != "first\nsecond" {
+		t.Fatalf("notes = %q, want first\\nsecond", task.Notes)
+	}
+}
+
+func TestTaskStore_DuplicateID(t *testing.T) {
+	store, ctx := newTestStore(t)
+	seedProject(t, store, ctx, "alpha")
+
+	if err := store.CreateTasks(ctx, []domain.Task{{ID: "A", ProjectSlug: "alpha", Title: "A"}}); err != nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	err := store.CreateTasks(ctx, []domain.Task{{ID: "A", ProjectSlug: "alpha", Title: "again"}})
+	if !errors.Is(err, storage.ErrAlreadyExists) {
+		t.Fatalf("expected ErrAlreadyExists, got %v", err)
+	}
 }

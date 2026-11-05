@@ -48,7 +48,7 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "0.1.3"
+const Version = "0.2.0"
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -123,12 +123,16 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 	rootCmd.AddCommand(daemonCmd)
 
 	// 2. Plan Push Command
+	var planProject string
 	planPushCmd := &cobra.Command{
 		Use:   "push <file.md>",
 		Short: "Parse and ingest a living Markdown plan dossier into the daemon",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			filePath := args[0]
+			if planProject == "" {
+				return fmt.Errorf("--project is required; plans always belong to a project")
+			}
 
 			plan, tasks, err := parser.ParseMarkdownPlanFile(filePath)
 			if err != nil {
@@ -136,9 +140,10 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 
 			payload := gateway.CreatePlanRequest{
-				Slug:  plan.Slug,
-				Title: plan.Title,
-				Tasks: tasks,
+				Slug:        plan.Slug,
+				ProjectSlug: planProject,
+				Title:       plan.Title,
+				Tasks:       tasks,
 			}
 
 			bodyBytes, err := json.Marshal(payload)
@@ -163,6 +168,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			return nil
 		},
 	}
+	planPushCmd.Flags().StringVarP(&planProject, "project", "p", "", "Owning project slug (required)")
 	// 3. Plan Get Command
 	planGetCmd := &cobra.Command{
 		Use:   "get <slug>",
@@ -239,9 +245,16 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintf(w, "TASK ID\tPLAN\tSTATUS\tHARNESS\n")
+			fmt.Fprintf(w, "TASK ID\tSCOPE\tSTATUS\tHARNESS\n")
 			for _, t := range tasks {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, t.PlanID, t.Status, t.Harness)
+				scope := t.PlanSlug
+				if scope == "" {
+					scope = t.ProjectSlug
+				}
+				if scope == "" {
+					scope = "orphan"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, scope, t.Status, t.Harness)
 			}
 			return w.Flush()
 		},

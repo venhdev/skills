@@ -20,20 +20,66 @@ type scanner interface {
 	Scan(dest ...any) error
 }
 
-// scanTask maps a tasks row to a domain.Task. The destination order must match
-// taskColumns.
+const taskSelectColumns = `
+id,
+COALESCE(project_slug, '') AS project_slug,
+COALESCE(plan_slug, '') AS plan_slug,
+title, description, dependencies, priority, complexity, risk_level, agent_slug,
+required_skills, required_tools, required_docs, target_files, acceptance_criteria,
+verification_commands, harness, worktree_path, status, claimed_by, claimed_at,
+orchestrator_id, worker_role, claim_session_id, notes, review_reason, review_details,
+review_options, review_response, resolved_by, conflict_files, created_at, updated_at`
+
+const taskInsertQuery = `
+INSERT INTO tasks (
+	id, project_slug, plan_slug, title, description, dependencies, priority, complexity,
+	risk_level, agent_slug, required_skills, required_tools, required_docs, target_files,
+	acceptance_criteria, verification_commands, harness, worktree_path, status, claimed_by,
+	claimed_at, orchestrator_id, worker_role, claim_session_id, notes, review_reason,
+	review_details, review_options, review_response, resolved_by, conflict_files,
+	created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO NOTHING`
+
+const taskAuthoringUpdateQuery = `
+INSERT INTO tasks (
+	id, project_slug, plan_slug, title, description, dependencies, priority, complexity,
+	risk_level, agent_slug, required_skills, required_tools, required_docs, target_files,
+	acceptance_criteria, verification_commands, harness, worktree_path, status, claimed_by,
+	claimed_at, orchestrator_id, worker_role, claim_session_id, notes, review_reason,
+	review_details, review_options, review_response, resolved_by, conflict_files,
+	created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+	title = excluded.title,
+	description = excluded.description,
+	dependencies = excluded.dependencies,
+	priority = excluded.priority,
+	complexity = excluded.complexity,
+	risk_level = excluded.risk_level,
+	agent_slug = excluded.agent_slug,
+	required_skills = excluded.required_skills,
+	required_tools = excluded.required_tools,
+	required_docs = excluded.required_docs,
+	target_files = excluded.target_files,
+	acceptance_criteria = excluded.acceptance_criteria,
+	verification_commands = excluded.verification_commands,
+	harness = excluded.harness,
+	worktree_path = excluded.worktree_path,
+	updated_at = excluded.updated_at`
+
 func scanTask(s scanner) (*domain.Task, error) {
 	var t domain.Task
-	var depsJSON, skillsJSON, toolsJSON, filesJSON, criteriaJSON, verifJSON, optionsJSON, conflictJSON string
+	var depsJSON, skillsJSON, toolsJSON, docsJSON, filesJSON, criteriaJSON, verifJSON, optionsJSON, conflictJSON string
 	var priorityStr, complexityStr, riskStr, statusStr string
 	var claimedAt sql.NullTime
 
 	err := s.Scan(
-		&t.ID, &t.PlanID, &t.Title, &t.Description, &depsJSON,
-		&priorityStr, &complexityStr, &riskStr, &skillsJSON, &toolsJSON,
+		&t.ID, &t.ProjectSlug, &t.PlanSlug, &t.Title, &t.Description, &depsJSON,
+		&priorityStr, &complexityStr, &riskStr, &t.AgentSlug, &skillsJSON, &toolsJSON, &docsJSON,
 		&filesJSON, &criteriaJSON, &verifJSON,
 		&t.Harness, &t.WorktreePath, &statusStr, &t.ClaimedBy, &claimedAt,
-		&t.OrchestratorID, &t.WorkerRole, &t.Notes,
+		&t.OrchestratorID, &t.WorkerRole, &t.ClaimSessionID, &t.Notes,
 		&t.ReviewReason, &t.ReviewDetails, &optionsJSON, &t.ReviewResponse, &t.ResolvedBy,
 		&conflictJSON, &t.CreatedAt, &t.UpdatedAt,
 	)
@@ -64,6 +110,7 @@ func scanTask(s scanner) (*domain.Task, error) {
 	t.DependenciesCorrupt = depsCorrupt
 	t.RequiredSkills = unmarshalStrings(skillsJSON)
 	t.RequiredTools = unmarshalStrings(toolsJSON)
+	t.RequiredDocs = unmarshalStrings(docsJSON)
 	t.TargetFiles = unmarshalStrings(filesJSON)
 	t.AcceptanceCriteria = unmarshalStrings(criteriaJSON)
 	t.VerificationCommands = unmarshalStrings(verifJSON)
@@ -73,10 +120,6 @@ func scanTask(s scanner) (*domain.Task, error) {
 	return &t, nil
 }
 
-// decodeStringArray decodes a JSON string array and reports whether the stored
-// value was malformed. Dependencies are DAG-critical, so callers that act on
-// topology (claim, transitions) must refuse a corrupt value instead of silently
-// treating the task as dependency-free.
 func decodeStringArray(raw string) ([]string, bool) {
 	if raw == "" {
 		return []string{}, false
@@ -91,19 +134,16 @@ func decodeStringArray(raw string) ([]string, bool) {
 	return out, false
 }
 
-// unmarshalStrings decodes a JSON string array and normalizes nil to an empty
-// slice so JSON responses never emit null. It is used for presentation fields
-// where a corrupt value must not break reads.
 func unmarshalStrings(raw string) []string {
 	out, _ := decodeStringArray(raw)
 	return out
 }
 
-// taskArgs builds the insert argument list in taskColumns order.
 func taskArgs(task *domain.Task) []any {
 	depsJSON, _ := json.Marshal(task.Dependencies)
 	skillsJSON, _ := json.Marshal(task.RequiredSkills)
 	toolsJSON, _ := json.Marshal(task.RequiredTools)
+	docsJSON, _ := json.Marshal(task.RequiredDocs)
 	filesJSON, _ := json.Marshal(task.TargetFiles)
 	criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
 	verifJSON, _ := json.Marshal(task.VerificationCommands)
@@ -122,28 +162,32 @@ func taskArgs(task *domain.Task) []any {
 	if risk == "" {
 		risk = string(domain.RiskLow)
 	}
+	harness := task.Harness
+	if harness == "" {
+		harness = "orchestrator"
+	}
 
 	return []any{
-		task.ID, task.PlanID, task.Title, task.Description, string(depsJSON),
-		priority, complexity, risk, string(skillsJSON), string(toolsJSON),
+		task.ID, nullableString(task.ProjectSlug), nullableString(task.PlanSlug),
+		task.Title, task.Description, string(depsJSON), priority, complexity, risk,
+		task.AgentSlug, string(skillsJSON), string(toolsJSON), string(docsJSON),
 		string(filesJSON), string(criteriaJSON), string(verifJSON),
-		task.Harness, task.WorktreePath, string(task.Status),
-		task.ClaimedBy, task.ClaimedAt,
-		task.OrchestratorID, task.WorkerRole, task.Notes,
-		task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
+		harness, task.WorktreePath, string(task.Status),
+		task.ClaimedBy, task.ClaimedAt, task.OrchestratorID, task.WorkerRole,
+		task.ClaimSessionID, task.Notes, task.ReviewReason, task.ReviewDetails,
+		string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
 		string(conflictJSON), task.CreatedAt, task.UpdatedAt,
 	}
 }
 
-// normalizeTaskForWrite applies the create-time defaults shared by both write
-// paths. Lifecycle fields are only defaulted for a new row; callers that patch
-// an existing row never reach this with a meaningful status.
 func normalizeTaskForWrite(task *domain.Task, now time.Time) {
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = now
 	}
 	task.UpdatedAt = now
-
+	if task.Harness == "" {
+		task.Harness = "orchestrator"
+	}
 	if task.Status == "" {
 		task.Status = domain.StatusPending
 		if len(task.Dependencies) == 0 {
@@ -152,12 +196,41 @@ func normalizeTaskForWrite(task *domain.Task, now time.Time) {
 	}
 }
 
-// insertTaskTx creates a task. It never overwrites an existing row, so a
-// duplicate ID surfaces as ErrAlreadyExists instead of silently resetting the
-// task's lifecycle state.
+// resolveTaskScopeTx fills project_slug from the plan and verifies that an
+// explicit project matches. It is a no-op for project tasks and orphans.
+func resolveTaskScopeTx(ctx context.Context, tx *sql.Tx, task *domain.Task) error {
+	if task.PlanSlug != "" {
+		var planProject string
+		err := tx.QueryRowContext(ctx, "SELECT project_slug FROM plans WHERE slug = ?", task.PlanSlug).Scan(&planProject)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: plan %s", ErrNotFound, task.PlanSlug)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to resolve plan %s: %w", task.PlanSlug, err)
+		}
+		if task.ProjectSlug == "" {
+			task.ProjectSlug = planProject
+		} else if task.ProjectSlug != planProject {
+			return fmt.Errorf("%w: plan %s belongs to project %s, not %s", ErrInvalidGraph, task.PlanSlug, planProject, task.ProjectSlug)
+		}
+	}
+	if task.ProjectSlug != "" {
+		if _, err := getProjectTx(ctx, tx, task.ProjectSlug); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func insertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
+	if err := resolveTaskScopeTx(ctx, tx, task); err != nil {
+		return err
+	}
 	normalizeTaskForWrite(task, now)
 	if err := task.Validate(); err != nil {
+		return err
+	}
+	if err := assertDependenciesInContainer(ctx, tx, task); err != nil {
 		return err
 	}
 
@@ -175,82 +248,125 @@ func insertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.T
 	return nil
 }
 
-// patchTaskTx creates a task when it is missing and otherwise updates only the
-// authoring metadata. Status, claim, notes, review, and created_at stay under
-// the control of the task state machine.
-func patchTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
+func upsertTaskAuthoringTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
+	if err := resolveTaskScopeTx(ctx, tx, task); err != nil {
+		return err
+	}
 	normalizeTaskForWrite(task, now)
 	if err := task.Validate(); err != nil {
 		return err
 	}
+	if err := assertDependenciesInContainer(ctx, tx, task); err != nil {
+		return err
+	}
 
-	if _, err := tx.ExecContext(ctx, taskPatchQuery, taskArgs(task)...); err != nil {
+	var existingProject, existingPlan string
+	err := tx.QueryRowContext(ctx,
+		"SELECT COALESCE(project_slug, ''), COALESCE(plan_slug, '') FROM tasks WHERE id = ?", task.ID).
+		Scan(&existingProject, &existingPlan)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to inspect task %s: %w", task.ID, err)
+	}
+	if err == nil && (existingProject != task.ProjectSlug || existingPlan != task.PlanSlug) {
+		return fmt.Errorf("%w: task %s belongs to project %q plan %q", ErrInvalidGraph, task.ID, existingProject, existingPlan)
+	}
+
+	if _, err := tx.ExecContext(ctx, taskAuthoringUpdateQuery, taskArgs(task)...); err != nil {
 		return fmt.Errorf("failed to upsert task %s: %w", task.ID, err)
 	}
 	return nil
 }
 
-// GetTask retrieves a single task by its unique ID.
+func assertDependenciesInContainer(ctx context.Context, tx *sql.Tx, task *domain.Task) error {
+	seen := make(map[string]bool, len(task.Dependencies))
+	for _, dep := range task.Dependencies {
+		if dep == task.ID {
+			return fmt.Errorf("%w: task %s depends on itself", ErrInvalidGraph, task.ID)
+		}
+		if dep == "" {
+			return fmt.Errorf("%w: task %s has an empty dependency", ErrInvalidGraph, task.ID)
+		}
+		if seen[dep] {
+			return fmt.Errorf("%w: task %s repeats dependency %s", ErrInvalidGraph, task.ID, dep)
+		}
+		seen[dep] = true
+
+		var depProject, depPlan string
+		err := tx.QueryRowContext(ctx,
+			"SELECT COALESCE(project_slug, ''), COALESCE(plan_slug, '') FROM tasks WHERE id = ?", dep).
+			Scan(&depProject, &depPlan)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // forward reference; validated once the prerequisite exists
+		}
+		if err != nil {
+			return fmt.Errorf("failed to inspect dependency %s: %w", dep, err)
+		}
+		if depProject != task.ProjectSlug || depPlan != task.PlanSlug {
+			return fmt.Errorf("%w: task %s cannot depend on %s from another container", ErrInvalidGraph, task.ID, dep)
+		}
+	}
+	return nil
+}
+
 func (r *TaskRepository) GetTask(ctx context.Context, taskID string) (*domain.Task, error) {
-	query := fmt.Sprintf("SELECT %s FROM tasks WHERE id = ?", taskSelectCols)
-	row := r.db.QueryRow(ctx, query, taskID)
-	t, err := scanTask(row)
+	row := r.db.QueryRow(ctx, "SELECT "+taskSelectColumns+" FROM tasks WHERE id = ?", taskID)
+	task, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, fmt.Errorf("%w: task %s", ErrNotFound, taskID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query task %s: %w", taskID, err)
 	}
-	return t, nil
+	return task, nil
 }
 
-// GetTasksByPlan retrieves all tasks belonging to a plan.
 func (r *TaskRepository) GetTasksByPlan(ctx context.Context, planSlug string) ([]domain.Task, error) {
-	query := fmt.Sprintf(`
-	SELECT %s
-	FROM tasks
-	WHERE plan_id = ?
-	ORDER BY id ASC
-	`, taskSelectCols)
-
-	rows, err := r.db.Query(ctx, query, planSlug)
+	rows, err := r.db.Query(ctx,
+		"SELECT "+taskSelectColumns+" FROM tasks WHERE plan_slug = ? ORDER BY id ASC", planSlug)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tasks by plan: %w", err)
 	}
 	defer rows.Close()
 
-	var tasks []domain.Task
+	tasks := []domain.Task{}
 	for rows.Next() {
-		t, err := scanTask(rows)
+		task, err := scanTask(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
-		tasks = append(tasks, *t)
+		tasks = append(tasks, *task)
 	}
-
 	return tasks, rows.Err()
 }
 
-// ListTasks returns tasks filtered optionally by status.
-func (r *TaskRepository) ListTasks(ctx context.Context, status domain.TaskStatus) ([]domain.Task, error) {
-	var query string
+func (r *TaskRepository) ListTasks(ctx context.Context, filter domain.TaskFilter) ([]domain.Task, error) {
+	query := "SELECT " + taskSelectColumns + " FROM tasks"
+	var conditions []string
 	var args []any
-
-	if status != "" {
-		query = fmt.Sprintf(`
-		SELECT %s
-		FROM tasks
-		WHERE status = ?
-		ORDER BY created_at ASC
-		`, taskSelectCols)
-		args = []any{string(status)}
+	if filter.OrphanOnly {
+		conditions = append(conditions, "project_slug IS NULL AND plan_slug IS NULL")
 	} else {
-		query = fmt.Sprintf(`
-		SELECT %s
-		FROM tasks
-		ORDER BY created_at ASC
-		`, taskSelectCols)
+		if filter.ProjectSlug != "" {
+			conditions = append(conditions, "project_slug = ?")
+			args = append(args, filter.ProjectSlug)
+		}
+		if filter.PlanSlug != "" {
+			conditions = append(conditions, "plan_slug = ?")
+			args = append(args, filter.PlanSlug)
+		}
 	}
+	if filter.Status != "" {
+		conditions = append(conditions, "status = ?")
+		args = append(args, string(filter.Status))
+	}
+	if filter.AgentSlug != "" {
+		conditions = append(conditions, "agent_slug = ?")
+		args = append(args, filter.AgentSlug)
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + joinConditions(conditions)
+	}
+	query += " ORDER BY created_at ASC, id ASC"
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -258,20 +374,45 @@ func (r *TaskRepository) ListTasks(ctx context.Context, status domain.TaskStatus
 	}
 	defer rows.Close()
 
-	var tasks []domain.Task
+	tasks := []domain.Task{}
 	for rows.Next() {
-		t, err := scanTask(rows)
+		task, err := scanTask(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
-		tasks = append(tasks, *t)
+		tasks = append(tasks, *task)
 	}
-
 	return tasks, rows.Err()
 }
 
-// UpdateTaskMetadata applies a partial metadata patch to a READY or PENDING
-// task. Dependency changes revalidate the plan graph and re-derive the status.
+func (r *TaskRepository) CreateTasks(ctx context.Context, tasks []domain.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		// Resolve every scope before comparing containers so a plan task with an
+		// empty project_slug can still join the rest of its plan.
+		for i := range tasks {
+			if err := resolveTaskScopeTx(ctx, tx, &tasks[i]); err != nil {
+				return err
+			}
+			if tasks[i].ProjectSlug != tasks[0].ProjectSlug || tasks[i].PlanSlug != tasks[0].PlanSlug {
+				return fmt.Errorf("%w: batch spans containers %s and %s", ErrInvalidGraph,
+					tasks[0].ContainerKey(), tasks[i].ContainerKey())
+			}
+			if err := insertTaskTx(ctx, tx, &tasks[i], now); err != nil {
+				return err
+			}
+		}
+		if err := validateContainerGraphTx(ctx, tx, tasks[0].ProjectSlug, tasks[0].PlanSlug); err != nil {
+			return err
+		}
+		return resyncContainerStatuses(ctx, tx, tasks[0].ProjectSlug, tasks[0].PlanSlug, tasks, now)
+	})
+}
+
 func (r *TaskRepository) UpdateTaskMetadata(ctx context.Context, taskID string, patch domain.TaskPatch) error {
 	now := time.Now().UTC()
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
@@ -284,17 +425,25 @@ func (r *TaskRepository) UpdateTaskMetadata(ctx context.Context, taskID string, 
 		}
 
 		applyTaskPatch(task, patch)
-		if err := patchTaskTx(ctx, tx, task, now); err != nil {
+		if err := resolveTaskScopeTx(ctx, tx, task); err != nil {
 			return err
 		}
-		if err := validateTaskGraphTx(ctx, tx, task.PlanID); err != nil {
+		if err := task.Validate(); err != nil {
 			return err
 		}
-		return resyncTaskStatuses(ctx, tx, task.PlanID, []domain.Task{*task}, now)
+		if err := assertDependenciesInContainer(ctx, tx, task); err != nil {
+			return err
+		}
+		if err := updateTaskAuthoringTx(ctx, tx, task, now); err != nil {
+			return err
+		}
+		if err := validateContainerGraphTx(ctx, tx, task.ProjectSlug, task.PlanSlug); err != nil {
+			return err
+		}
+		return resyncContainerStatuses(ctx, tx, task.ProjectSlug, task.PlanSlug, []domain.Task{*task}, now)
 	})
 }
 
-// applyTaskPatch copies non-nil patch fields onto the task.
 func applyTaskPatch(task *domain.Task, patch domain.TaskPatch) {
 	if patch.Title != nil {
 		task.Title = *patch.Title
@@ -314,11 +463,17 @@ func applyTaskPatch(task *domain.Task, patch domain.TaskPatch) {
 	if patch.RiskLevel != nil {
 		task.RiskLevel = *patch.RiskLevel
 	}
+	if patch.AgentSlug != nil {
+		task.AgentSlug = *patch.AgentSlug
+	}
 	if patch.RequiredSkills != nil {
 		task.RequiredSkills = *patch.RequiredSkills
 	}
 	if patch.RequiredTools != nil {
 		task.RequiredTools = *patch.RequiredTools
+	}
+	if patch.RequiredDocs != nil {
+		task.RequiredDocs = *patch.RequiredDocs
 	}
 	if patch.TargetFiles != nil {
 		task.TargetFiles = *patch.TargetFiles
@@ -337,10 +492,43 @@ func applyTaskPatch(task *domain.Task, patch domain.TaskPatch) {
 	}
 }
 
-// getTaskTx reads a task inside an existing transaction.
+func updateTaskAuthoringTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
+	task.UpdatedAt = now
+	depsJSON, _ := json.Marshal(task.Dependencies)
+	skillsJSON, _ := json.Marshal(task.RequiredSkills)
+	toolsJSON, _ := json.Marshal(task.RequiredTools)
+	docsJSON, _ := json.Marshal(task.RequiredDocs)
+	filesJSON, _ := json.Marshal(task.TargetFiles)
+	criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
+	verifJSON, _ := json.Marshal(task.VerificationCommands)
+
+	res, err := tx.ExecContext(ctx, `
+		UPDATE tasks SET
+			title = ?, description = ?, dependencies = ?, priority = ?, complexity = ?,
+			risk_level = ?, agent_slug = ?, required_skills = ?, required_tools = ?,
+			required_docs = ?, target_files = ?, acceptance_criteria = ?,
+			verification_commands = ?, harness = ?, worktree_path = ?, updated_at = ?
+		WHERE id = ?`,
+		task.Title, task.Description, string(depsJSON), string(task.Priority), string(task.Complexity),
+		string(task.RiskLevel), task.AgentSlug, string(skillsJSON), string(toolsJSON),
+		string(docsJSON), string(filesJSON), string(criteriaJSON), string(verifJSON),
+		task.Harness, task.WorktreePath, now, task.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update task %s: %w", task.ID, err)
+	}
+	rows, err := affectedOrErr(res, "update task", task.ID)
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("%w: task %s", ErrNotFound, task.ID)
+	}
+	return nil
+}
+
 func getTaskTx(ctx context.Context, tx *sql.Tx, taskID string) (*domain.Task, error) {
-	query := fmt.Sprintf("SELECT %s FROM tasks WHERE id = ?", taskSelectCols)
-	task, err := scanTask(tx.QueryRowContext(ctx, query, taskID))
+	row := tx.QueryRowContext(ctx, "SELECT "+taskSelectColumns+" FROM tasks WHERE id = ?", taskID)
+	task, err := scanTask(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("%w: task %s", ErrNotFound, taskID)
 	}
@@ -350,81 +538,25 @@ func getTaskTx(ctx context.Context, tx *sql.Tx, taskID string) (*domain.Task, er
 	return task, nil
 }
 
-// CreateTask inserts a single task. It fails with ErrAlreadyExists when the ID
-// is taken; callers that mean to edit authoring metadata must not use it.
-func (r *TaskRepository) CreateTask(ctx context.Context, task domain.Task) error {
-	return r.CreateTasks(ctx, []domain.Task{task})
-}
-
-// CreateTasks inserts a batch of tasks in one transaction. The batch is atomic:
-// a duplicate ID or an invalid graph rolls the whole call back, and forward
-// references inside the batch are validated after every row is written.
-func (r *TaskRepository) CreateTasks(ctx context.Context, tasks []domain.Task) error {
-	if len(tasks) == 0 {
-		return nil
-	}
-
-	planID := tasks[0].PlanID
-	if planID == "" {
-		return fmt.Errorf("task plan_id cannot be empty")
-	}
-
-	now := time.Now().UTC()
-	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		for i := range tasks {
-			if tasks[i].PlanID == "" {
-				tasks[i].PlanID = planID
-			}
-			if tasks[i].PlanID != planID {
-				return fmt.Errorf("%w: batch spans plans %s and %s", ErrInvalidGraph, planID, tasks[i].PlanID)
-			}
-			if err := insertTaskTx(ctx, tx, &tasks[i], now); err != nil {
-				return err
-			}
-		}
-		if err := validateTaskGraphTx(ctx, tx, planID); err != nil {
-			return err
-		}
-		return resyncTaskStatuses(ctx, tx, planID, tasks, now)
-	})
-}
-
-// resyncTaskStatuses recomputes the initial status of newly inserted tasks from
-// the prerequisites that already exist in the plan. Without this, a task added
-// after its dependencies completed would stay PENDING forever.
-func resyncTaskStatuses(ctx context.Context, tx *sql.Tx, planID string, tasks []domain.Task, now time.Time) error {
-	statuses, err := loadPlanStatuses(ctx, tx, planID)
-	if err != nil {
-		return err
-	}
-
-	for _, task := range tasks {
-		current := statuses[task.ID]
-		// Explicit lifecycle states (RUNNING, terminal, BLOCKED) are preserved;
-		// only the derived initial states are recomputed.
-		if current != domain.StatusReady && current != domain.StatusPending {
-			continue
-		}
-		target := deriveStatus(statuses, task.Dependencies)
-		if current == target {
-			continue
-		}
-		if err := setTaskStatus(ctx, tx, task.ID, target, now); err != nil {
-			return err
-		}
-		statuses[task.ID] = target
-	}
-	return nil
-}
-
-// UpdateTaskDependencies updates the task dependency list.
 func (r *TaskRepository) UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error {
 	now := time.Now().UTC()
-	depsJSON, err := json.Marshal(deps)
-	if err != nil {
-		return fmt.Errorf("failed to encode dependencies for task %s: %w", taskID, err)
-	}
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		task, err := getTaskTx(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if task.Status != domain.StatusReady && task.Status != domain.StatusPending && task.Status != domain.StatusBlocked {
+			return fmt.Errorf("%w: task %s is %s; dependencies can only change while READY, PENDING, or BLOCKED", ErrInvalidState, taskID, task.Status)
+		}
+		task.Dependencies = deps
+		if err := assertDependenciesInContainer(ctx, tx, task); err != nil {
+			return err
+		}
+
+		depsJSON, err := json.Marshal(deps)
+		if err != nil {
+			return fmt.Errorf("failed to encode dependencies for task %s: %w", taskID, err)
+		}
 		res, err := tx.ExecContext(ctx, "UPDATE tasks SET dependencies = ?, updated_at = ? WHERE id = ?", string(depsJSON), now, taskID)
 		if err != nil {
 			return err
@@ -436,39 +568,13 @@ func (r *TaskRepository) UpdateTaskDependencies(ctx context.Context, taskID stri
 		if rows == 0 {
 			return fmt.Errorf("%w: task %s", ErrNotFound, taskID)
 		}
-
-		planID, err := planIDOf(ctx, tx, taskID)
-		if err != nil {
+		if err := validateContainerGraphTx(ctx, tx, task.ProjectSlug, task.PlanSlug); err != nil {
 			return err
 		}
-		if err := validateTaskGraphTx(ctx, tx, planID); err != nil {
-			return err
-		}
-
-		// Recompute this task's readiness after the edge change, but never move
-		// a task that is already executing or finished.
-		var status string
-		if err := tx.QueryRowContext(ctx, "SELECT status FROM tasks WHERE id = ?", taskID).Scan(&status); err != nil {
-			return err
-		}
-		if current := domain.TaskStatus(status); current == domain.StatusPending ||
-			current == domain.StatusBlocked || current == domain.StatusReady {
-			statuses, err := loadPlanStatuses(ctx, tx, planID)
-			if err != nil {
-				return err
-			}
-			target := deriveStatus(statuses, deps)
-			if target != current {
-				if err := setTaskStatus(ctx, tx, taskID, target, now); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
+		return resyncContainerStatuses(ctx, tx, task.ProjectSlug, task.PlanSlug, []domain.Task{*task}, now)
 	})
 }
 
-// UpdateTaskNotes updates developer supplemental notes.
 func (r *TaskRepository) UpdateTaskNotes(ctx context.Context, taskID string, notes string) error {
 	now := time.Now().UTC()
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
@@ -487,7 +593,6 @@ func (r *TaskRepository) UpdateTaskNotes(ctx context.Context, taskID string, not
 	})
 }
 
-// AppendTaskNotes appends a note to the task's supplemental notes.
 func (r *TaskRepository) AppendTaskNotes(ctx context.Context, taskID string, note string) error {
 	if note == "" {
 		return nil
@@ -498,13 +603,11 @@ func (r *TaskRepository) AppendTaskNotes(ctx context.Context, taskID string, not
 	})
 }
 
-// appendTaskNotesTx appends a note inside an existing transaction.
 func appendTaskNotesTx(ctx context.Context, tx *sql.Tx, taskID string, note string, now time.Time) error {
 	res, err := tx.ExecContext(ctx, `
 		UPDATE tasks
-		SET notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END, updated_at = ?
-		WHERE id = ?
-	`, note, note, now, taskID)
+		SET notes = CASE WHEN notes = '' THEN ? ELSE notes || char(10) || ? END, updated_at = ?
+		WHERE id = ?`, note, note, now, taskID)
 	if err != nil {
 		return err
 	}

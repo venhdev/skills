@@ -31,6 +31,11 @@ func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, func()) {
 	}
 
 	store := storage.NewStore(db)
+	if err := store.CreateProject(context.Background(), domain.Project{
+		Slug: "test-project", Name: "Test Project", RootPath: tempDir,
+	}); err != nil {
+		t.Fatalf("failed to seed project: %v", err)
+	}
 
 	srv := NewServer(store)
 
@@ -60,8 +65,9 @@ func TestGateway_PlansAndTasksLifecycle(t *testing.T) {
 
 	// 1. POST /api/v1/plans
 	planPayload := CreatePlanRequest{
-		Slug:  "plan-alpha",
-		Title: "Alpha Engineering Plan",
+		Slug:        "plan-alpha",
+		ProjectSlug: "test-project",
+		Title:       "Alpha Engineering Plan",
 		Tasks: []domain.Task{
 			{ID: "T-01", Title: "Scaffold Schema", Dependencies: []string{}},
 			{ID: "T-02", Title: "Compile Engine", Dependencies: []string{"T-01"}},
@@ -123,7 +129,7 @@ func TestGateway_ListPlansIncludesPlanWithoutTasks(t *testing.T) {
 	_, baseURL, _, cleanup := setupTestGateway(t)
 	defer cleanup()
 
-	bodyBytes, _ := json.Marshal(CreatePlanRequest{Slug: "empty-plan", Title: "Empty Plan"})
+	bodyBytes, _ := json.Marshal(CreatePlanRequest{Slug: "empty-plan", ProjectSlug: "test-project", Title: "Empty Plan"})
 	resp, err := http.Post(baseURL+"/api/v1/plans", "application/json", bytes.NewReader(bodyBytes))
 	if err != nil {
 		t.Fatalf("failed to post plan: %v", err)
@@ -226,9 +232,9 @@ func TestGateway_ArtifactServing(t *testing.T) {
 		t.Fatalf("failed to create artifact file: %v", err)
 	}
 
-	plan := domain.Plan{Slug: "plan-art", Title: "Art Plan", Status: "ACTIVE"}
-	task := domain.Task{ID: "task-100", PlanID: "plan-art", Title: "Art Task", Status: domain.StatusReady}
-	if err := store.SavePlanWithTasks(context.Background(), plan, []domain.Task{task}); err != nil {
+	plan := domain.Plan{Slug: "plan-art", ProjectSlug: "test-project", Title: "Art Plan", Status: domain.PlanStatusActive}
+	task := domain.Task{ID: "task-100", ProjectSlug: "test-project", PlanSlug: "plan-art", Title: "Art Task", Status: domain.StatusReady}
+	if err := store.CreatePlanWithTasks(context.Background(), plan, []domain.Task{task}); err != nil {
 		t.Fatalf("failed to save plan and task: %v", err)
 	}
 
@@ -296,9 +302,9 @@ func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
 	_, baseURL, store, cleanup := setupTestGateway(t)
 	defer cleanup()
 
-	plan := domain.Plan{Slug: "plan-attach", Title: "Attach Plan", Status: "ACTIVE"}
-	task := domain.Task{ID: "task-attach-1", PlanID: "plan-attach", Title: "Attach Task", Status: domain.StatusReady}
-	if err := store.SavePlanWithTasks(context.Background(), plan, []domain.Task{task}); err != nil {
+	plan := domain.Plan{Slug: "plan-attach", ProjectSlug: "test-project", Title: "Attach Plan", Status: domain.PlanStatusActive}
+	task := domain.Task{ID: "task-attach-1", ProjectSlug: "test-project", PlanSlug: "plan-attach", Title: "Attach Task", Status: domain.StatusReady}
+	if err := store.CreatePlanWithTasks(context.Background(), plan, []domain.Task{task}); err != nil {
 		t.Fatalf("failed to save plan and task: %v", err)
 	}
 
@@ -349,4 +355,135 @@ func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
 		t.Errorf("expected 1 artifact in list, got %+v", artList)
 	}
 
+}
+
+func TestGateway_DocumentRegistry(t *testing.T) {
+	_, baseURL, _, cleanup := setupTestGateway(t)
+	defer cleanup()
+
+	docPath := filepath.Join(t.TempDir(), "architecture.md")
+	content := "# Architecture\n\nClaim preflight keeps packet assembly outside the transaction.\n"
+	if err := os.WriteFile(docPath, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write document: %v", err)
+	}
+
+	payload := map[string]any{
+		"project_slug": "test-project",
+		"key":          "ARCH",
+		"slug":         "architecture",
+		"type":         "ARCHITECTURE",
+		"scope":        "PROJECT",
+		"title":        "Architecture",
+		"path":         docPath,
+		"summary":      "Registry probe",
+		"tags":         []string{"architecture", "core"},
+	}
+	body, _ := json.Marshal(payload)
+	resp, err := http.Post(baseURL+"/api/v1/docs", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("create document failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+	var created domain.Document
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode document: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected generated document id in response")
+	}
+	if created.ContentHash == "" || created.ByteSize == 0 {
+		t.Fatalf("expected hash and size, got %+v", created)
+	}
+
+	listResp, err := http.Get(baseURL + "/api/v1/docs?project_slug=test-project&include_global=true")
+	if err != nil {
+		t.Fatalf("list documents failed: %v", err)
+	}
+	defer listResp.Body.Close()
+	var list struct {
+		Documents []domain.Document `json:"documents"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&list); err != nil {
+		t.Fatalf("failed to decode document list: %v", err)
+	}
+	if len(list.Documents) != 1 || list.Documents[0].ID != created.ID {
+		t.Fatalf("unexpected document list: %+v", list.Documents)
+	}
+
+	searchResp, err := http.Get(baseURL + "/api/v1/docs/search?query=preflight&project_slug=test-project&include_global=true")
+	if err != nil {
+		t.Fatalf("search documents failed: %v", err)
+	}
+	defer searchResp.Body.Close()
+	var hits []domain.DocumentSearchResult
+	if err := json.NewDecoder(searchResp.Body).Decode(&hits); err != nil {
+		t.Fatalf("failed to decode search hits: %v", err)
+	}
+	if len(hits) != 1 || hits[0].Document.ID != created.ID {
+		t.Fatalf("unexpected search hits: %+v", hits)
+	}
+
+	refreshBody := strings.NewReader(`{"content":"# Architecture v2\n\nUpdated claim preflight.\n"}`)
+	refreshResp, err := http.Post(baseURL+"/api/v1/docs/"+created.ID+"/refresh", "application/json", refreshBody)
+	if err != nil {
+		t.Fatalf("refresh document failed: %v", err)
+	}
+	defer refreshResp.Body.Close()
+	var refreshed domain.Document
+	if err := json.NewDecoder(refreshResp.Body).Decode(&refreshed); err != nil {
+		t.Fatalf("failed to decode refreshed document: %v", err)
+	}
+	if refreshed.Version != 2 || refreshed.ContentHash == created.ContentHash {
+		t.Fatalf("expected version 2 with new hash, got %+v", refreshed)
+	}
+}
+
+func TestGateway_AgentRegistry(t *testing.T) {
+	_, baseURL, _, cleanup := setupTestGateway(t)
+	defer cleanup()
+
+	body := strings.NewReader(`{"slug":"coder-a","name":"Coder A","persona":"CODER","mode":"HEADLESS","goal":"implement","start_conditions":["task READY"],"stop_conditions":["task AWAITING_REVIEW"],"enabled":true}`)
+	resp, err := http.Post(baseURL+"/api/v1/agents", "application/json", body)
+	if err != nil {
+		t.Fatalf("create agent failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+	var created domain.Agent
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("failed to decode agent: %v", err)
+	}
+	if created.Persona != domain.PersonaCoder || !created.Enabled {
+		t.Fatalf("unexpected agent: %+v", created)
+	}
+
+	patchBody := strings.NewReader(`{"enabled":false}`)
+	req, _ := http.NewRequest(http.MethodPatch, baseURL+"/api/v1/agents/coder-a", patchBody)
+	req.Header.Set("Content-Type", "application/json")
+	patchResp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("update agent failed: %v", err)
+	}
+	defer patchResp.Body.Close()
+	var updated domain.Agent
+	if err := json.NewDecoder(patchResp.Body).Decode(&updated); err != nil {
+		t.Fatalf("failed to decode updated agent: %v", err)
+	}
+	if updated.Enabled {
+		t.Fatal("expected agent to be disabled")
+	}
+
+	sessionResp, err := http.Get(baseURL + "/api/v1/sessions?active_only=true")
+	if err != nil {
+		t.Fatalf("list sessions failed: %v", err)
+	}
+	defer sessionResp.Body.Close()
+	if sessionResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 listing sessions, got %d", sessionResp.StatusCode)
+	}
 }

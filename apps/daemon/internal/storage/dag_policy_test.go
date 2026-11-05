@@ -25,15 +25,23 @@ func newInternalTestStore(t *testing.T) (*Store, *DB, context.Context) {
 
 func seedDAG(t *testing.T, store *Store, ctx context.Context, tasks []domain.Task) {
 	t.Helper()
-	plan := domain.Plan{Slug: "dag-plan", Title: "DAG Policy", Status: "ACTIVE"}
-	if err := store.SavePlanWithTasks(ctx, plan, tasks); err != nil {
+	if err := store.CreateProject(ctx, domain.Project{Slug: "dag-project", Name: "DAG Project"}); err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+	plan := domain.Plan{
+		Slug:        "dag-plan",
+		ProjectSlug: "dag-project",
+		Title:       "DAG Policy",
+		Status:      domain.PlanStatusActive,
+	}
+	if err := store.CreatePlanWithTasks(ctx, plan, tasks); err != nil {
 		t.Fatalf("seed failed: %v", err)
 	}
 }
 
 func taskStatuses(t *testing.T, store *Store, ctx context.Context) map[string]domain.TaskStatus {
 	t.Helper()
-	tasks, err := store.ListTasks(ctx, "")
+	tasks, err := store.ListTasks(ctx, domain.TaskFilter{PlanSlug: "dag-plan"})
 	if err != nil {
 		t.Fatalf("ListTasks failed: %v", err)
 	}
@@ -47,10 +55,10 @@ func taskStatuses(t *testing.T, store *Store, ctx context.Context) map[string]do
 func TestUpdateTaskStatus_CompletedUnlocksSatisfiedDependents(t *testing.T) {
 	store, _, ctx := newInternalTestStore(t)
 	seedDAG(t, store, ctx, []domain.Task{
-		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
-		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
-		{ID: "C", PlanID: "dag-plan", Title: "C", Status: domain.StatusPending, Dependencies: []string{"A", "D"}},
-		{ID: "D", PlanID: "dag-plan", Title: "D", Status: domain.StatusPending},
+		{ID: "A", Title: "A", Status: domain.StatusRunning},
+		{ID: "B", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
+		{ID: "C", Title: "C", Status: domain.StatusPending, Dependencies: []string{"A", "D"}},
+		{ID: "D", Title: "D", Status: domain.StatusPending},
 	})
 
 	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusRunning, domain.StatusCompleted); err != nil {
@@ -72,11 +80,11 @@ func TestUpdateTaskStatus_CompletedUnlocksSatisfiedDependents(t *testing.T) {
 func TestUpdateTaskStatus_FailedBlocksTransitiveDependents(t *testing.T) {
 	store, _, ctx := newInternalTestStore(t)
 	seedDAG(t, store, ctx, []domain.Task{
-		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
-		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
-		{ID: "C", PlanID: "dag-plan", Title: "C", Status: domain.StatusPending, Dependencies: []string{"B"}},
-		{ID: "D", PlanID: "dag-plan", Title: "D", Status: domain.StatusPending, Dependencies: []string{"C"}},
-		{ID: "E", PlanID: "dag-plan", Title: "E", Status: domain.StatusReady},
+		{ID: "A", Title: "A", Status: domain.StatusRunning},
+		{ID: "B", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
+		{ID: "C", Title: "C", Status: domain.StatusPending, Dependencies: []string{"B"}},
+		{ID: "D", Title: "D", Status: domain.StatusPending, Dependencies: []string{"C"}},
+		{ID: "E", Title: "E", Status: domain.StatusReady},
 	})
 
 	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusRunning, domain.StatusFailed); err != nil {
@@ -97,10 +105,10 @@ func TestUpdateTaskStatus_FailedBlocksTransitiveDependents(t *testing.T) {
 func TestUpdateTaskStatus_FailedBlocksReadyDependent(t *testing.T) {
 	store, _, ctx := newInternalTestStore(t)
 	seedDAG(t, store, ctx, []domain.Task{
-		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
+		{ID: "A", Title: "A", Status: domain.StatusRunning},
 		// B was unlocked by an earlier completion of A and is still waiting to
 		// be claimed when A is re-run and fails.
-		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusReady, Dependencies: []string{"A"}},
+		{ID: "B", Title: "B", Status: domain.StatusReady, Dependencies: []string{"A"}},
 	})
 
 	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusRunning, domain.StatusFailed); err != nil {
@@ -116,9 +124,9 @@ func TestUpdateTaskStatus_FailedBlocksReadyDependent(t *testing.T) {
 func TestUpdateTaskStatus_IgnoresCorruptDepsOnInactiveTasks(t *testing.T) {
 	store, db, ctx := newInternalTestStore(t)
 	seedDAG(t, store, ctx, []domain.Task{
-		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
-		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
-		{ID: "C", PlanID: "dag-plan", Title: "C", Status: domain.StatusCompleted},
+		{ID: "A", Title: "A", Status: domain.StatusRunning},
+		{ID: "B", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
+		{ID: "C", Title: "C", Status: domain.StatusCompleted},
 	})
 
 	// C is already COMPLETED, so its dependency list no longer participates in
@@ -149,8 +157,8 @@ func TestUpdateTaskStatus_IgnoresCorruptDepsOnInactiveTasks(t *testing.T) {
 func TestUpdateTaskStatus_CorruptDependenciesRollBack(t *testing.T) {
 	store, db, ctx := newInternalTestStore(t)
 	seedDAG(t, store, ctx, []domain.Task{
-		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
-		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
+		{ID: "A", Title: "A", Status: domain.StatusRunning},
+		{ID: "B", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
 	})
 
 	if err := db.ExecImmediate(ctx, func(tx *sql.Tx) error {

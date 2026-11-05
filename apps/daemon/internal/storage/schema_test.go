@@ -2,114 +2,136 @@ package storage
 
 import (
 	"context"
-	"database/sql"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/ncruces/go-sqlite3/driver"
 	"github.com/ncruces/go-sqlite3/ext/fts5"
-
-	"zenfd/internal/domain"
 )
 
-func TestSchema_TaskColumnsMatchLiveTable(t *testing.T) {
+func openRawDB(t *testing.T, path string, statements string) {
+	t.Helper()
+	conn, err := driver.Open("file:"+path, fts5.Register)
+	if err != nil {
+		t.Fatalf("failed to create legacy db: %v", err)
+	}
+	if _, err := conn.Exec(statements); err != nil {
+		_ = conn.Close()
+		t.Fatalf("failed to seed legacy db: %v", err)
+	}
+	if err := conn.Close(); err != nil {
+		t.Fatalf("failed to close legacy db: %v", err)
+	}
+}
+
+func TestSchema_CreatesV2TrackingPlane(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "schema.db"))
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
 	defer db.Close()
 
-	cols, err := tableColumns(context.Background(), db.sqlDB, "tasks")
-	if err != nil {
-		t.Fatalf("tableColumns failed: %v", err)
+	ctx := context.Background()
+	for _, table := range []string{
+		"projects", "plans", "tasks", "documents", "documents_fts",
+		"document_tags", "document_links", "agents", "agent_sessions",
+		"artifacts", "events",
+	} {
+		exists, err := tableExists(ctx, db.sqlDB, table)
+		if err != nil {
+			t.Fatalf("tableExists(%s) failed: %v", table, err)
+		}
+		if !exists {
+			t.Errorf("expected table %s to exist", table)
+		}
 	}
-	if len(cols) != len(taskColumns) {
-		t.Fatalf("live tasks table has %d columns, registry has %d", len(cols), len(taskColumns))
-	}
-	for _, c := range taskColumns {
-		if !cols[c.name] {
-			t.Errorf("registry column %s is missing from the live table", c.name)
+
+	for _, column := range []string{
+		"project_slug", "plan_slug", "agent_slug", "required_docs",
+		"claim_session_id", "review_options", "conflict_files",
+	} {
+		exists, err := columnExists(ctx, db.sqlDB, "tasks", column)
+		if err != nil {
+			t.Fatalf("columnExists(tasks.%s) failed: %v", column, err)
+		}
+		if !exists {
+			t.Errorf("expected tasks.%s to exist", column)
 		}
 	}
 }
 
-func TestSchema_TaskArgsMatchesColumnCount(t *testing.T) {
-	args := taskArgs(&domain.Task{})
-	if len(args) != len(taskColumns) {
-		t.Fatalf("taskArgs returns %d values for %d columns", len(args), len(taskColumns))
+func TestSchema_RecordsAppliedMigration(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "ledger.db"))
+	if err != nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	defer db.Close()
+
+	var count int
+	if err := db.QueryRow(context.Background(),
+		"SELECT COUNT(*) FROM schema_migrations WHERE version = 1").Scan(&count); err != nil {
+		t.Fatalf("failed to read migration ledger: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected migration 1 to be recorded once, got %d", count)
 	}
 }
 
-func TestSchema_LegacyDatabaseMigrates(t *testing.T) {
+func TestSchema_LegacyTrackingPlaneIsReset(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "legacy.db")
-
-	conn, err := driver.Open("file:"+dbPath, fts5.Register)
-	if err != nil {
-		t.Fatalf("failed to create legacy db: %v", err)
-	}
-	if _, err := conn.Exec(`
+	openRawDB(t, dbPath, `
+		CREATE TABLE plans (
+			slug TEXT PRIMARY KEY,
+			title TEXT NOT NULL,
+			status TEXT NOT NULL
+		);
 		CREATE TABLE tasks (
 			id TEXT PRIMARY KEY,
 			plan_id TEXT NOT NULL,
 			title TEXT NOT NULL,
-			dependencies TEXT NOT NULL,
-			harness TEXT NOT NULL,
-			skill_command TEXT NOT NULL,
-			worktree_path TEXT NOT NULL,
-			status TEXT NOT NULL,
-			created_at DATETIME NOT NULL,
-			updated_at DATETIME NOT NULL
+			status TEXT NOT NULL
 		);
-	`); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to create legacy tasks table: %v", err)
-	}
-	if err := conn.Close(); err != nil {
-		t.Fatalf("failed to close legacy db: %v", err)
-	}
+		INSERT INTO plans (slug, title, status) VALUES ('old-plan', 'old', 'ACTIVE');
+		INSERT INTO tasks (id, plan_id, title, status) VALUES ('old-task', 'old-plan', 'old', 'READY');
+	`)
 
 	db, err := Open(dbPath)
 	if err != nil {
-		t.Fatalf("Open failed to migrate legacy database: %v", err)
+		t.Fatalf("Open failed to reset legacy database: %v", err)
 	}
 	defer db.Close()
 
-	cols, err := tableColumns(context.Background(), db.sqlDB, "tasks")
-	if err != nil {
-		t.Fatalf("tableColumns failed: %v", err)
+	ctx := context.Background()
+	if exists, _ := columnExists(ctx, db.sqlDB, "plans", "project_slug"); !exists {
+		t.Error("expected legacy plans table to be replaced by the v0.2 shape")
 	}
-	for _, c := range taskColumns {
-		if !cols[c.name] {
-			t.Errorf("legacy migration did not add column %s", c.name)
-		}
+	if exists, _ := columnExists(ctx, db.sqlDB, "tasks", "plan_id"); exists {
+		t.Error("expected legacy tasks.plan_id column to disappear")
 	}
-	if cols["skill_command"] {
-		t.Error("legacy migration should drop the unused skill_command column")
+
+	var planCount, taskCount int
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM plans").Scan(&planCount); err != nil {
+		t.Fatalf("failed to count plans: %v", err)
+	}
+	if err := db.QueryRow(ctx, "SELECT COUNT(*) FROM tasks").Scan(&taskCount); err != nil {
+		t.Fatalf("failed to count tasks: %v", err)
+	}
+	if planCount != 0 || taskCount != 0 {
+		t.Fatalf("expected legacy rows to be dropped, got %d plans and %d tasks", planCount, taskCount)
 	}
 }
 
-// TestSchema_MigratesSuspendedTasks parks runtime-era SUSPENDED rows in BLOCKED
-// so they are visible to an operator instead of silently disappearing.
-func TestSchema_MigratesSuspendedTasks(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "suspended.db")
+func TestSchema_ReopenPreservesV2Data(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "reopen.db")
 	db, err := Open(dbPath)
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
-	if err := db.ExecImmediate(context.Background(), func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`INSERT INTO plans (slug, title, status, created_at, updated_at)
-			VALUES ('legacy-plan', 'legacy', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`); err != nil {
-			return err
-		}
-		_, err := tx.Exec(`
-			INSERT INTO tasks (id, plan_id, title, dependencies, harness, worktree_path, status, notes, created_at, updated_at)
-			VALUES ('S-01', 'legacy-plan', 'stalled', '[]', 'orchestrator', '', 'SUSPENDED', '', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		`)
-		return err
-	}); err != nil {
+	if _, err := db.sqlDB.Exec(`
+		INSERT INTO projects (slug, name, created_at, updated_at)
+		VALUES ('p1', 'Project One', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`); err != nil {
 		_ = db.Close()
-		t.Fatalf("failed to seed suspended task: %v", err)
+		t.Fatalf("failed to seed project: %v", err)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatalf("failed to close: %v", err)
@@ -121,71 +143,12 @@ func TestSchema_MigratesSuspendedTasks(t *testing.T) {
 	}
 	defer reopened.Close()
 
-	var status, notes string
+	var name string
 	if err := reopened.QueryRow(context.Background(),
-		"SELECT status, notes FROM tasks WHERE id = 'S-01'").Scan(&status, &notes); err != nil {
-		t.Fatalf("failed to read migrated task: %v", err)
+		"SELECT name FROM projects WHERE slug = 'p1'").Scan(&name); err != nil {
+		t.Fatalf("expected v0.2 data to survive reopen: %v", err)
 	}
-	if status != "BLOCKED" {
-		t.Errorf("status = %s, want BLOCKED", status)
-	}
-	if !strings.Contains(notes, "Migrated from SUSPENDED") {
-		t.Errorf("expected migration note, got %q", notes)
-	}
-}
-
-// TestSchema_MigratesPopulatedLegacyTable guards the migration path against
-// SQLite's rule that ADD COLUMN NOT NULL requires a default on a populated
-// table.
-func TestSchema_MigratesPopulatedLegacyTable(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "legacy-populated.db")
-
-	conn, err := driver.Open("file:"+dbPath, fts5.Register)
-	if err != nil {
-		t.Fatalf("failed to create legacy db: %v", err)
-	}
-	if _, err := conn.Exec(`
-		CREATE TABLE tasks (
-			id TEXT PRIMARY KEY,
-			plan_id TEXT NOT NULL,
-			title TEXT NOT NULL
-		);
-		INSERT INTO tasks (id, plan_id, title) VALUES ('old', 'legacy', 'legacy task');
-	`); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to seed legacy tasks table: %v", err)
-	}
-	if err := conn.Close(); err != nil {
-		t.Fatalf("failed to close legacy db: %v", err)
-	}
-
-	db, err := Open(dbPath)
-	if err != nil {
-		t.Fatalf("Open failed to migrate a populated legacy database: %v", err)
-	}
-	defer db.Close()
-
-	var (
-		status    string
-		createdAt string
-		deps      string
-		planID    string
-	)
-	if err := db.QueryRow(context.Background(),
-		"SELECT status, created_at, dependencies, plan_id FROM tasks WHERE id = 'old'").
-		Scan(&status, &createdAt, &deps, &planID); err != nil {
-		t.Fatalf("backfilled row is unreadable: %v", err)
-	}
-	if status != "PENDING" {
-		t.Errorf("expected backfilled status default, got %q", status)
-	}
-	if createdAt == "" {
-		t.Error("expected created_at to be backfilled")
-	}
-	if deps != "[]" {
-		t.Errorf("expected dependencies default [], got %q", deps)
-	}
-	if planID != "legacy" {
-		t.Errorf("pre-existing value changed: plan_id=%q", planID)
+	if name != "Project One" {
+		t.Fatalf("name = %q, want Project One", name)
 	}
 }

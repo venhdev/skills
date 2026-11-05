@@ -19,37 +19,65 @@ var (
 // aggregate; Store only wires them and promotes their methods for existing
 // callers.
 type Store struct {
+	*ProjectRepository
 	*PlanRepository
 	*TaskRepository
 	*TaskLifecycle
+	*DocumentRepository
+	*AgentRepository
+	*SessionRepository
 	*ArtifactRepository
 	*EventRepository
 	*StateFingerprinter
+	*SearchRepository
 }
 
 // NewStore creates a Store backed by the SQLite WAL DB.
 func NewStore(db *DB) *Store {
+	projects := &ProjectRepository{db: db}
 	plans := &PlanRepository{db: db}
 	tasks := &TaskRepository{db: db}
+	documents := &DocumentRepository{db: db}
+	agents := &AgentRepository{db: db}
 	artifacts := &ArtifactRepository{db: db}
-	builder := contextpacket.New(artifacts, nil)
+
+	builder := contextpacket.New(artifacts, nil,
+		contextpacket.WithProjectReader(projects),
+		contextpacket.WithPlanReader(plans),
+		contextpacket.WithAgentReader(agents),
+		contextpacket.WithDocumentReader(documents),
+	)
 
 	return &Store{
+		ProjectRepository:  projects,
 		PlanRepository:     plans,
 		TaskRepository:     tasks,
 		TaskLifecycle:      &TaskLifecycle{db: db, tasks: tasks, packets: builder},
+		DocumentRepository: documents,
+		AgentRepository:    agents,
+		SessionRepository:  &SessionRepository{db: db},
 		ArtifactRepository: artifacts,
 		EventRepository:    &EventRepository{db: db},
 		StateFingerprinter: &StateFingerprinter{db: db},
+		SearchRepository:   &SearchRepository{db: db},
 	}
 }
 
 var (
+	_ domain.ProjectRepository  = (*ProjectRepository)(nil)
 	_ domain.PlanRepository     = (*PlanRepository)(nil)
 	_ domain.TaskRepository     = (*TaskRepository)(nil)
 	_ domain.TaskLifecycle      = (*TaskLifecycle)(nil)
+	_ domain.DocumentRepository = (*DocumentRepository)(nil)
+	_ domain.AgentRepository    = (*AgentRepository)(nil)
+	_ domain.SessionRepository  = (*SessionRepository)(nil)
 	_ domain.ArtifactRepository = (*ArtifactRepository)(nil)
 	_ domain.ArtifactReader     = (*ArtifactRepository)(nil)
+	_ domain.ProjectReader      = (*ProjectRepository)(nil)
+	_ domain.PlanReader         = (*PlanRepository)(nil)
+	_ domain.DocumentReader     = (*DocumentRepository)(nil)
+	_ domain.AgentReader        = (*AgentRepository)(nil)
 	_ domain.EventRepository    = (*EventRepository)(nil)
 	_ domain.StateFingerprinter = (*StateFingerprinter)(nil)
+	_ domain.SearchRepository   = (*SearchRepository)(nil)
 )

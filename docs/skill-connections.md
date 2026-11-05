@@ -8,7 +8,7 @@ updated: 2026-11-02
 
 # ZenForge Skill Connections
 
-This document owns the connection map for all 39 skills. Three views show the same
+This document owns the connection map for all 43 skills. Three views show the same
 network; repeated nodes refer to the same skill. Arrows describe conditional
 handoffs, not a required sequence of invocations.
 
@@ -216,5 +216,5 @@ without a downstream invocation.
 - Proof: [diagnose](../skills/diagnose/SKILL.md), [spike](../skills/spike/SKILL.md), [spike-skeleton](../skills/spike-skeleton/SKILL.md), [tdd](../skills/tdd/SKILL.md).
 - Planning and implementation: [changeset](../skills/changeset/SKILL.md), [split-tasks](../skills/split-tasks/SKILL.md), [track-tasks](../skills/track-tasks/SKILL.md), [to-tasks](../skills/to-tasks/SKILL.md), [plan-dossier](../skills/plan-dossier/SKILL.md), [forge](../skills/forge/SKILL.md), [simplify-audit](../skills/simplify-audit/SKILL.md).
 - Review: [assay](../skills/assay/SKILL.md), [harness-audit](../skills/harness-audit/SKILL.md), [perimeter](../skills/perimeter/SKILL.md), [inspect-structure](../skills/inspect-structure/SKILL.md), [inspect-role-naming](../skills/inspect-role-naming/SKILL.md), [inspect-perf](../skills/inspect-perf/SKILL.md), [inspect-security](../skills/inspect-security/SKILL.md), [inspect-deps](../skills/inspect-deps/SKILL.md).
-- Support: [recon](../skills/recon/SKILL.md), [scout](../skills/scout/SKILL.md), [ssot](../skills/ssot/SKILL.md), [env-doctor](../skills/env-doctor/SKILL.md), [zenf-init](../skills/zenf-init/SKILL.md), [zenf-soul](../skills/zenf-soul/SKILL.md), [lens-pro](../skills/lens-pro/SKILL.md), [lens-eli5](../skills/lens-eli5/SKILL.md), [lens-brief](../skills/lens-brief/SKILL.md).
+- Support: [recon](../skills/recon/SKILL.md), [scout](../skills/scout/SKILL.md), [ssot](../skills/ssot/SKILL.md), [env-doctor](../skills/env-doctor/SKILL.md), [zenf-init](../skills/zenf-init/SKILL.md), [zenf-soul](../skills/zenf-soul/SKILL.md), [zenf-project](../skills/zenf-project/SKILL.md), [zenf-docs](../skills/zenf-docs/SKILL.md), [zenf-agent](../skills/zenf-agent/SKILL.md), [zenfd-tools](../skills/zenfd-tools/SKILL.md), [lens-pro](../skills/lens-pro/SKILL.md), [lens-eli5](../skills/lens-eli5/SKILL.md), [lens-brief](../skills/lens-brief/SKILL.md).
 - Isolation, cleanup, and release: [worktree](../skills/worktree/SKILL.md), [sweep](../skills/sweep/SKILL.md), [forge-isolated](../skills/forge-isolated/SKILL.md), [forge-isolated-subagent](../skills/forge-isolated-subagent/SKILL.md), [ci-pub](../skills/ci-pub/SKILL.md).

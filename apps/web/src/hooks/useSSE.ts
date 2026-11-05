@@ -10,14 +10,31 @@ interface UseSSEOptions {
 // Event types the daemon streams. Keeping the list here documents the contract
 // and avoids re-subscribing on every render.
 const EVENT_TYPES = [
+  'project.created',
+  'project.updated',
+  'project.deleted',
   'plan.created',
+  'plan.updated',
   'plan.deleted',
   'plan.archived',
   'plan.unarchived',
   'task.created',
+  'task.updated',
   'task.status',
   'task.dependencies_updated',
   'task.notes_updated',
+  'task.deleted',
+  'document.created',
+  'document.updated',
+  'document.deleted',
+  'document.tagged',
+  'document.untagged',
+  'agent.created',
+  'agent.updated',
+  'agent.deleted',
+  'session.registered',
+  'session.updated',
+  'session.deleted',
   'artifact.added',
   'state.changed',
 ] as const
@@ -77,7 +94,7 @@ export function useSSE({
       try {
         parsed = JSON.parse(raw)
       } catch {
-        parsed = { id: 0, type, payload: raw, timestamp: new Date().toISOString() }
+        parsed = { id: 0, type, entity_type: '', entity_id: '', payload: raw, timestamp: new Date().toISOString() }
       }
       onEventRef.current?.(parsed)
     }

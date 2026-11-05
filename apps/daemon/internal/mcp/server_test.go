@@ -26,6 +26,11 @@ func newTestServer(t *testing.T) (*Server, *storage.Store) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	store := storage.NewStore(db)
+	if err := store.CreateProject(context.Background(), domain.Project{
+		Slug: "test-project", Name: "Test Project", RootPath: tempDir,
+	}); err != nil {
+		t.Fatalf("Failed to seed project: %v", err)
+	}
 	return NewServer(store), store
 }
 
@@ -64,9 +69,9 @@ func resultText(t *testing.T, res *mcpgo.CallToolResult) string {
 func createTaskTool(t *testing.T, srv *Server, planID string, task map[string]any) {
 	t.Helper()
 	callTool(t, srv, "tasks", map[string]any{
-		"action":  "create",
-		"plan_id": planID,
-		"tasks":   []any{task},
+		"action":    "create",
+		"plan_slug": planID,
+		"tasks":     []any{task},
 	})
 }
 
@@ -74,8 +79,13 @@ func TestMCPServer_Surface(t *testing.T) {
 	srv, _ := newTestServer(t)
 
 	expectedTools := []string{
+		"projects",
 		"plans",
 		"tasks",
+		"docs",
+		"agents",
+		"sessions",
+		"search",
 		"claim_task",
 		"review",
 		"transition_task",
@@ -131,8 +141,13 @@ func TestMCPServer_RequiredParams(t *testing.T) {
 	srv, _ := newTestServer(t)
 
 	expected := map[string][]string{
+		"projects":   {"action"},
 		"plans":      {"action"},
 		"tasks":      {"action"},
+		"docs":       {"action"},
+		"agents":     {"action"},
+		"sessions":   {"action"},
+		"search":     {"query"},
 		"claim_task": {"task_id"},
 		"review":     {"action", "task_id"},
 		// transition_task accepts either task_ids+action or items[], so the
@@ -162,8 +177,9 @@ func TestMCPServer_LifecycleAndTransition(t *testing.T) {
 	ctx := context.Background()
 
 	callTool(t, srv, "plans", map[string]any{"action": "create",
-		"slug":  "test-mcp-plan",
-		"title": "MCP Server Verification",
+		"project_slug": "test-project",
+		"slug":         "test-mcp-plan",
+		"title":        "MCP Server Verification",
 	})
 	createTaskTool(t, srv, "test-mcp-plan", map[string]any{
 		"id":                    "task-mcp-01",
@@ -248,7 +264,7 @@ func TestMCPServer_WorktreeMergeOutcome(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "wt-plan", "title": "Worktree Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "wt-plan", "title": "Worktree Plan"})
 	createTaskTool(t, srv, "wt-plan", map[string]any{
 		"id":            "task-wt-01",
 		"title":         "Worktree Task",
@@ -290,7 +306,7 @@ func TestMCPServer_BatchTransitionIsPerTask(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "batch-plan", "title": "Batch Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "batch-plan", "title": "Batch Plan"})
 	for _, id := range []string{"batch-01", "batch-02"} {
 		createTaskTool(t, srv, "batch-plan", map[string]any{
 			"id":    id,
@@ -333,7 +349,7 @@ func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "state-plan", "title": "State Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "state-plan", "title": "State Plan"})
 	for _, id := range []string{"state-fail", "state-reset", "state-cancel"} {
 		createTaskTool(t, srv, "state-plan", map[string]any{
 			"id":    id,
@@ -376,7 +392,7 @@ func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
 func TestMCPServer_GetTask(t *testing.T) {
 	srv, _ := newTestServer(t)
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "read-plan", "title": "Read Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "read-plan", "title": "Read Plan"})
 	createTaskTool(t, srv, "read-plan", map[string]any{
 		"id":    "read-01",
 		"title": "Read Task",
@@ -392,11 +408,11 @@ func TestMCPServer_BatchCreateAndArchive(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "batch-plan", "title": "Batch Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "batch-plan", "title": "Batch Plan"})
 
 	res := callTool(t, srv, "tasks", map[string]any{
-		"action":  "create",
-		"plan_id": "batch-plan",
+		"action":    "create",
+		"plan_slug": "batch-plan",
 		"tasks": []any{
 			map[string]any{"id": "b-01", "title": "first"},
 			map[string]any{"id": "b-02", "title": "second", "dependencies": []string{"b-01"}},
@@ -442,7 +458,7 @@ func TestMCPServer_TaskMediaLifecycle(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "media-plan", "title": "Media Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "media-plan", "title": "Media Plan"})
 
 	src := filepath.Join(t.TempDir(), "design.png")
 	if err := os.WriteFile(src, []byte("\x89PNG\r\n\x1a\nfake"), 0o644); err != nil {
@@ -450,8 +466,8 @@ func TestMCPServer_TaskMediaLifecycle(t *testing.T) {
 	}
 
 	res := callTool(t, srv, "tasks", map[string]any{
-		"action":  "create",
-		"plan_id": "media-plan",
+		"action":    "create",
+		"plan_slug": "media-plan",
 		"tasks": []any{
 			map[string]any{
 				"id":    "m-01",
@@ -517,7 +533,7 @@ func TestMCPServer_TaskMediaLifecycle(t *testing.T) {
 		t.Fatalf("expected one re-attached artifact, got %d (err %v)", len(artifacts), err)
 	}
 
-	if _, err := store.ClaimTaskWithMeta(ctx, "m-01", "worker", "", "CODER"); err != nil {
+	if _, err := store.ClaimTask(ctx, "m-01", domain.ClaimOptions{WorkerID: "worker", WorkerRole: "CODER"}); err != nil {
 		t.Fatalf("claim failed: %v", err)
 	}
 
@@ -552,9 +568,10 @@ func TestMCPServer_CreatePlanWithTasksAndMedia(t *testing.T) {
 	}
 
 	res := callTool(t, srv, "plans", map[string]any{
-		"action": "create",
-		"slug":   "inline-plan",
-		"title":  "Inline DAG",
+		"action":       "create",
+		"project_slug": "test-project",
+		"slug":         "inline-plan",
+		"title":        "Inline DAG",
 		"tasks": []any{
 			map[string]any{"id": "i-01", "title": "root"},
 			map[string]any{
@@ -599,7 +616,7 @@ func TestMCPServer_TaskUpdateMetadata(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "update-plan", "title": "Update"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "update-plan", "title": "Update"})
 	createTaskTool(t, srv, "update-plan", map[string]any{"id": "u-01", "title": "old title"})
 	createTaskTool(t, srv, "update-plan", map[string]any{"id": "u-02", "title": "blocker"})
 
@@ -641,7 +658,7 @@ func TestMCPServer_TaskUpdateMetadata(t *testing.T) {
 func TestMCPServer_GetTaskPacketOptIn(t *testing.T) {
 	srv, _ := newTestServer(t)
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "get-plan", "title": "Get"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "get-plan", "title": "Get"})
 	createTaskTool(t, srv, "get-plan", map[string]any{"id": "g-01", "title": "read"})
 
 	res := callTool(t, srv, "tasks", map[string]any{"action": "get", "task_id": "g-01"})
@@ -669,7 +686,7 @@ func TestMCPServer_MixedTransitions(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "mix-plan", "title": "Mix"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "project_slug": "test-project", "slug": "mix-plan", "title": "Mix"})
 	createTaskTool(t, srv, "mix-plan", map[string]any{"id": "x-01", "title": "pass"})
 	createTaskTool(t, srv, "mix-plan", map[string]any{"id": "x-02", "title": "fail"})
 	for _, id := range []string{"x-01", "x-02"} {
@@ -699,5 +716,60 @@ func TestMCPServer_MixedTransitions(t *testing.T) {
 	second, _ := store.GetTask(ctx, "x-02")
 	if first.Status != domain.StatusCompleted || second.Status != domain.StatusFailed {
 		t.Errorf("unexpected statuses: %s / %s", first.Status, second.Status)
+	}
+}
+
+func TestMCPServer_DocumentRegistry(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	docPath := filepath.Join(t.TempDir(), "spec.md")
+	if err := os.WriteFile(docPath, []byte("# Spec\n\nClaim preflight outside the transaction.\n"), 0o644); err != nil {
+		t.Fatalf("failed to write document: %v", err)
+	}
+
+	res := callTool(t, srv, "docs", map[string]any{
+		"action":       "create",
+		"project_slug": "test-project",
+		"key":          "SPEC",
+		"slug":         "spec",
+		"type":         "SPEC",
+		"scope":        "PROJECT",
+		"title":        "Spec",
+		"path":         docPath,
+		"tags":         []any{"core"},
+	})
+	var created domain.Document
+	if err := json.Unmarshal([]byte(resultText(t, res)), &created); err != nil {
+		t.Fatalf("failed to decode document: %v", err)
+	}
+	if created.ID == "" || created.ContentHash == "" || created.ByteSize == 0 {
+		t.Fatalf("unexpected created document: %+v", created)
+	}
+
+	res = callTool(t, srv, "docs", map[string]any{
+		"action":         "search",
+		"query":          "preflight",
+		"project_slug":   "test-project",
+		"include_global": true,
+	})
+	var hits []domain.DocumentSearchResult
+	if err := json.Unmarshal([]byte(resultText(t, res)), &hits); err != nil {
+		t.Fatalf("failed to decode hits: %v", err)
+	}
+	if len(hits) != 1 || hits[0].Document.ID != created.ID {
+		t.Fatalf("unexpected hits: %+v", hits)
+	}
+
+	res = callTool(t, srv, "docs", map[string]any{
+		"action":  "refresh",
+		"id":      created.ID,
+		"content": "# Spec v2\n\nUpdated.\n",
+	})
+	var refreshed domain.Document
+	if err := json.Unmarshal([]byte(resultText(t, res)), &refreshed); err != nil {
+		t.Fatalf("failed to decode refreshed document: %v", err)
+	}
+	if refreshed.Version != 2 || refreshed.ContentHash == created.ContentHash {
+		t.Fatalf("expected version 2 with new hash, got %+v", refreshed)
 	}
 }
