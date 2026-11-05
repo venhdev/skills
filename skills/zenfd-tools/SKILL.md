@@ -27,9 +27,9 @@ read-only web cockpit, and exposes this MCP surface. Agents do the executing;
 
 ## Lifecycle
 
-`zenfd_plans(action=create)` → one batched `zenfd_tasks(action=create)` →
-`zenfd_claim_task` → execute → `zenfd_transition_task(COMPLETE|FAIL)` **or**
-`zenfd_review(action=request)` → main agent calls `zenfd_review(action=resolve)`
+`plans(action=create)` → one batched `tasks(action=create)` →
+`claim_task` → execute → `transition_task(COMPLETE|FAIL)` **or**
+`review(action=request)` → main agent calls `review(action=resolve)`
 → fresh claim.
 
 ```text
@@ -47,12 +47,15 @@ Recovery is `RESET` followed by a fresh claim.
 
 | Tool | Function | Parameters |
 | :--- | :--- | :--- |
-| `zenfd_plans` | `create` a plan (or retitle an existing one), `archive`/`unarchive` it, or `list` plans. Archived plans are hidden from list and the cockpit unless `include_archived=true`. | `action` (required); optional `slug`, `title`, `include_archived` |
-| `zenfd_tasks` | `create` a batch **atomically** in one call, `get` one task with its `ContextPacket`, or `list` tasks. Create fails if any ID already exists; the whole batch rolls back. | `action` (required); create: `plan_id` + `tasks[]`; get: `task_id`; list: optional `plan_id` or `status` |
-| `zenfd_claim_task` | Atomically claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` (required); optional `worker_id`, `orchestrator_id`, `worker_role` (default `CODER`) |
-| `zenfd_review` | `request` pauses a `RUNNING` task at `AWAITING_REVIEW` with a drift question (the worker exits); `resolve` records the human decision and returns the task to `READY`. Resolve is main-agent only. | `action`, `task_id` (required); request: `reason`, `details`, optional `options[]`; resolve: `response` |
-| `zenfd_transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL` to one or more tasks. Each task is processed independently and returns `results[]`. | `task_ids[]`, `action` (required); optional `reason`, `summary`, `merge_outcome` (`MERGED`/`CONFLICT`) |
-| `zenfd_attach_media` | Copy a local image/PDF/document into the attachment store and register it as an `INPUT` artifact. | `task_id`, `file_path` (required); optional `name` |
+| `plans` | `create` a plan (or retitle an existing one), `archive`/`unarchive` it, or `list` plans. Archived plans are hidden from list and the cockpit unless `include_archived=true`. | `action` (required); optional `slug`, `title`, `include_archived` |
+| `tasks` | `create` a batch **atomically** in one call, `get` one task with its `ContextPacket`, or `list` tasks. Create fails if any ID already exists; the whole batch rolls back. | `action` (required); create: `plan_id` + `tasks[]`; get: `task_id`; list: optional `plan_id` or `status` |
+| `claim_task` | Atomically claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` (required); optional `worker_id`, `orchestrator_id`, `worker_role` (default `CODER`) |
+| `review` | `request` pauses a `RUNNING` task at `AWAITING_REVIEW` with a drift question (the worker exits); `resolve` records the human decision and returns the task to `READY`. Resolve is main-agent only. | `action`, `task_id` (required); request: `reason`, `details`, optional `options[]`; resolve: `response` |
+| `transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL` to one or more tasks. Each task is processed independently and returns `results[]`. | `task_ids[]`, `action` (required); optional `reason`, `summary`, `merge_outcome` (`MERGED`/`CONFLICT`) |
+| `attach_media` | Copy a local image/PDF/document into the attachment store and register it as an `INPUT` artifact. | `task_id`, `file_path` (required); optional `name` |
+
+Clients namespace tools by server: OpenCode shows `zenfd.plans`, `zenfd.tasks`,
+and so on; Claude Code shows `mcp__zenfd__plans`.
 
 ### `tasks[]` item shape
 
@@ -110,7 +113,7 @@ Attach an image, PDF, or document before a worker starts:
 }
 ```
 
-Call `zenfd_attach_media` with those arguments. The task must still be `READY` or
+Call `attach_media` with those arguments. The task must still be `READY` or
 `PENDING`; once claimed, the packet has been handed to a worker. Files are copied
 under `~/.zenforge/attachments/<task>/` and capped at 25 MB.
 
@@ -149,11 +152,11 @@ Use `unarchive` to bring one back.
   time means the orchestrator should check its worker and then `RESET` or `FAIL`
   it.
 - **Review happens in the agent session.** The worker calls
-  `zenfd_review(action=request)` and exits; the main agent surfaces the question
-  to the human, then calls `zenfd_review(action=resolve)`.
+  `review(action=request)` and exits; the main agent surfaces the question
+  to the human, then calls `review(action=resolve)`.
 - **Attach media before dispatch.** Input media is part of the claim packet.
 - **Read state only when you need the payload.** The cockpit shows live state;
-  use `zenfd_tasks(action=list|get)` for the data itself.
+  use `tasks(action=list|get)` for the data itself.
 - **Prefer archive over delete.** `DELETE` on the HTTP API removes the plan and
   its tasks/artifacts; archive keeps them readable and reversible.
 

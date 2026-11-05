@@ -59,11 +59,11 @@ func resultText(t *testing.T, res *mcpgo.CallToolResult) string {
 	return text.Text
 }
 
-// createTaskTool wraps the consolidated zenfd_tasks create action with a
+// createTaskTool wraps the consolidated tasks create action with a
 // single-item batch, which is how the tests exercise per-task semantics.
 func createTaskTool(t *testing.T, srv *Server, planID string, task map[string]any) {
 	t.Helper()
-	callTool(t, srv, "zenfd_tasks", map[string]any{
+	callTool(t, srv, "tasks", map[string]any{
 		"action":  "create",
 		"plan_id": planID,
 		"tasks":   []any{task},
@@ -74,12 +74,12 @@ func TestMCPServer_Surface(t *testing.T) {
 	srv, _ := newTestServer(t)
 
 	expectedTools := []string{
-		"zenfd_plans",
-		"zenfd_tasks",
-		"zenfd_claim_task",
-		"zenfd_review",
-		"zenfd_transition_task",
-		"zenfd_attach_media",
+		"plans",
+		"tasks",
+		"claim_task",
+		"review",
+		"transition_task",
+		"attach_media",
 	}
 	for _, name := range expectedTools {
 		if srv.mcpServer.GetTool(name) == nil {
@@ -88,6 +88,12 @@ func TestMCPServer_Surface(t *testing.T) {
 	}
 
 	removedTools := []string{
+		"zenfd_plans",
+		"zenfd_tasks",
+		"zenfd_claim_task",
+		"zenfd_review",
+		"zenfd_transition_task",
+		"zenfd_attach_media",
 		"zenfd_create_plan",
 		"zenfd_create_task",
 		"zenfd_request_review",
@@ -125,12 +131,12 @@ func TestMCPServer_RequiredParams(t *testing.T) {
 	srv, _ := newTestServer(t)
 
 	expected := map[string][]string{
-		"zenfd_plans":           {"action"},
-		"zenfd_tasks":           {"action"},
-		"zenfd_claim_task":      {"task_id"},
-		"zenfd_review":          {"action", "task_id"},
-		"zenfd_transition_task": {"task_ids", "action"},
-		"zenfd_attach_media":    {"task_id", "file_path"},
+		"plans":           {"action"},
+		"tasks":           {"action"},
+		"claim_task":      {"task_id"},
+		"review":          {"action", "task_id"},
+		"transition_task": {"task_ids", "action"},
+		"attach_media":    {"task_id", "file_path"},
 	}
 
 	for name, required := range expected {
@@ -154,7 +160,7 @@ func TestMCPServer_LifecycleAndTransition(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create",
+	callTool(t, srv, "plans", map[string]any{"action": "create",
 		"slug":  "test-mcp-plan",
 		"title": "MCP Server Verification",
 	})
@@ -168,7 +174,7 @@ func TestMCPServer_LifecycleAndTransition(t *testing.T) {
 	})
 
 	// Claim.
-	callTool(t, srv, "zenfd_claim_task", map[string]any{
+	callTool(t, srv, "claim_task", map[string]any{
 		"task_id":   "task-mcp-01",
 		"worker_id": "test-agent-worker",
 	})
@@ -181,7 +187,7 @@ func TestMCPServer_LifecycleAndTransition(t *testing.T) {
 	}
 
 	// Worker requests review; the main agent relays the human decision and resolves.
-	callTool(t, srv, "zenfd_review", map[string]any{"action": "request",
+	callTool(t, srv, "review", map[string]any{"action": "request",
 		"task_id": "task-mcp-01",
 		"reason":  "Schema drift",
 		"details": "Need developer decision on migration vs recreate",
@@ -195,7 +201,7 @@ func TestMCPServer_LifecycleAndTransition(t *testing.T) {
 		t.Errorf("expected review question persisted, got %+v", task)
 	}
 
-	callTool(t, srv, "zenfd_review", map[string]any{"action": "resolve",
+	callTool(t, srv, "review", map[string]any{"action": "resolve",
 		"task_id":  "task-mcp-01",
 		"response": "Option A chosen",
 	})
@@ -205,11 +211,11 @@ func TestMCPServer_LifecycleAndTransition(t *testing.T) {
 	}
 
 	// Re-claim and complete without a worktree.
-	callTool(t, srv, "zenfd_claim_task", map[string]any{
+	callTool(t, srv, "claim_task", map[string]any{
 		"task_id":   "task-mcp-01",
 		"worker_id": "subagent-coder-2",
 	})
-	res := callTool(t, srv, "zenfd_transition_task", map[string]any{
+	res := callTool(t, srv, "transition_task", map[string]any{
 		"task_ids": []string{"task-mcp-01"},
 		"action":   "COMPLETE",
 		"summary":  "Implementation verified",
@@ -241,15 +247,15 @@ func TestMCPServer_WorktreeMergeOutcome(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create", "slug": "wt-plan", "title": "Worktree Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "wt-plan", "title": "Worktree Plan"})
 	createTaskTool(t, srv, "wt-plan", map[string]any{
 		"id":            "task-wt-01",
 		"title":         "Worktree Task",
 		"worktree_path": "/tmp/fake-worktree",
 	})
-	callTool(t, srv, "zenfd_claim_task", map[string]any{"task_id": "task-wt-01"})
+	callTool(t, srv, "claim_task", map[string]any{"task_id": "task-wt-01"})
 
-	callTool(t, srv, "zenfd_transition_task", map[string]any{
+	callTool(t, srv, "transition_task", map[string]any{
 		"task_ids": []string{"task-wt-01"},
 		"action":   "COMPLETE",
 	})
@@ -258,7 +264,7 @@ func TestMCPServer_WorktreeMergeOutcome(t *testing.T) {
 		t.Fatalf("expected AWAITING_MERGE, got %s", task.Status)
 	}
 
-	callTool(t, srv, "zenfd_transition_task", map[string]any{
+	callTool(t, srv, "transition_task", map[string]any{
 		"task_ids":      []string{"task-wt-01"},
 		"action":        "COMPLETE",
 		"merge_outcome": "CONFLICT",
@@ -268,7 +274,7 @@ func TestMCPServer_WorktreeMergeOutcome(t *testing.T) {
 		t.Fatalf("expected CONFLICT, got %s", task.Status)
 	}
 
-	callTool(t, srv, "zenfd_transition_task", map[string]any{
+	callTool(t, srv, "transition_task", map[string]any{
 		"task_ids":      []string{"task-wt-01"},
 		"action":        "COMPLETE",
 		"merge_outcome": "MERGED",
@@ -283,17 +289,17 @@ func TestMCPServer_BatchTransitionIsPerTask(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create", "slug": "batch-plan", "title": "Batch Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "batch-plan", "title": "Batch Plan"})
 	for _, id := range []string{"batch-01", "batch-02"} {
 		createTaskTool(t, srv, "batch-plan", map[string]any{
 			"id":    id,
 			"title": id,
 		})
-		callTool(t, srv, "zenfd_claim_task", map[string]any{"task_id": id})
+		callTool(t, srv, "claim_task", map[string]any{"task_id": id})
 	}
 
 	// batch-01 completes, missing batch-99 fails without blocking batch-02.
-	res := callTool(t, srv, "zenfd_transition_task", map[string]any{
+	res := callTool(t, srv, "transition_task", map[string]any{
 		"task_ids": []string{"batch-01", "batch-99", "batch-02"},
 		"action":   "COMPLETE",
 	})
@@ -326,16 +332,16 @@ func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create", "slug": "state-plan", "title": "State Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "state-plan", "title": "State Plan"})
 	for _, id := range []string{"state-fail", "state-reset", "state-cancel"} {
 		createTaskTool(t, srv, "state-plan", map[string]any{
 			"id":    id,
 			"title": id,
 		})
-		callTool(t, srv, "zenfd_claim_task", map[string]any{"task_id": id})
+		callTool(t, srv, "claim_task", map[string]any{"task_id": id})
 	}
 
-	callTool(t, srv, "zenfd_transition_task", map[string]any{
+	callTool(t, srv, "transition_task", map[string]any{
 		"task_ids": []string{"state-fail"},
 		"action":   "FAIL",
 		"reason":   "compile error",
@@ -345,7 +351,7 @@ func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
 		t.Fatalf("expected FAILED, got %s", task.Status)
 	}
 
-	callTool(t, srv, "zenfd_transition_task", map[string]any{
+	callTool(t, srv, "transition_task", map[string]any{
 		"task_ids": []string{"state-reset"},
 		"action":   "RESET",
 		"reason":   "worker hung",
@@ -355,7 +361,7 @@ func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
 		t.Fatalf("expected READY, got %s", task.Status)
 	}
 
-	callTool(t, srv, "zenfd_transition_task", map[string]any{
+	callTool(t, srv, "transition_task", map[string]any{
 		"task_ids": []string{"state-cancel"},
 		"action":   "CANCEL",
 		"reason":   "obsolete",
@@ -369,13 +375,13 @@ func TestMCPServer_TransitionFailResetCancel(t *testing.T) {
 func TestMCPServer_GetTask(t *testing.T) {
 	srv, _ := newTestServer(t)
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create", "slug": "read-plan", "title": "Read Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "read-plan", "title": "Read Plan"})
 	createTaskTool(t, srv, "read-plan", map[string]any{
 		"id":    "read-01",
 		"title": "Read Task",
 	})
 
-	res := callTool(t, srv, "zenfd_tasks", map[string]any{"action": "get", "task_id": "read-01"})
+	res := callTool(t, srv, "tasks", map[string]any{"action": "get", "task_id": "read-01"})
 	if resultText(t, res) == "" {
 		t.Fatal("expected get_task content")
 	}
@@ -385,9 +391,9 @@ func TestMCPServer_BatchCreateAndArchive(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create", "slug": "batch-plan", "title": "Batch Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "batch-plan", "title": "Batch Plan"})
 
-	res := callTool(t, srv, "zenfd_tasks", map[string]any{
+	res := callTool(t, srv, "tasks", map[string]any{
 		"action":  "create",
 		"plan_id": "batch-plan",
 		"tasks": []any{
@@ -412,14 +418,14 @@ func TestMCPServer_BatchCreateAndArchive(t *testing.T) {
 		t.Errorf("unexpected statuses: %s / %s", first.Status, second.Status)
 	}
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "archive", "slug": "batch-plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "archive", "slug": "batch-plan"})
 
-	res = callTool(t, srv, "zenfd_plans", map[string]any{"action": "list"})
+	res = callTool(t, srv, "plans", map[string]any{"action": "list"})
 	if strings.TrimSpace(resultText(t, res)) != "[]" {
 		t.Errorf("archived plan should be hidden from default list, got %s", resultText(t, res))
 	}
 
-	res = callTool(t, srv, "zenfd_plans", map[string]any{"action": "list", "include_archived": true})
+	res = callTool(t, srv, "plans", map[string]any{"action": "list", "include_archived": true})
 	var plans []domain.Plan
 	if err := json.Unmarshal([]byte(resultText(t, res)), &plans); err != nil {
 		t.Fatalf("failed to decode plan list: %v", err)
@@ -435,7 +441,7 @@ func TestMCPServer_AttachMediaOnlyBeforeClaim(t *testing.T) {
 	srv, store := newTestServer(t)
 	ctx := context.Background()
 
-	callTool(t, srv, "zenfd_plans", map[string]any{"action": "create", "slug": "media-plan", "title": "Media Plan"})
+	callTool(t, srv, "plans", map[string]any{"action": "create", "slug": "media-plan", "title": "Media Plan"})
 	createTaskTool(t, srv, "media-plan", map[string]any{"id": "m-01", "title": "media task"})
 
 	src := filepath.Join(t.TempDir(), "design.png")
@@ -443,7 +449,7 @@ func TestMCPServer_AttachMediaOnlyBeforeClaim(t *testing.T) {
 		t.Fatalf("failed to write fixture: %v", err)
 	}
 
-	res := callTool(t, srv, "zenfd_attach_media", map[string]any{
+	res := callTool(t, srv, "attach_media", map[string]any{
 		"task_id":   "m-01",
 		"file_path": src,
 		"name":      "Design mockup",
@@ -468,10 +474,10 @@ func TestMCPServer_AttachMediaOnlyBeforeClaim(t *testing.T) {
 		t.Fatalf("claim failed: %v", err)
 	}
 
-	tool := srv.mcpServer.GetTool("zenfd_attach_media")
+	tool := srv.mcpServer.GetTool("attach_media")
 	late, err := tool.Handler(ctx, mcpgo.CallToolRequest{
 		Params: mcpgo.CallToolParams{
-			Name: "zenfd_attach_media",
+			Name: "attach_media",
 			Arguments: map[string]any{
 				"task_id":   "m-01",
 				"file_path": src,

@@ -860,7 +860,7 @@ func (s *Server) handleGetGlobalEnv(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.envInfo = map[string]any{
-			"version":     "0.1.1",
+			"version":     "0.1.2",
 			"os":          runtime.GOOS,
 			"arch":        runtime.GOARCH,
 			"num_cpu":     runtime.NumCPU(),

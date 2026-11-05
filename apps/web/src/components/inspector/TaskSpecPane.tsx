@@ -196,7 +196,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
               This gate is resolved by your{' '}
               <strong className="text-orange-200">main orchestrator agent</strong>, not from the Web Cockpit.
               Reply with your decision in the agent session; the main agent records it with{' '}
-              <code className="font-mono text-orange-200">zenfd_review(action=resolve)</code> and the task returns to{' '}
+              <code className="font-mono text-orange-200">review(action=resolve)</code> and the task returns to{' '}
               <code className="font-mono text-orange-200">READY</code>.
             </div>
           </div>
@@ -211,7 +211,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             </div>
             <p className="text-[11px] text-zinc-300">
               Agent execution verified with passing tests on isolated worktree. Merge the worktree into the target
-              branch outside MCP, then mark the outcome with <code className="font-mono">zenfd_transition_task</code>{' '}
+              branch outside MCP, then mark the outcome with <code className="font-mono">transition_task</code>{' '}
               (<code className="font-mono">merge_outcome=MERGED</code> or <code className="font-mono">CONFLICT</code>).
             </p>
           </div>
@@ -226,7 +226,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             </div>
             <p className="text-[11px] text-zinc-300">
               Resolve conflicts manually outside MCP, then mark the task merged via{' '}
-              <code className="font-mono">zenfd_transition_task</code> with{' '}
+              <code className="font-mono">transition_task</code> with{' '}
               <code className="font-mono">merge_outcome=MERGED</code>. Conflicting files:
             </p>
             {task.conflict_files && task.conflict_files.length > 0 && (

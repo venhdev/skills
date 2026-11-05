@@ -110,12 +110,12 @@ args = ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
 
 ## Lifecycle
 
-`zenfd_plans(action=create)` → one batched `zenfd_tasks(action=create)` →
-`zenfd_claim_task` → execute → `zenfd_transition_task(COMPLETE|FAIL)` or
-`zenfd_review(action=request)` → main agent calls `zenfd_review(action=resolve)`
+`plans(action=create)` → one batched `tasks(action=create)` →
+`claim_task` → execute → `transition_task(COMPLETE|FAIL)` or
+`review(action=request)` → main agent calls `review(action=resolve)`
 → fresh claim. Recovery is `RESET` followed by a fresh claim.
 
-Completed plans can be hidden with `zenfd_plans(action=archive)` and restored with
+Completed plans can be hidden with `plans(action=archive)` and restored with
 `action=unarchive`. Archived plans are omitted from `list` and from the cockpit
 unless `include_archived` / `Show archived` is enabled.
 
@@ -123,12 +123,15 @@ unless `include_archived` / `Show archived` is enabled.
 
 | Tool | Behavior | Required | Optional |
 | :--- | :--- | :--- | :--- |
-| `zenfd_plans` | `create` a plan or retitle an existing one; `archive`/`unarchive`; `list`. | `action` | `slug`, `title`, `include_archived` |
-| `zenfd_tasks` | `create` a batch atomically; `get` one task with its `ContextPacket`; `list` by plan or status. | `action`; `plan_id` + `tasks[]` (create), `task_id` (get) | per task: `description`, `dependencies`, `target_files`, `skills`, `acceptance_criteria`, `verification_commands`, `priority`, `harness`, `worktree_path`; `status` (list) |
-| `zenfd_claim_task` | Claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` | `worker_id`, `orchestrator_id`, `worker_role` |
-| `zenfd_review` | `request` pauses at `AWAITING_REVIEW` with a drift question; `resolve` records the human decision and returns to `READY`. | `action`, `task_id` | `reason`, `details`, `options` (request); `response` (resolve) |
-| `zenfd_transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL` to many tasks; returns `results[]`. | `task_ids`, `action` | `reason`, `summary`, `merge_outcome` |
-| `zenfd_attach_media` | Copy a local image/PDF/document into the attachment store as an `INPUT` artifact for the next claim. | `task_id`, `file_path` | `name` |
+| `plans` | `create` a plan or retitle an existing one; `archive`/`unarchive`; `list`. | `action` | `slug`, `title`, `include_archived` |
+| `tasks` | `create` a batch atomically; `get` one task with its `ContextPacket`; `list` by plan or status. | `action`; `plan_id` + `tasks[]` (create), `task_id` (get) | per task: `description`, `dependencies`, `target_files`, `skills`, `acceptance_criteria`, `verification_commands`, `priority`, `harness`, `worktree_path`; `status` (list) |
+| `claim_task` | Claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` | `worker_id`, `orchestrator_id`, `worker_role` |
+| `review` | `request` pauses at `AWAITING_REVIEW` with a drift question; `resolve` records the human decision and returns to `READY`. | `action`, `task_id` | `reason`, `details`, `options` (request); `response` (resolve) |
+| `transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL` to many tasks; returns `results[]`. | `task_ids`, `action` | `reason`, `summary`, `merge_outcome` |
+| `attach_media` | Copy a local image/PDF/document into the attachment store as an `INPUT` artifact for the next claim. | `task_id`, `file_path` | `name` |
+
+Clients namespace tools by server name. OpenCode shows them as `zenfd.plans`,
+`zenfd.tasks`, and so on; Claude Code uses `mcp__zenfd__plans`.
 
 Create is strongly typed: duplicate IDs fail the whole batch, cycles and
 self-dependencies are rejected, and initial status is derived from prerequisites
@@ -148,8 +151,8 @@ HTTP, and raw SQLite writes alike.
 
 ## Review and merge
 
-A worker that hits drift calls `zenfd_review(action=request)` and exits; the main
-agent relays the question to the human and calls `zenfd_review(action=resolve)`.
+A worker that hits drift calls `review(action=request)` and exits; the main
+agent relays the question to the human and calls `review(action=resolve)`.
 The cockpit only displays the review state.
 
 Merge happens outside MCP. `COMPLETE` with a `worktree_path` stops at
@@ -161,6 +164,6 @@ and blocks downstream dependents; `RESET`/`CANCEL` apply to `RUNNING`.
 
 1. Configure the client (`zenfd mcp check --client <name>`, or edit the manual
    file), restart the session, and confirm the 6 tools above are listed.
-2. Call `zenfd_tasks(action=list)` and confirm the daemon responds.
+2. Call `tasks(action=list)` and confirm the daemon responds.
 3. Create a disposable plan and task, claim it, and complete it with
-   `zenfd_transition_task`; optionally request and resolve a review.
+   `transition_task`; optionally request and resolve a review.

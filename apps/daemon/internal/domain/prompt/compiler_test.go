@@ -118,13 +118,13 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 	if !strings.Contains(md, "## 5. MCP Tool Handshake Protocol") {
 		t.Error("prompt markdown missing tool handshake protocol section")
 	}
-	if !strings.Contains(md, "zenfd_claim_task(task_id=\"P-03\"") {
+	if !strings.Contains(md, "claim_task(task_id=\"P-03\"") {
 		t.Error("prompt markdown missing claim task tool instruction")
 	}
-	if !strings.Contains(md, "zenfd_review(action=\"request\", task_id=\"P-03\"") {
+	if !strings.Contains(md, "review(action=\"request\", task_id=\"P-03\"") {
 		t.Error("prompt markdown missing request review tool instruction")
 	}
-	if !strings.Contains(md, "zenfd_transition_task(task_ids=[\"P-03\"], action=\"COMPLETE\"") {
+	if !strings.Contains(md, "transition_task(task_ids=[\"P-03\"], action=\"COMPLETE\"") {
 		t.Error("prompt markdown missing complete transition tool instruction")
 	}
 }

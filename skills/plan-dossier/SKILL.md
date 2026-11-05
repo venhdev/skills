@@ -8,11 +8,11 @@ disable-model-invocation: true
 
 ## Operating Invariants
 
-- **Scratch Exclusivity & DB SSOT**: Mutate plan artifacts inside `.agents/scratch/plans/<slug>/`; never modify production source code or permanent `docs/` directly (delegate durable promotion to `/ssot`). In repositories governed by `zenfd` (ZenForge Daemon), persist the living plan with `zenfd_plans(action=create)` and the whole task DAG in one batched `zenfd_tasks(action=create)` call.
+- **Scratch Exclusivity & DB SSOT**: Mutate plan artifacts inside `.agents/scratch/plans/<slug>/`; never modify production source code or permanent `docs/` directly (delegate durable promotion to `/ssot`). In repositories governed by `zenfd` (ZenForge Daemon), persist the living plan with `plans(action=create)` and the whole task DAG in one batched `tasks(action=create)` call.
 - **Authorization Gate on Init**: Stage the planned dossier structure and halt for affirmative human authorization before creating files on disk; honor prior explicit approval.
 - **Evidence-Backed Verification**: Transition phase status to `VERIFIED` strictly when supported by concrete proof (automated test command exit code 0 and git commit SHA); never accept unverified verbal claims of completion.
 - **Drift Breaker**: Transition phase status to `DRIFTED` and halt implementation immediately upon detecting architectural divergence between code reality and staged contracts; require caller re-planning before amending the plan.
-- **Prompt-Embedded Handshake**: When authoring task specifications and prompts for ephemeral subagent workers, embed the explicit handshake directly in the task prompt (`zenfd_claim_task` → execute → `zenfd_transition_task` or `zenfd_review(action=request)`). Reserve `zenfd_review(action=resolve)` for the main orchestrator agent, which relays the human decision; workers request review and exit.
+- **Prompt-Embedded Handshake**: When authoring task specifications and prompts for ephemeral subagent workers, embed the explicit handshake directly in the task prompt (`claim_task` → execute → `transition_task` or `review(action=request)`). Reserve `review(action=resolve)` for the main orchestrator agent, which relays the human decision; workers request review and exit.
 - **Active Plan Preservation**: Preserve plan directories containing active phases (`PLANNED`, `CLAIMED`, `IN_PROGRESS`, `DRIFTED`); mark initiative `COMPLETED` only when all phases are `VERIFIED`.
 
 ## Domain Rubric
@@ -64,12 +64,12 @@ PLAN | slug: <slug> | rev: <v1.N> | status: <STATUS> | active: <phase-id> | veri
 - Claimed phase ready for immediate in-turn implementation → (via /forge).
 - Phase drifted requiring architectural redesign → (via /architect-decision) or clarification → (via /clarify).
 - All phases VERIFIED; promote durable specifications to documentation authority → (via /ssot).
-- Completed initiative ready for scratch cleanup → confirm with /sweep, then hide it with `zenfd_plans(action=archive)`.
+- Completed initiative ready for scratch cleanup → confirm with /sweep, then hide it with `plans(action=archive)`.
 
 ## Execution Protocol
 
 1. **Ingest & Parse**: Ingest operation (`init`, `claim`, `verify`, `drift`, `amend`), initiative slug, and target phase ID or proof payload.
 2. **Authorize & Mutate**:
-   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the plan and the complete task DAG in SQLite SSOT with `zenfd_plans(action=create)` then one batched `zenfd_tasks(action=create)`. If the phase needs design references, attach them with `zenfd_attach_media` while the task is still `READY`/`PENDING`.
+   - For `init`: Stage dossier layout, halt for confirmation, and atomically write `.agents/scratch/plans/<slug>/README.md` and packaged artifacts upon approval. When `zenfd` is active, register the plan and the complete task DAG in SQLite SSOT with `plans(action=create)` then one batched `tasks(action=create)`. If the phase needs design references, attach them with `attach_media` while the task is still `READY`/`PENDING`.
    - For `claim / verify / drift / amend`: Read existing dashboard, validate state transition rules, apply atomic update to `README.md`, and reconcile overall initiative state.
 3. **Emit & Report**: Render Canonical Output Contract (or micro-token for autonomous runners) and halt turn.

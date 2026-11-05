@@ -48,7 +48,7 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "0.1.1"
+const Version = "0.1.2"
 
 func main() {
 	rootCmd := &cobra.Command{

@@ -33,7 +33,7 @@ type Server struct {
 // NewServer initializes the MCP server and registers all tools.
 func NewServer(store Storage) *Server {
 	s := &Server{
-		mcpServer: server.NewMCPServer("zenfd", "0.1.1", server.WithToolCapabilities(true)),
+		mcpServer: server.NewMCPServer("zenfd", "0.1.2", server.WithToolCapabilities(true)),
 		store:     store,
 	}
 	s.registerTools()
@@ -65,7 +65,7 @@ func marshalToolResult(value any) *mcp.CallToolResult {
 
 func (s *Server) registerPlanTools() {
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_plans",
+		mcp.NewTool("plans",
 			mcp.WithDescription("Manage plans: create (or update title), archive, unarchive, or list. Archived plans are omitted from list unless include_archived is true."),
 			mcp.WithString("action", mcp.Required(), mcp.Description("create | archive | unarchive | list")),
 			mcp.WithString("slug", mcp.Description("Plan slug (required for create/archive/unarchive)")),
@@ -122,7 +122,7 @@ func (s *Server) registerPlanTools() {
 	)
 }
 
-// taskInput is the wire shape accepted by zenfd_tasks create.
+// taskInput is the wire shape accepted by tasks create.
 type taskInput struct {
 	ID                   string   `json:"id"`
 	Title                string   `json:"title"`
@@ -169,7 +169,7 @@ func toDomainTask(planID string, in taskInput) domain.Task {
 
 func (s *Server) registerTaskTools() {
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_tasks",
+		mcp.NewTool("tasks",
 			mcp.WithDescription("Manage tasks: create a batch in one transaction, get one task with its ContextPacket, or list tasks. Prefer a single batch create over many calls."),
 			mcp.WithString("action", mcp.Required(), mcp.Description("create | get | list")),
 			mcp.WithString("plan_id", mcp.Description("Parent plan slug (required for create)")),
@@ -275,9 +275,9 @@ func (s *Server) registerTaskTools() {
 }
 
 func (s *Server) registerWorkflowTools() {
-	// zenfd_claim_task
+	// claim_task
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_claim_task",
+		mcp.NewTool("claim_task",
 			mcp.WithDescription("Atomically claims a READY task with mutual exclusion lock, transitions to RUNNING, and returns its ContextPacket."),
 			mcp.WithString("task_id", mcp.Required(), mcp.Description("Unique task ID to claim")),
 			mcp.WithString("worker_id", mcp.Description("Optional worker or subagent identifier")),
@@ -301,9 +301,9 @@ func (s *Server) registerWorkflowTools() {
 		},
 	)
 
-	// zenfd_review
+	// review
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_review",
+		mcp.NewTool("review",
 			mcp.WithDescription("Review handshake. action=request pauses a RUNNING task at AWAITING_REVIEW (worker exits); action=resolve records the human decision and returns the task to READY (main agent only)."),
 			mcp.WithString("action", mcp.Required(), mcp.Description("request | resolve")),
 			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
@@ -350,9 +350,9 @@ func (s *Server) registerWorkflowTools() {
 		},
 	)
 
-	// zenfd_transition_task
+	// transition_task
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_transition_task",
+		mcp.NewTool("transition_task",
 			mcp.WithDescription("Applies a state transition to one or more tasks. COMPLETE stages worktree tasks to AWAITING_MERGE or completes them; merge_outcome resolves AWAITING_MERGE/CONFLICT. FAIL marks RUNNING tasks FAILED and blocks downstream dependents. RESET clears the claim and returns to READY (or BLOCKED when prerequisites are unfinished). CANCEL cancels. Each task is processed independently."),
 			mcp.WithArray("task_ids", mcp.Required(), mcp.Description("Task IDs to transition")),
 			mcp.WithString("action", mcp.Required(), mcp.Description("COMPLETE, FAIL, RESET, or CANCEL")),
@@ -390,9 +390,9 @@ func (s *Server) registerWorkflowTools() {
 		},
 	)
 
-	// zenfd_attach_media
+	// attach_media
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_attach_media",
+		mcp.NewTool("attach_media",
 			mcp.WithDescription("Attaches input media (image, PDF, document) to a task that is READY or PENDING. The file is copied into the ZenForge attachment store and registered as an INPUT artifact, so the next claim includes it in the ContextPacket."),
 			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task in READY or PENDING status")),
 			mcp.WithString("file_path", mcp.Required(), mcp.Description("Absolute path to a local file to copy into the attachment store")),
