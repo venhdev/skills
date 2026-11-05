@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"zenfd/internal/domain"
-	"zenfd/internal/domain/prompt"
 	"zenfd/internal/storage"
 )
 
@@ -79,7 +78,7 @@ func TestPlanStore_AtomicityAndDAGUnlock(t *testing.T) {
 		t.Fatalf("GetTasksByPlan failed: err=%v, count=%d", err, len(retrievedTasks))
 	}
 
-	readyTasks, err := store.GetReadyTasks(ctx, 10)
+	readyTasks, err := store.ListTasks(ctx, domain.StatusReady)
 	if err != nil || len(readyTasks) != 1 || readyTasks[0].ID != "task-01" {
 		t.Fatalf("Expected 1 ready task (task-01), got: %v (err: %v)", readyTasks, err)
 	}
@@ -228,7 +227,7 @@ func TestPlanStore_ClaimAndReviewMerge(t *testing.T) {
 	}
 
 	// 1. Claim task
-	packet, err := store.ClaimTask(ctx, "task-claim-01", "subagent-worker-1", 12345)
+	packet, err := store.ClaimTask(ctx, "task-claim-01", "subagent-worker-1")
 	if err != nil {
 		t.Fatalf("ClaimTask failed: %v", err)
 	}
@@ -240,7 +239,7 @@ func TestPlanStore_ClaimAndReviewMerge(t *testing.T) {
 	}
 
 	// Double claim should fail (already RUNNING)
-	_, err = store.ClaimTask(ctx, "task-claim-01", "subagent-worker-2", 67890)
+	_, err = store.ClaimTask(ctx, "task-claim-01", "subagent-worker-2")
 	if err == nil {
 		t.Fatal("Expected second claim to fail, but it succeeded")
 	}
@@ -272,7 +271,7 @@ func TestPlanStore_ClaimAndReviewMerge(t *testing.T) {
 	}
 
 	// Re-claim after review resolution to put back into RUNNING
-	_, err = store.ClaimTask(ctx, "task-claim-01", "subagent-coder-2", 48292)
+	_, err = store.ClaimTask(ctx, "task-claim-01", "subagent-coder-2")
 	if err != nil {
 		t.Fatalf("Re-claiming task failed: %v", err)
 	}
@@ -387,7 +386,7 @@ func TestPlanStore_ListPlansIncludesEmptyPlan(t *testing.T) {
 		t.Fatalf("CreateTask failed: %v", err)
 	}
 
-	plans, err := store.ListPlans(ctx)
+	plans, err := store.ListPlans(ctx, false)
 	if err != nil {
 		t.Fatalf("ListPlans failed: %v", err)
 	}
@@ -563,73 +562,5 @@ func TestConcurrentReadWrite(t *testing.T) {
 
 	for err := range errCh {
 		t.Fatalf("concurrent test error: %v", err)
-	}
-}
-
-var _ prompt.Compiler = (*mockPromptCompiler)(nil)
-
-type mockPromptCompiler struct {
-	called           bool
-	task             domain.Task
-	inputAttachments []domain.Artifact
-}
-
-func (m *mockPromptCompiler) Compile(ctx context.Context, task domain.Task, inputAttachments []domain.Artifact) (*domain.ContextPacket, error) {
-	m.called = true
-	m.task = task
-	m.inputAttachments = inputAttachments
-	return &domain.ContextPacket{
-		Task:           task,
-		TargetFiles:    task.TargetFiles,
-		PromptMarkdown: fmt.Sprintf("# MOCK PROMPT: %s", task.Title),
-	}, nil
-}
-
-func TestPlanStore_PromptCompilerDelegation(t *testing.T) {
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "test_compiler_delegation.db")
-
-	db, err := storage.Open(dbPath)
-	if err != nil {
-		t.Fatalf("Open failed: %v", err)
-	}
-	defer db.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	mock := &mockPromptCompiler{}
-	store := storage.NewStore(db, storage.WithPromptCompiler(mock))
-
-	plan := domain.Plan{
-		Slug:   "plan-compiler-test",
-		Title:  "Compiler Delegation Plan",
-		Status: "ACTIVE",
-	}
-	task := domain.Task{
-		ID:          "T-DELEGATE-01",
-		PlanID:      plan.Slug,
-		Title:       "Test Compiler Delegation",
-		TargetFiles: []string{"a.go"},
-		Status:      domain.StatusReady,
-	}
-
-	if err := store.SavePlanWithTasks(ctx, plan, []domain.Task{task}); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
-	}
-
-	packet, err := store.GetTaskContextPacket(ctx, task.ID)
-	if err != nil {
-		t.Fatalf("GetTaskContextPacket failed: %v", err)
-	}
-
-	if !mock.called {
-		t.Fatal("expected mock prompt compiler to be called")
-	}
-	if mock.task.ID != "T-DELEGATE-01" {
-		t.Errorf("expected task ID 'T-DELEGATE-01', got: %s", mock.task.ID)
-	}
-	if packet.PromptMarkdown != "# MOCK PROMPT: Test Compiler Delegation" {
-		t.Errorf("unexpected PromptMarkdown: %s", packet.PromptMarkdown)
 	}
 }

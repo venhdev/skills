@@ -24,7 +24,8 @@ skills-lock.json
 /bin/
 apps/daemon/bin/
 apps/daemon/tmp/
-apps/daemon/internal/gateway/web_dist/
+apps/daemon/internal/gateway/web_dist/*
+!apps/daemon/internal/gateway/web_dist/.keep
 apps/web/node_modules/
 apps/web/dist/
 .agents/environment.md

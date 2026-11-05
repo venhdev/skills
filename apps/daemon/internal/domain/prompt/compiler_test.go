@@ -19,6 +19,7 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 		Title:                "Prompt Context Compiler Domain Seam",
 		Description:          "Extract prompt markdown assembly into domain service.",
 		Priority:             "P2",
+		Harness:              "orchestrator",
 		Complexity:           "MEDIUM",
 		RiskLevel:            "LOW",
 		WorktreePath:         "/home/dev/src/owner/my-skills",
@@ -71,6 +72,9 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 	if !strings.Contains(md, "- **Priority**: `P2` | **Complexity**: `MEDIUM` | **Risk**: `LOW`") {
 		t.Error("prompt markdown missing priority/complexity/risk metadata")
 	}
+	if !strings.Contains(md, "- **Intended executor**: `orchestrator`") {
+		t.Error("prompt markdown missing the intended executor label")
+	}
 	if !strings.Contains(md, "- **Worktree Path**: `/home/dev/src/owner/my-skills`") {
 		t.Error("prompt markdown missing worktree path")
 	}
@@ -117,14 +121,11 @@ func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {
 	if !strings.Contains(md, "zenfd_claim_task(task_id=\"P-03\"") {
 		t.Error("prompt markdown missing claim task tool instruction")
 	}
-	if !strings.Contains(md, "zenfd_request_review(task_id=\"P-03\"") {
+	if !strings.Contains(md, "zenfd_review(action=\"request\", task_id=\"P-03\"") {
 		t.Error("prompt markdown missing request review tool instruction")
 	}
 	if !strings.Contains(md, "zenfd_transition_task(task_ids=[\"P-03\"], action=\"COMPLETE\"") {
 		t.Error("prompt markdown missing complete transition tool instruction")
-	}
-	if strings.Contains(md, "pid=$PID") {
-		t.Error("prompt markdown must not instruct passing pid")
 	}
 }
 

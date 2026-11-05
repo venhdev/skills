@@ -7,15 +7,30 @@ interface UseSSEOptions {
   enabled?: boolean
 }
 
+// Event types the daemon streams. Keeping the list here documents the contract
+// and avoids re-subscribing on every render.
+const EVENT_TYPES = [
+  'plan.created',
+  'plan.deleted',
+  'plan.archived',
+  'plan.unarchived',
+  'task.created',
+  'task.status',
+  'task.dependencies_updated',
+  'task.notes_updated',
+  'artifact.added',
+  'state.changed',
+] as const
+
 export function useSSE({
   url = '/api/v1/events/stream',
   onEvent,
   enabled = true,
 }: UseSSEOptions = {}) {
   const [connected, setConnected] = useState(false)
-  const [lastEvent, setLastEvent] = useState<EventMessage | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // The callback is read through a ref so a new closure never reconnects.
   const onEventRef = useRef(onEvent)
   onEventRef.current = onEvent
 
@@ -57,53 +72,22 @@ export function useSSE({
       setConnected(true)
     })
 
-    // Generic message handler
-    es.onmessage = (e) => {
+    const dispatch = (type: string, raw: string) => {
+      let parsed: EventMessage
       try {
-        const parsed: EventMessage = JSON.parse(e.data)
-        setLastEvent(parsed)
-        onEventRef.current?.(parsed)
+        parsed = JSON.parse(raw)
       } catch {
-        // Raw string event
-        const rawEvent: EventMessage = {
-          type: e.type || 'message',
-          payload: e.data,
-          timestamp: new Date().toISOString(),
-        }
-        setLastEvent(rawEvent)
-        onEventRef.current?.(rawEvent)
+        parsed = { id: 0, type, payload: raw, timestamp: new Date().toISOString() }
       }
+      onEventRef.current?.(parsed)
     }
 
-    // Specific domain events
-    const eventTypes = [
-      'plan:created',
-      'plan:deleted',
-      'task:created',
-      'task:status',
-      'task:dependencies_updated',
-      'task:notes_updated',
-      'task:artifact_added',
-      'run:killed',
-      'state:changed',
-    ]
+    // Generic handler covers any event the daemon adds without a frontend
+    // release. It only updates the connection state, never React data.
+    es.onmessage = (e) => dispatch(e.type || 'message', e.data)
 
-    eventTypes.forEach((type) => {
-      es.addEventListener(type, (e: MessageEvent) => {
-        try {
-          const parsed: EventMessage = JSON.parse(e.data)
-          setLastEvent(parsed)
-          onEventRef.current?.(parsed)
-        } catch {
-          const raw: EventMessage = {
-            type,
-            payload: e.data,
-            timestamp: new Date().toISOString(),
-          }
-          setLastEvent(raw)
-          onEventRef.current?.(raw)
-        }
-      })
+    EVENT_TYPES.forEach((type) => {
+      es.addEventListener(type, (e: MessageEvent) => dispatch(type, e.data))
     })
   }, [url, enabled])
 
@@ -123,7 +107,5 @@ export function useSSE({
 
   return {
     connected,
-    lastEvent,
-    reconnect: connect,
   }
 }

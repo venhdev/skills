@@ -1,14 +1,13 @@
 import { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import {
-  Terminal,
   Zap,
   Bot,
   Crown,
-  Unplug,
 } from 'lucide-react'
 import type { Task } from '../../types/contracts'
 import { TASK_STATUS_CONFIG } from './taskStatusTheme'
+import { elapsedLabel } from '../../lib/duration'
 
 export interface TaskNodeData {
   task: Task
@@ -96,7 +95,9 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
           <div className="flex items-center gap-1 text-[10px] text-violet-300 font-mono truncate">
             <Bot className="h-3 w-3 text-violet-400 shrink-0" />
             <span className="truncate">{task.claimed_by || 'Worker'}</span>
-            {task.pid ? <span className="text-[9px] text-zinc-500">({task.pid})</span> : null}
+            {task.claimed_at && (
+              <span className="text-[9px] text-zinc-400 shrink-0">· {elapsedLabel(task.claimed_at)}</span>
+            )}
           </div>
           {task.orchestrator_id && (
             <div className="flex items-center gap-1 text-[9px] text-amber-300/80 font-mono truncate">
@@ -107,25 +108,14 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
         </div>
       )}
 
-      {task.status === 'SUSPENDED' && (
-        <div className="mt-2 flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-mono text-amber-400 border border-amber-500/20">
-          <Unplug className="h-2.5 w-2.5 shrink-0" />
-          <span className="truncate">PID Disconnected</span>
-        </div>
-      )}
-
       {task.status === 'COMPLETED' && task.claimed_by && (
         <div className="mt-2 flex items-center gap-1 text-[9px] text-emerald-400/80 font-mono truncate border-t border-zinc-800/80 pt-1">
           <span>✓ by {task.claimed_by}</span>
         </div>
       )}
 
-      {/* Skill Command & Harness */}
-      <div className="mt-2 flex items-center justify-between border-t border-zinc-800/80 pt-1.5 text-[10px] text-zinc-400 font-mono">
-        <div className="flex items-center gap-1 truncate max-w-[150px]">
-          <Terminal className="h-3 w-3 text-zinc-500 shrink-0" />
-          <span className="truncate text-zinc-300">{task.skill_command}</span>
-        </div>
+      {/* Intended executor */}
+      <div className="mt-2 flex items-center justify-end border-t border-zinc-800/80 pt-1.5 text-[10px] text-zinc-400 font-mono">
         <span className="text-zinc-500 uppercase">{task.harness}</span>
       </div>
 

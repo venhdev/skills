@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"zenfd/internal/domain"
@@ -25,6 +23,16 @@ type TaskLifecycle struct {
 // UpdateTaskStatus atomically transitions task status and resolves DAG
 // dependencies. Every failure aborts the transaction; nothing is swallowed.
 func (l *TaskLifecycle) UpdateTaskStatus(ctx context.Context, taskID string, from domain.TaskStatus, to domain.TaskStatus) error {
+	return l.updateTaskStatus(ctx, taskID, from, to, "")
+}
+
+// UpdateTaskStatusWithNote applies a transition and appends an audit note in the
+// same transaction, so a recorded transition can never lose its explanation.
+func (l *TaskLifecycle) UpdateTaskStatusWithNote(ctx context.Context, taskID string, from domain.TaskStatus, to domain.TaskStatus, note string) error {
+	return l.updateTaskStatus(ctx, taskID, from, to, note)
+}
+
+func (l *TaskLifecycle) updateTaskStatus(ctx context.Context, taskID string, from domain.TaskStatus, to domain.TaskStatus, note string) error {
 	if !from.CanTransitionTo(to) {
 		return fmt.Errorf("%w: cannot transition from %s to %s", ErrInvalidState, from, to)
 	}
@@ -44,6 +52,12 @@ func (l *TaskLifecycle) UpdateTaskStatus(ctx context.Context, taskID string, fro
 		}
 		if rows == 0 {
 			return fmt.Errorf("%w: task %s is not in status %s", ErrConflictStatus, taskID, from)
+		}
+
+		if note != "" {
+			if err := appendTaskNotesTx(ctx, tx, taskID, note, now); err != nil {
+				return err
+			}
 		}
 
 		if to != domain.StatusCompleted && to != domain.StatusFailed {
@@ -69,13 +83,13 @@ func (l *TaskLifecycle) UpdateTaskStatus(ctx context.Context, taskID string, fro
 	})
 }
 
-// ClaimTask atomically verifies readiness, sets claim lock (workerID & pid), transitions to RUNNING, and returns ContextPacket.
-func (l *TaskLifecycle) ClaimTask(ctx context.Context, taskID string, workerID string, pid int) (*domain.ContextPacket, error) {
-	return l.ClaimTaskWithMeta(ctx, taskID, workerID, "", "", pid, 0)
+// ClaimTask atomically verifies readiness, sets the claim lock, transitions to RUNNING, and returns the ContextPacket.
+func (l *TaskLifecycle) ClaimTask(ctx context.Context, taskID string, workerID string) (*domain.ContextPacket, error) {
+	return l.ClaimTaskWithMeta(ctx, taskID, workerID, "", "")
 }
 
 // ClaimTaskWithMeta atomically claims a ready task with full metadata.
-func (l *TaskLifecycle) ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string, pid int, orchestratorPID int) (*domain.ContextPacket, error) {
+func (l *TaskLifecycle) ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string) (*domain.ContextPacket, error) {
 	if workerID == "" {
 		workerID = fmt.Sprintf("worker-%d", time.Now().UnixNano())
 	}
@@ -91,6 +105,9 @@ func (l *TaskLifecycle) ClaimTaskWithMeta(ctx context.Context, taskID string, wo
 	if task.Status != domain.StatusReady {
 		return nil, fmt.Errorf("%w: task %s is not in READY status (current: %s)", ErrConflictStatus, taskID, task.Status)
 	}
+	if task.DependenciesCorrupt {
+		return nil, fmt.Errorf("%w: task %s has malformed dependencies; repair the row before claiming", ErrInvalidGraph, taskID)
+	}
 
 	packet, err := l.packets.Build(ctx, *task)
 	if err != nil {
@@ -102,9 +119,9 @@ func (l *TaskLifecycle) ClaimTaskWithMeta(ctx context.Context, taskID string, wo
 	err = l.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
 		res, err := tx.ExecContext(ctx, `
 			UPDATE tasks
-			SET status = 'RUNNING', claimed_by = ?, orchestrator_id = ?, worker_role = ?, pid = ?, orchestrator_pid = ?, claimed_at = ?, updated_at = ?
+			SET status = 'RUNNING', claimed_by = ?, orchestrator_id = ?, worker_role = ?, claimed_at = ?, updated_at = ?
 			WHERE id = ? AND status = 'READY'
-		`, workerID, orchestratorID, workerRole, pid, orchestratorPID, now, now, taskID)
+		`, workerID, orchestratorID, workerRole, now, now, taskID)
 		if err != nil {
 			return fmt.Errorf("failed to claim task: %w", err)
 		}
@@ -116,20 +133,6 @@ func (l *TaskLifecycle) ClaimTaskWithMeta(ctx context.Context, taskID string, wo
 			return fmt.Errorf("%w: task %s was already claimed by another worker", ErrConflictStatus, taskID)
 		}
 
-		// If pid > 0, register Run attempt as part of the same atomic claim.
-		if pid > 0 {
-			runID := domain.NewRunID(taskID)
-			return insertRunTx(ctx, tx, domain.Run{
-				ID:         runID,
-				TaskID:     taskID,
-				PID:        pid,
-				PGID:       pid,
-				Status:     domain.StatusRunning,
-				LogPath:    filepath.Join(os.TempDir(), fmt.Sprintf("%s.log", runID)),
-				StartedAt:  now,
-				LastBeatAt: now,
-			})
-		}
 		return nil
 	})
 	if err != nil {
@@ -138,36 +141,60 @@ func (l *TaskLifecycle) ClaimTaskWithMeta(ctx context.Context, taskID string, wo
 
 	// The prompt compiler does not depend on status or claim metadata, so the
 	// preflight packet is valid. Apply the committed claim fields before return.
-	applyClaim(task, workerID, orchestratorID, workerRole, pid, orchestratorPID, now)
+	applyClaim(task, workerID, orchestratorID, workerRole, now)
 	packet.Task = *task
 	return packet, nil
 }
 
 // applyClaim mirrors the columns written by the claim UPDATE.
-func applyClaim(task *domain.Task, workerID, orchestratorID, workerRole string, pid, orchestratorPID int, now time.Time) {
+func applyClaim(task *domain.Task, workerID, orchestratorID, workerRole string, now time.Time) {
 	task.Status = domain.StatusRunning
 	task.ClaimedBy = workerID
 	task.OrchestratorID = orchestratorID
 	task.WorkerRole = workerRole
-	task.PID = pid
-	task.OrchestratorPID = orchestratorPID
 	task.ClaimedAt = &now
 	task.UpdatedAt = now
 }
 
-// EvictTask evicts a running or suspended task, resetting it to READY or cancelling it.
-func (l *TaskLifecycle) EvictTask(ctx context.Context, taskID string, reason string, action string) error {
+// EvictTask evicts a running task, resetting it to READY or
+// cancelling it. A reset task whose prerequisites are not all completed lands
+// in BLOCKED instead of becoming claimable behind a failed upstream. Claim
+// metadata is cleared so a later claim starts from a clean slate. The returned
+// status is the status actually written.
+func (l *TaskLifecycle) EvictTask(ctx context.Context, taskID string, reason string, action string) (domain.TaskStatus, error) {
 	now := time.Now().UTC()
 	targetStatus := domain.StatusReady
 	if action == "CANCEL" {
 		targetStatus = domain.StatusCancelled
 	}
 
-	return l.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+	err := l.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		planID, depsJSON, err := taskPlanAndDeps(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+
+		if targetStatus == domain.StatusReady {
+			deps, corrupt := decodeStringArray(depsJSON)
+			if corrupt {
+				return fmt.Errorf("%w: task %s has malformed dependencies", ErrInvalidGraph, taskID)
+			}
+			statuses, err := loadPlanStatuses(ctx, tx, planID)
+			if err != nil {
+				return err
+			}
+			if !allStatusesCompleted(statuses, deps) {
+				targetStatus = domain.StatusBlocked
+			}
+		}
+
 		res, err := tx.ExecContext(ctx, `
 			UPDATE tasks
-			SET status = ?, claimed_by = '', pid = 0, notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END, updated_at = ?
-			WHERE id = ? AND (status = 'RUNNING' OR status = 'SUSPENDED')
+			SET status = ?, claimed_by = '', claimed_at = NULL,
+			    orchestrator_id = '', worker_role = '',
+			    notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END,
+			    updated_at = ?
+			WHERE id = ? AND status = 'RUNNING'
 		`, string(targetStatus), "Eviction: "+reason, "Eviction: "+reason, now, taskID)
 		if err != nil {
 			return err
@@ -177,10 +204,14 @@ func (l *TaskLifecycle) EvictTask(ctx context.Context, taskID string, reason str
 			return err
 		}
 		if rows == 0 {
-			return fmt.Errorf("%w: task %s is not in RUNNING or SUSPENDED status", ErrConflictStatus, taskID)
+			return fmt.Errorf("%w: task %s is not RUNNING", ErrConflictStatus, taskID)
 		}
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
+	return targetStatus, nil
 }
 
 // RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
@@ -243,7 +274,7 @@ func (l *TaskLifecycle) ResolveReview(ctx context.Context, taskID string, respon
 
 		res, err := tx.ExecContext(ctx, `
 			UPDATE tasks
-			SET status = 'READY', review_response = ?, claimed_by = '', pid = 0, resolved_by = 'main-agent', updated_at = ?
+			SET status = 'READY', review_response = ?, claimed_by = '', resolved_by = 'main-agent', updated_at = ?
 			WHERE id = ? AND status = 'AWAITING_REVIEW'
 		`, response, now, taskID)
 		if err != nil {

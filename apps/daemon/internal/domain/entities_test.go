@@ -33,32 +33,6 @@ func TestTaskStatus_ValidationAndTerminal(t *testing.T) {
 		t.Errorf("Expected status %s to be invalid", invalidStatus)
 	}
 
-	// Terminal status checks (strictly final execution states)
-	terminalStatuses := []domain.TaskStatus{
-		domain.StatusCompleted,
-		domain.StatusCancelled,
-	}
-	for _, s := range terminalStatuses {
-		if !s.IsTerminal() {
-			t.Errorf("Expected status %s to be terminal", s)
-		}
-	}
-
-	nonTerminalStatuses := []domain.TaskStatus{
-		domain.StatusPending,
-		domain.StatusReady,
-		domain.StatusRunning,
-		domain.StatusAwaitingReview,
-		domain.StatusAwaitingMerge,
-		domain.StatusConflict,
-		domain.StatusBlocked,
-		domain.StatusFailed, // Failed allows retry, so non-terminal
-	}
-	for _, s := range nonTerminalStatuses {
-		if s.IsTerminal() {
-			t.Errorf("Expected status %s to be non-terminal", s)
-		}
-	}
 }
 
 func TestTaskStatus_StateTransitions(t *testing.T) {
@@ -188,7 +162,6 @@ func TestEntities_JSONSerialization(t *testing.T) {
 		Title:        "Implement Feature",
 		Dependencies: []string{"task-00"},
 		Harness:      "claude-code",
-		SkillCommand: "/forge task-01",
 		WorktreePath: "/tmp/worktree-01",
 		Status:       domain.StatusReady,
 		CreatedAt:    now,
@@ -209,7 +182,6 @@ func TestEntities_JSONSerialization(t *testing.T) {
 	// Test Artifact
 	artifact := domain.Artifact{
 		ID:        "art-01",
-		RunID:     "run-01",
 		TaskID:    "task-01",
 		Type:      domain.ArtifactTypeImage,
 		FilePath:  "/tmp/screenshot.png",

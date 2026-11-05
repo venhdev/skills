@@ -11,6 +11,9 @@ import (
 	"zenfd/internal/domain"
 )
 
+// artifactSelectCols is the projection shared by every artifact read.
+const artifactSelectCols = "id, task_id, role, name, type, file_path, mime_type, byte_size, sha256, created_at"
+
 // ArtifactRepository persists artifact metadata following the claim-check
 // pattern.
 type ArtifactRepository struct {
@@ -34,35 +37,58 @@ func (r *ArtifactRepository) RecordArtifact(ctx context.Context, artifact domain
 	}
 
 	query := `
-	INSERT INTO artifacts (id, run_id, task_id, role, name, type, file_path, mime_type, byte_size, sha256, created_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	INSERT INTO artifacts (id, task_id, role, name, type, file_path, mime_type, byte_size, sha256, created_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
+		if artifact.Role == domain.ArtifactRoleInput {
+			if err := assertInputAllowed(ctx, tx, artifact.TaskID); err != nil {
+				return err
+			}
+		}
+
 		_, err := tx.ExecContext(ctx, query,
-			artifact.ID, artifact.RunID, artifact.TaskID, artifact.Role, artifact.Name,
+			artifact.ID, artifact.TaskID, artifact.Role, artifact.Name,
 			string(artifact.Type), artifact.FilePath, artifact.MimeType,
 			artifact.ByteSize, artifact.Sha256, artifact.CreatedAt)
 		return err
 	})
 }
 
+// assertInputAllowed gates context media to tasks that are still being prepared.
+// Attaching an INPUT artifact to a RUNNING or finished task would be invisible
+// to the ContextPacket that was already handed to the worker.
+func assertInputAllowed(ctx context.Context, tx *sql.Tx, taskID string) error {
+	var status string
+	err := tx.QueryRowContext(ctx, "SELECT status FROM tasks WHERE id = ?", taskID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("%w: task %s", ErrNotFound, taskID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to load task %s: %w", taskID, err)
+	}
+
+	switch domain.TaskStatus(status) {
+	case domain.StatusReady, domain.StatusPending:
+		return nil
+	default:
+		return fmt.Errorf("%w: input media can only be attached while the task is READY or PENDING (task %s is %s)",
+			ErrInvalidState, taskID, status)
+	}
+}
+
 // GetArtifact retrieves artifact metadata by ID.
 func (r *ArtifactRepository) GetArtifact(ctx context.Context, id string) (*domain.Artifact, error) {
-	query := `
-	SELECT id, run_id, task_id, role, name, type, file_path, mime_type, byte_size, sha256, created_at
-	FROM artifacts
-	WHERE id = ?
-	`
+	query := `SELECT ` + artifactSelectCols + ` FROM artifacts WHERE id = ?`
 	row := r.db.QueryRow(ctx, query, id)
 
 	var art domain.Artifact
 	var typeStr string
-	var runID sql.NullString
 	var name sql.NullString
 
 	err := row.Scan(
-		&art.ID, &runID, &art.TaskID, &art.Role, &name,
+		&art.ID, &art.TaskID, &art.Role, &name,
 		&typeStr, &art.FilePath, &art.MimeType, &art.ByteSize,
 		&art.Sha256, &art.CreatedAt,
 	)
@@ -73,9 +99,6 @@ func (r *ArtifactRepository) GetArtifact(ctx context.Context, id string) (*domai
 		return nil, fmt.Errorf("failed to query artifact: %w", err)
 	}
 
-	if runID.Valid {
-		art.RunID = runID.String
-	}
 	if name.Valid {
 		art.Name = name.String
 	}
@@ -89,20 +112,16 @@ func (r *ArtifactRepository) GetArtifactsByTask(ctx context.Context, taskID stri
 	var args []any
 
 	if role != "" {
-		query = `
-		SELECT id, run_id, task_id, role, name, type, file_path, mime_type, byte_size, sha256, created_at
+		query = `SELECT ` + artifactSelectCols + `
 		FROM artifacts
 		WHERE task_id = ? AND role = ?
-		ORDER BY created_at ASC
-		`
+		ORDER BY created_at ASC`
 		args = []any{taskID, strings.ToUpper(role)}
 	} else {
-		query = `
-		SELECT id, run_id, task_id, role, name, type, file_path, mime_type, byte_size, sha256, created_at
+		query = `SELECT ` + artifactSelectCols + `
 		FROM artifacts
 		WHERE task_id = ?
-		ORDER BY created_at ASC
-		`
+		ORDER BY created_at ASC`
 		args = []any{taskID}
 	}
 
@@ -116,19 +135,15 @@ func (r *ArtifactRepository) GetArtifactsByTask(ctx context.Context, taskID stri
 	for rows.Next() {
 		var art domain.Artifact
 		var typeStr string
-		var runID sql.NullString
 		var name sql.NullString
 
 		err := rows.Scan(
-			&art.ID, &runID, &art.TaskID, &art.Role, &name,
+			&art.ID, &art.TaskID, &art.Role, &name,
 			&typeStr, &art.FilePath, &art.MimeType, &art.ByteSize,
 			&art.Sha256, &art.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
-		}
-		if runID.Valid {
-			art.RunID = runID.String
 		}
 		if name.Valid {
 			art.Name = name.String

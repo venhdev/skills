@@ -18,6 +18,7 @@ import {
   FileText,
 } from 'lucide-react'
 import type { Task } from '../../types/contracts'
+import { elapsedLabel } from '../../lib/duration'
 import { getTaskStatusStyle } from '../stage/taskStatusTheme'
 
 interface TaskSpecPaneProps {
@@ -50,7 +51,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     )
   }
 
-  const commandToRun = task.skill_command || `zenfd task claim ${task.id}`
+  const commandToRun = `zenfd task claim ${task.id}`
 
   const handleCopyCommand = async () => {
     try {
@@ -129,8 +130,12 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             <div className="flex items-center justify-between gap-2 rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-[11px] text-zinc-300">
               <div className="flex items-center gap-1.5 truncate">
                 <UserCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span>Claimed by: <strong className="text-zinc-200 font-mono">{task.claimed_by}</strong></span>
-                {task.pid ? <span className="text-[10px] text-zinc-500 font-mono">PID {task.pid}</span> : null}
+                <span>
+                  Claimed by: <strong className="text-zinc-200 font-mono">{task.claimed_by}</strong>
+                  {task.status === 'RUNNING' && task.claimed_at && (
+                    <span className="text-zinc-500"> · {elapsedLabel(task.claimed_at)}</span>
+                  )}
+                </span>
               </div>
             </div>
           )}
@@ -145,20 +150,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             </span>
             <p className="whitespace-pre-wrap text-xs text-zinc-300 select-text leading-relaxed">
               {task.notes}
-            </p>
-          </div>
-        )}
-
-        {/* READ-ONLY GATE: Suspended Worker Notice */}
-        {task.status === 'SUSPENDED' && (
-          <div className="rounded-lg border border-amber-600/50 bg-amber-950/25 p-3.5 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
-              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
-              <span>Worker PID Disconnected (Suspended)</span>
-            </div>
-            <p className="text-[11px] text-zinc-300">
-              The assigned agent runner terminated unexpectedly. Worktree files and logs are preserved.
-              Recovery is performed from the orchestrator/CLI, not from this read-only cockpit.
             </p>
           </div>
         )}
@@ -205,7 +196,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
               This gate is resolved by your{' '}
               <strong className="text-orange-200">main orchestrator agent</strong>, not from the Web Cockpit.
               Reply with your decision in the agent session; the main agent records it with{' '}
-              <code className="font-mono text-orange-200">zenfd_resolve_review</code> and the task returns to{' '}
+              <code className="font-mono text-orange-200">zenfd_review(action=resolve)</code> and the task returns to{' '}
               <code className="font-mono text-orange-200">READY</code>.
             </div>
           </div>

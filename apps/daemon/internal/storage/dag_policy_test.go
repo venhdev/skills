@@ -69,12 +69,38 @@ func TestUpdateTaskStatus_CompletedUnlocksSatisfiedDependents(t *testing.T) {
 	}
 }
 
-func TestUpdateTaskStatus_FailedBlocksDirectDependents(t *testing.T) {
+func TestUpdateTaskStatus_FailedBlocksTransitiveDependents(t *testing.T) {
 	store, _, ctx := newInternalTestStore(t)
 	seedDAG(t, store, ctx, []domain.Task{
 		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
 		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusPending, Dependencies: []string{"A"}},
 		{ID: "C", PlanID: "dag-plan", Title: "C", Status: domain.StatusPending, Dependencies: []string{"B"}},
+		{ID: "D", PlanID: "dag-plan", Title: "D", Status: domain.StatusPending, Dependencies: []string{"C"}},
+		{ID: "E", PlanID: "dag-plan", Title: "E", Status: domain.StatusReady},
+	})
+
+	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusRunning, domain.StatusFailed); err != nil {
+		t.Fatalf("UpdateTaskStatus failed: %v", err)
+	}
+
+	statuses := taskStatuses(t, store, ctx)
+	for _, id := range []string{"B", "C", "D"} {
+		if statuses[id] != domain.StatusBlocked {
+			t.Errorf("expected transitive dependent %s BLOCKED, got %s", id, statuses[id])
+		}
+	}
+	if statuses["E"] != domain.StatusReady {
+		t.Errorf("expected unrelated task E to stay READY, got %s", statuses["E"])
+	}
+}
+
+func TestUpdateTaskStatus_FailedBlocksReadyDependent(t *testing.T) {
+	store, _, ctx := newInternalTestStore(t)
+	seedDAG(t, store, ctx, []domain.Task{
+		{ID: "A", PlanID: "dag-plan", Title: "A", Status: domain.StatusRunning},
+		// B was unlocked by an earlier completion of A and is still waiting to
+		// be claimed when A is re-run and fails.
+		{ID: "B", PlanID: "dag-plan", Title: "B", Status: domain.StatusReady, Dependencies: []string{"A"}},
 	})
 
 	if err := store.UpdateTaskStatus(ctx, "A", domain.StatusRunning, domain.StatusFailed); err != nil {
@@ -83,10 +109,7 @@ func TestUpdateTaskStatus_FailedBlocksDirectDependents(t *testing.T) {
 
 	statuses := taskStatuses(t, store, ctx)
 	if statuses["B"] != domain.StatusBlocked {
-		t.Errorf("expected direct dependent B BLOCKED, got %s", statuses["B"])
-	}
-	if statuses["C"] != domain.StatusPending {
-		t.Errorf("expected transitive dependent C to stay PENDING, got %s", statuses["C"])
+		t.Errorf("expected READY dependent B BLOCKED, got %s", statuses["B"])
 	}
 }
 

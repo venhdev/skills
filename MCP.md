@@ -16,7 +16,7 @@ Replace `/abs/path/to/apps/daemon/bin/zenfd` with the built binary path and
 `/home/<user>` with your home directory. Restart the AI client after setup so it
 discovers the tools.
 
-### Automated setup (agy, claude, cursor, opencode)
+### Automated (agy, claude, cursor, opencode)
 
 ```bash
 apps/daemon/bin/zenfd mcp check --client opencode
@@ -31,49 +31,36 @@ apps/daemon/bin/zenfd mcp setup --client opencode
 | Cursor | `cursor` | `~/.cursor/mcp.json` |
 | OpenCode | `opencode` | `~/.config/opencode/opencode.json` |
 
-Flags:
+Flags: `check` takes `--client/-c`, `--config`, `--json`; `setup` takes those plus
+`--db/-d`, `--binary/-b`, `--force/-f`, `--dry-run`; `mcp` takes `--db/-d`
+(default `~/.zenforge/state.db`). Existing config is backed up to `<config>.bak`
+and other MCP servers are preserved.
 
-- `check`: `--client/-c`, `--config`, `--json`.
-- `setup`: `--client/-c`, `--config`, `--db/-d`, `--binary/-b`, `--force/-f`, `--dry-run`.
-- `mcp`: `--db/-d` (default `~/.zenforge/state.db`).
+### Manual
 
-Existing config is backed up to `<config>.bak`; other MCP servers are preserved.
-VS Code is not covered by `zenfd mcp setup`; configure it manually with the
-snippet below.
+Most clients read an `mcpServers` object:
 
-### Codex CLI (manual or CLI)
-
-Codex CLI registers local MCP servers through a stdio command. Its user
-configuration is `~/.codex/config.toml`, so the `mcpServers` JSON snippets for
-other clients are not valid Codex CLI configuration.
-
-CLI:
-
-```bash
-codex mcp add zenfd -- /abs/path/to/apps/daemon/bin/zenfd mcp --db /home/<user>/.zenforge/state.db
-codex mcp list
+```json
+{
+  "mcpServers": {
+    "zenfd": {
+      "command": "/abs/path/to/apps/daemon/bin/zenfd",
+      "args": ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
+    }
+  }
+}
 ```
 
-TOML (`~/.codex/config.toml`):
+| Client | File |
+| :--- | :--- |
+| Claude Code | `~/.claude.json` (user) or `.mcp.json` (project) |
+| Cursor | `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project) |
+| Antigravity | `~/.gemini/config/mcp_config.json` |
+| Other `mcpServers` clients | that client's MCP config |
 
-```toml
-[mcp_servers.zenfd]
-command = "/abs/path/to/apps/daemon/bin/zenfd"
-args = ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
-```
+Two clients use a different shape.
 
-Restart the Codex session after registration. The daemon must reserve stdout
-for MCP JSON-RPC messages; emit diagnostics only to stderr.
-
-### OpenCode (auto or manual)
-
-`zenfd mcp setup --client opencode` writes the project/global config entry
-automatically. For a project-scoped config, pass `--config ./opencode.json`.
-Use manual editing when your `opencode.jsonc` contains comments, since the setup
-command reads and writes plain JSON.
-
-Project config: `opencode.json` (or `opencode.jsonc`) at the repository root.
-Global config: `~/.config/opencode/opencode.json`.
+**OpenCode** (`opencode.json` at the repo root, or `~/.config/opencode/opencode.json`):
 
 ```json
 {
@@ -81,75 +68,14 @@ Global config: `~/.config/opencode/opencode.json`.
   "mcp": {
     "zenfd": {
       "type": "local",
-      "command": [
-        "/abs/path/to/apps/daemon/bin/zenfd",
-        "mcp",
-        "--db", "/home/<user>/.zenforge/state.db"
-      ],
+      "command": ["/abs/path/to/apps/daemon/bin/zenfd", "mcp", "--db", "/home/<user>/.zenforge/state.db"],
       "enabled": true
     }
   }
 }
 ```
 
-OpenCode uses a single `command` array (binary and arguments together), unlike
-the `command` + `args` shape used by `mcpServers` clients. Project config
-overrides global config for conflicting keys.
-
-### Claude Code (manual or CLI)
-
-CLI:
-
-```bash
-claude mcp add zenfd -- /abs/path/to/apps/daemon/bin/zenfd mcp --db /home/<user>/.zenforge/state.db
-```
-
-JSON (`~/.claude.json` for user scope, `.mcp.json` for project scope):
-
-```json
-{
-  "mcpServers": {
-    "zenfd": {
-      "command": "/abs/path/to/apps/daemon/bin/zenfd",
-      "args": ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
-    }
-  }
-}
-```
-
-### Cursor (manual)
-
-Global: `~/.cursor/mcp.json`. Project: `.cursor/mcp.json`.
-
-```json
-{
-  "mcpServers": {
-    "zenfd": {
-      "command": "/abs/path/to/apps/daemon/bin/zenfd",
-      "args": ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
-    }
-  }
-}
-```
-
-### Antigravity (manual)
-
-`~/.gemini/config/mcp_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "zenfd": {
-      "command": "/abs/path/to/apps/daemon/bin/zenfd",
-      "args": ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
-    }
-  }
-}
-```
-
-### VS Code (manual)
-
-`.vscode/mcp.json`:
+**VS Code** (`.vscode/mcp.json`):
 
 ```json
 {
@@ -163,77 +89,78 @@ Global: `~/.cursor/mcp.json`. Project: `.cursor/mcp.json`.
 }
 ```
 
-### Other clients
+**Codex CLI** (`~/.codex/config.toml`):
 
-Clients that read the standard `mcpServers` object can reuse the Claude Code
-snippet. Point `command` at the `zenfd` binary and pass `mcp --db
-/home/<user>/.zenforge/state.db` as arguments.
+```bash
+codex mcp add zenfd -- /abs/path/to/apps/daemon/bin/zenfd mcp --db /home/<user>/.zenforge/state.db
+```
+
+```toml
+[mcp_servers.zenfd]
+command = "/abs/path/to/apps/daemon/bin/zenfd"
+args = ["mcp", "--db", "/home/<user>/.zenforge/state.db"]
+```
 
 ## Roles
 
-- **Main agent**: creates plans/tasks, dispatches workers, relays human decisions,
-  resolves reviews, records merge outcomes.
+- **Main agent**: owns the plan and task DAG, dispatches workers, relays human
+  decisions, resolves reviews, records merge outcomes, archives finished plans.
 - **Worker**: claims one task, executes it, reports completion/failure/review,
-  then terminates.
+  then exits.
 
 ## Lifecycle
 
-`create_plan` → `create_task` → `claim_task` → execute →
-`transition_task(COMPLETE|FAIL)` or `request_review` → main agent resolves review
-→ fresh claim.
+`zenfd_plans(action=create)` → one batched `zenfd_tasks(action=create)` →
+`zenfd_claim_task` → execute → `zenfd_transition_task(COMPLETE|FAIL)` or
+`zenfd_review(action=request)` → main agent calls `zenfd_review(action=resolve)`
+→ fresh claim. Recovery is `RESET` followed by a fresh claim.
 
-Recovery is `RESET` followed by a fresh claim; there is no `reclaim_task`.
+Completed plans can be hidden with `zenfd_plans(action=archive)` and restored with
+`action=unarchive`. Archived plans are omitted from `list` and from the cockpit
+unless `include_archived` / `Show archived` is enabled.
 
 ## Tool reference
 
 | Tool | Behavior | Required | Optional |
 | :--- | :--- | :--- | :--- |
-| `zenfd_create_plan` | Create or update a plan in SQLite WAL. | `slug`, `title` | — |
-| `zenfd_create_task` | Create or update a task in a plan DAG. | `plan_id`, `id`, `title` | `description`, `dependencies`, `target_files`, `skills`, `acceptance_criteria`, `verification_commands`, `priority` (`P0`–`P3`, default `P2`), `harness` (default `orchestrator`, or `shell`), `worktree_path` |
-| `zenfd_claim_task` | Atomically claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` | `worker_id`, `orchestrator_id`, `worker_role` (default `CODER`) |
-| `zenfd_request_review` | Pause at `AWAITING_REVIEW` and record a drift question. The worker exits. | `task_id`, `reason`, `details` | `options` |
-| `zenfd_resolve_review` | Record the human decision and return the task to `READY`. Main agent only. | `task_id`, `response` | — |
-| `zenfd_transition_task` | Batch transition tasks; each task is processed independently and returns `results[]`. | `task_ids`, `action` (`COMPLETE`, `FAIL`, `RESET`, `CANCEL`) | `reason`, `summary`, `merge_outcome` (`MERGED`, `CONFLICT`) |
-| `zenfd_get_task` | Read task metadata and `ContextPacket` without mutation. | `task_id` | — |
+| `zenfd_plans` | `create` a plan or retitle an existing one; `archive`/`unarchive`; `list`. | `action` | `slug`, `title`, `include_archived` |
+| `zenfd_tasks` | `create` a batch atomically; `get` one task with its `ContextPacket`; `list` by plan or status. | `action`; `plan_id` + `tasks[]` (create), `task_id` (get) | per task: `description`, `dependencies`, `target_files`, `skills`, `acceptance_criteria`, `verification_commands`, `priority`, `harness`, `worktree_path`; `status` (list) |
+| `zenfd_claim_task` | Claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` | `worker_id`, `orchestrator_id`, `worker_role` |
+| `zenfd_review` | `request` pauses at `AWAITING_REVIEW` with a drift question; `resolve` records the human decision and returns to `READY`. | `action`, `task_id` | `reason`, `details`, `options` (request); `response` (resolve) |
+| `zenfd_transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL` to many tasks; returns `results[]`. | `task_ids`, `action` | `reason`, `summary`, `merge_outcome` |
+| `zenfd_attach_media` | Copy a local image/PDF/document into the attachment store as an `INPUT` artifact for the next claim. | `task_id`, `file_path` | `name` |
 
-## Review policy
+Create is strongly typed: duplicate IDs fail the whole batch, cycles and
+self-dependencies are rejected, and initial status is derived from prerequisites
+(all complete → `READY`, failed/blocked → `BLOCKED`, otherwise `PENDING`).
 
-Review decisions never happen in the Web Cockpit. A worker calls
-`zenfd_request_review` and exits; the main orchestrator agent surfaces the
-question to the human, receives the decision in the agent session, and calls
-`zenfd_resolve_review`. The Web Cockpit only displays `AWAITING_REVIEW` and its
-reason, details, and suggested options as read-only state.
+## Write surfaces
 
-## Worktree and merge policy
+| Surface | Use |
+| :--- | :--- |
+| MCP (stdio) | Agent path: plans, batched tasks, claim, review, transitions, media. |
+| `zenfd` CLI | `zenfd push`, task status, claim. |
+| HTTP API | Scripted clients: `POST /api/v1/plans`, `PATCH|DELETE /api/v1/plans/{slug}`, `POST /api/v1/tasks`, `POST /api/v1/tasks/{id}/{status,claim,evict}`, `PATCH /api/v1/tasks/{id}/context`, `POST /api/v1/tasks/{id}/attachments`. Cross-origin browser writes are rejected. |
+| Web Cockpit | Read-only: plans/tasks/DAG, artifacts, Live Log (`GET /api/v1/events`). |
 
-Worktree lifecycle stays in the domain (`worktree_path`, `AWAITING_MERGE`,
-`CONFLICT`), but MCP does not perform git merges.
+Every mutation is recorded by database triggers, so the Live Log shows MCP, CLI,
+HTTP, and raw SQLite writes alike.
 
-- `COMPLETE` with a worktree → `AWAITING_MERGE`; without a worktree → `COMPLETED`.
-- `COMPLETE` + `merge_outcome=MERGED` → `COMPLETED`.
-- `COMPLETE` + `merge_outcome=CONFLICT` → `CONFLICT`.
-- `FAIL` → `FAILED`; `RESET`/`CANCEL` apply to `RUNNING` or `SUSPENDED`.
+## Review and merge
 
-Merge outside MCP, then record `merge_outcome` via `zenfd_transition_task`.
+A worker that hits drift calls `zenfd_review(action=request)` and exits; the main
+agent relays the question to the human and calls `zenfd_review(action=resolve)`.
+The cockpit only displays the review state.
+
+Merge happens outside MCP. `COMPLETE` with a `worktree_path` stops at
+`AWAITING_MERGE`; record the outcome with `merge_outcome=MERGED|CONFLICT`, and
+use `COMPLETE` again on `CONFLICT` once resolved. `FAIL` marks the task `FAILED`
+and blocks downstream dependents; `RESET`/`CANCEL` apply to `RUNNING`.
 
 ## Live verification
 
-1. Apply the client configuration. For auto-supported clients, verify it with:
-
-   ```bash
-   apps/daemon/bin/zenfd mcp check --client opencode
-   ```
-
-   For manual clients such as VS Code, confirm the config file parses and
-   contains the `zenfd` entry.
-
-2. Restart the AI client session so it discovers the `zenfd` tools.
-3. Confirm the surface exposes exactly 7 tools listed above.
-4. Call a read-only tool such as `zenfd_get_task` and confirm the daemon responds.
-5. Optionally create a disposable plan and task, claim it, then complete it via
-   `zenfd_transition_task` to confirm SQLite WAL writes.
-6. To exercise review, have the worker call `zenfd_request_review` and exit; the
-   main agent relays the question to the human and calls `zenfd_resolve_review`.
-   The Web Cockpit must only display the review state read-only.
-
-Record the client, config path, tool called, and observed result.
+1. Configure the client (`zenfd mcp check --client <name>`, or edit the manual
+   file), restart the session, and confirm the 6 tools above are listed.
+2. Call `zenfd_tasks(action=list)` and confirm the daemon responds.
+3. Create a disposable plan and task, claim it, and complete it with
+   `zenfd_transition_task`; optionally request and resolve a review.

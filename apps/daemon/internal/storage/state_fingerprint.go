@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"strconv"
 )
 
 // StateFingerprinter returns a cheap fingerprint of the plans/tasks state. The
@@ -12,19 +13,13 @@ type StateFingerprinter struct {
 	db *DB
 }
 
-// StateFingerprint summarizes plans and tasks counts plus their newest update.
+// StateFingerprint reads the revision counter maintained by database triggers.
+// It is a single-row lookup, so the watcher can poll frequently without
+// scanning the plans/tasks tables.
 func (f *StateFingerprinter) StateFingerprint(ctx context.Context) (string, error) {
-	var plansCount, tasksCount int64
-	var plansUpdated, tasksUpdated string
-	err := f.db.QueryRow(ctx, `
-		SELECT
-			(SELECT COUNT(*) FROM plans),
-			(SELECT COALESCE(MAX(updated_at), '') FROM plans),
-			(SELECT COUNT(*) FROM tasks),
-			(SELECT COALESCE(MAX(updated_at), '') FROM tasks)
-	`).Scan(&plansCount, &plansUpdated, &tasksCount, &tasksUpdated)
-	if err != nil {
-		return "", err
+	var revision int64
+	if err := f.db.QueryRow(ctx, `SELECT revision FROM state_revision WHERE id = 1`).Scan(&revision); err != nil {
+		return "", fmt.Errorf("failed to read state revision: %w", err)
 	}
-	return fmt.Sprintf("%d|%s|%d|%s", plansCount, plansUpdated, tasksCount, tasksUpdated), nil
+	return strconv.FormatInt(revision, 10), nil
 }

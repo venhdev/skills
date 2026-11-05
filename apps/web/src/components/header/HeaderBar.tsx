@@ -13,8 +13,10 @@ export type CockpitView = 'dag' | 'env'
 interface HeaderBarProps {
   connected: boolean
   activePlan: Plan | null
-  plans: string[]
+  plans: Plan[]
   onSelectPlan: (slug: string) => void
+  showArchived: boolean
+  onToggleArchived: () => void
   activeWorkers: number
   currentView?: CockpitView
   onChangeView?: (view: CockpitView) => void
@@ -25,6 +27,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   activePlan,
   plans,
   onSelectPlan,
+  showArchived,
+  onToggleArchived,
   activeWorkers,
   currentView = 'dag',
   onChangeView,
@@ -39,7 +43,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           </div>
           <span>ZenForge</span>
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400 font-sans">
-            v0.1.0
+            v0.1.1
           </span>
         </div>
 
@@ -53,16 +57,29 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
             onChange={(e) => onSelectPlan(e.target.value)}
             className="rounded border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-xs font-mono font-medium text-zinc-200 outline-none hover:border-zinc-700 focus:border-violet-500 max-w-[150px] truncate"
           >
-            {activePlan && !plans.includes(activePlan.slug) && (
-              <option value={activePlan.slug}>{activePlan.slug}</option>
+            {activePlan && !plans.some((p) => p.slug === activePlan.slug) && (
+              <option value={activePlan.slug}>{activePlan.title || activePlan.slug}</option>
             )}
             {plans.map((p) => (
-              <option key={p} value={p}>
-                {p}
+              <option key={p.slug} value={p.slug}>
+                {p.title || p.slug}
+                {p.archived_at ? ' (archived)' : ''}
               </option>
             ))}
             {plans.length === 0 && !activePlan && <option value="">(No active plans)</option>}
           </select>
+
+          <button
+            onClick={onToggleArchived}
+            title="Include archived plans in the selector"
+            className={`rounded border px-2 py-1 text-[11px] font-medium transition-colors ${
+              showArchived
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            Archived
+          </button>
 
           {activePlan && (
             <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 ring-1 ring-emerald-500/20">

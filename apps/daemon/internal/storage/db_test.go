@@ -53,7 +53,7 @@ func TestDB_TablesCreated(t *testing.T) {
 	}
 	defer db.Close()
 
-	expectedTables := []string{"plans", "tasks", "runs", "artifacts", "events"}
+	expectedTables := []string{"plans", "tasks", "artifacts", "events"}
 	for _, tableName := range expectedTables {
 		var count int
 		err := db.QueryRow(context.Background(), "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", tableName).Scan(&count)

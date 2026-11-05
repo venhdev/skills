@@ -61,9 +61,9 @@ func TestStore_StateFingerprintDetectsExternalWrites(t *testing.T) {
 	}
 
 	execExternal(t, external, ctx,
-		`INSERT INTO tasks (id, plan_id, title, dependencies, harness, skill_command, worktree_path, status, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"EXT-01", "external-plan", "External Task", "[]", "orchestrator", "", "", "READY", now, now,
+		`INSERT INTO tasks (id, plan_id, title, dependencies, harness, worktree_path, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"EXT-01", "external-plan", "External Task", "[]", "orchestrator", "", "READY", now, now,
 	)
 
 	afterTask, err := store.StateFingerprint(ctx)

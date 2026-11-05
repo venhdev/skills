@@ -17,12 +17,9 @@ import (
 
 	"zenfd/internal/domain"
 	"zenfd/internal/storage"
-	"zenfd/internal/supervisor"
-
-	"github.com/coder/websocket"
 )
 
-func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, *supervisor.ProcessSupervisor, func()) {
+func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, func()) {
 	t.Helper()
 
 	tempDir := t.TempDir()
@@ -34,9 +31,8 @@ func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, *superviso
 	}
 
 	store := storage.NewStore(db)
-	super := supervisor.NewProcessSupervisor(tempDir)
 
-	srv := NewServer(store, super)
+	srv := NewServer(store)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -55,11 +51,11 @@ func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, *superviso
 		_ = db.Close()
 	}
 
-	return srv, baseURL, store, super, cleanup
+	return srv, baseURL, store, cleanup
 }
 
 func TestGateway_PlansAndTasksLifecycle(t *testing.T) {
-	_, baseURL, _, _, cleanup := setupTestGateway(t)
+	_, baseURL, _, cleanup := setupTestGateway(t)
 	defer cleanup()
 
 	// 1. POST /api/v1/plans
@@ -124,7 +120,7 @@ func TestGateway_PlansAndTasksLifecycle(t *testing.T) {
 }
 
 func TestGateway_ListPlansIncludesPlanWithoutTasks(t *testing.T) {
-	_, baseURL, _, _, cleanup := setupTestGateway(t)
+	_, baseURL, _, cleanup := setupTestGateway(t)
 	defer cleanup()
 
 	bodyBytes, _ := json.Marshal(CreatePlanRequest{Slug: "empty-plan", Title: "Empty Plan"})
@@ -144,14 +140,17 @@ func TestGateway_ListPlansIncludesPlanWithoutTasks(t *testing.T) {
 	defer listResp.Body.Close()
 
 	var payload struct {
-		Plans []string `json:"plans"`
+		Plans []domain.Plan `json:"plans"`
 	}
 	if err := json.NewDecoder(listResp.Body).Decode(&payload); err != nil {
 		t.Fatalf("failed to decode plans response: %v", err)
 	}
 
-	for _, slug := range payload.Plans {
-		if slug == "empty-plan" {
+	for _, plan := range payload.Plans {
+		if plan.Slug == "empty-plan" {
+			if plan.Title != "Empty Plan" {
+				t.Errorf("expected plan title to be returned, got %q", plan.Title)
+			}
 			return
 		}
 	}
@@ -159,7 +158,7 @@ func TestGateway_ListPlansIncludesPlanWithoutTasks(t *testing.T) {
 }
 
 func TestGateway_SSEEventStreaming(t *testing.T) {
-	srv, baseURL, _, _, cleanup := setupTestGateway(t)
+	srv, baseURL, _, cleanup := setupTestGateway(t)
 	defer cleanup()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -191,7 +190,7 @@ func TestGateway_SSEEventStreaming(t *testing.T) {
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		srv.Broadcast(domain.EventMessage{
-			Type:      "task:status",
+			Type:      "task.status",
 			TaskID:    "T-01",
 			Payload:   `{"status":"RUNNING"}`,
 			Timestamp: time.Now().UTC(),
@@ -205,55 +204,19 @@ func TestGateway_SSEEventStreaming(t *testing.T) {
 		if err != nil {
 			break
 		}
-		if strings.Contains(line, "task:status") {
+		if strings.Contains(line, "task.status") {
 			received = true
 			break
 		}
 	}
 
 	if !received {
-		t.Fatalf("did not receive broadcasted task:status event via SSE")
-	}
-}
-
-func TestGateway_WebSocketTerminal(t *testing.T) {
-	_, baseURL, _, _, cleanup := setupTestGateway(t)
-	defer cleanup()
-
-	wsURL := "ws" + strings.TrimPrefix(baseURL, "http") + "/api/v1/terminal/ws"
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
-	if err != nil {
-		t.Fatalf("failed to dial websocket: %v", err)
-	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
-
-	// Send TERMINAL_PING
-	if err := conn.Write(ctx, websocket.MessageText, []byte("TERMINAL_PING")); err != nil {
-		t.Fatalf("failed to write websocket ping: %v", err)
-	}
-
-	typ, msg, err := conn.Read(ctx)
-	if err != nil {
-		t.Fatalf("failed to read websocket pong: %v", err)
-	}
-
-	if typ != websocket.MessageText || string(msg) != "TERMINAL_PONG_ACK" {
-		t.Fatalf("expected TERMINAL_PONG_ACK, got: %s", string(msg))
-	}
-
-	// Send Resize Command
-	resizeJSON := `{"type":"resize","rows":40,"cols":120}`
-	if err := conn.Write(ctx, websocket.MessageText, []byte(resizeJSON)); err != nil {
-		t.Fatalf("failed to write resize command: %v", err)
+		t.Fatalf("did not receive broadcasted task.status event via SSE")
 	}
 }
 
 func TestGateway_ArtifactServing(t *testing.T) {
-	_, baseURL, store, _, cleanup := setupTestGateway(t)
+	_, baseURL, store, cleanup := setupTestGateway(t)
 	defer cleanup()
 
 	tempDir := t.TempDir()
@@ -271,7 +234,6 @@ func TestGateway_ArtifactServing(t *testing.T) {
 
 	art := domain.Artifact{
 		ID:        "art-100",
-		RunID:     "run-100",
 		TaskID:    "task-100",
 		Type:      domain.ArtifactTypeMarkdown,
 		FilePath:  artPath,
@@ -304,7 +266,7 @@ func TestGateway_ArtifactServing(t *testing.T) {
 }
 
 func TestGateway_StaticSPA(t *testing.T) {
-	_, baseURL, _, _, cleanup := setupTestGateway(t)
+	_, baseURL, _, cleanup := setupTestGateway(t)
 	defer cleanup()
 
 	// GET /
@@ -331,7 +293,7 @@ func TestGateway_StaticSPA(t *testing.T) {
 }
 
 func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
-	_, baseURL, store, _, cleanup := setupTestGateway(t)
+	_, baseURL, store, cleanup := setupTestGateway(t)
 	defer cleanup()
 
 	plan := domain.Plan{Slug: "plan-attach", Title: "Attach Plan", Status: "ACTIVE"}
@@ -387,14 +349,4 @@ func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
 		t.Errorf("expected 1 artifact in list, got %+v", artList)
 	}
 
-	// 3. Test GET /api/v1/tasks/{id}/logs
-	logsResp, err := http.Get(baseURL + "/api/v1/tasks/task-attach-1/logs")
-	if err != nil {
-		t.Fatalf("failed to get task logs: %v", err)
-	}
-	defer logsResp.Body.Close()
-
-	if logsResp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200 OK for logs, got %d", logsResp.StatusCode)
-	}
 }

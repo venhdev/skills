@@ -11,6 +11,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"zenfd/internal/attachment"
 	"zenfd/internal/domain"
 )
 
@@ -20,6 +21,7 @@ type Storage interface {
 	domain.PlanRepository
 	domain.TaskRepository
 	domain.TaskLifecycle
+	domain.ArtifactRepository
 }
 
 // Server implements a Model Context Protocol (MCP) server for zenfd.
@@ -31,16 +33,11 @@ type Server struct {
 // NewServer initializes the MCP server and registers all tools.
 func NewServer(store Storage) *Server {
 	s := &Server{
-		mcpServer: server.NewMCPServer("zenfd", "0.1.0", server.WithToolCapabilities(true)),
+		mcpServer: server.NewMCPServer("zenfd", "0.1.1", server.WithToolCapabilities(true)),
 		store:     store,
 	}
 	s.registerTools()
 	return s
-}
-
-// MCPServer returns the underlying mark3labs MCPServer instance.
-func (s *Server) MCPServer() *server.MCPServer {
-	return s.mcpServer
 }
 
 // ServeStdio launches the stdio transport. CRITICAL: Redirects all standard logging to stderr
@@ -51,105 +48,234 @@ func (s *Server) ServeStdio() error {
 }
 
 func (s *Server) registerTools() {
-	// 1. zenfd_create_plan
+	s.registerPlanTools()
+	s.registerTaskTools()
+	s.registerWorkflowTools()
+}
+
+// marshalToolResult renders a tool response as indented JSON so agents get a
+// stable, parseable payload.
+func marshalToolResult(value any) *mcp.CallToolResult {
+	encoded, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to encode result: %v", err))
+	}
+	return mcp.NewToolResultText(string(encoded))
+}
+
+func (s *Server) registerPlanTools() {
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_create_plan",
-			mcp.WithDescription("Creates or updates a plan directly in SQLite WAL (SSOT)."),
-			mcp.WithString("slug", mcp.Required(), mcp.Description("Unique plan slug (e.g. 'zenfd' or 'auth-refactor')")),
-			mcp.WithString("title", mcp.Required(), mcp.Description("Human-readable title of the plan")),
+		mcp.NewTool("zenfd_plans",
+			mcp.WithDescription("Manage plans: create (or update title), archive, unarchive, or list. Archived plans are omitted from list unless include_archived is true."),
+			mcp.WithString("action", mcp.Required(), mcp.Description("create | archive | unarchive | list")),
+			mcp.WithString("slug", mcp.Description("Plan slug (required for create/archive/unarchive)")),
+			mcp.WithString("title", mcp.Description("Human-readable plan title (create only; defaults to slug)")),
+			mcp.WithBoolean("include_archived", mcp.Description("Include archived plans in list (default false)")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			slug, err := request.RequireString("slug")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			action := request.GetString("action", "")
+			slug := request.GetString("slug", "")
+
+			switch action {
+			case "create":
+				if slug == "" {
+					return mcp.NewToolResultError("slug is required for create"), nil
+				}
+				title := request.GetString("title", slug)
+				now := time.Now().UTC()
+				plan := domain.Plan{
+					Slug:      slug,
+					Title:     title,
+					Status:    "ACTIVE",
+					CreatedAt: now,
+					UpdatedAt: now,
+				}
+				if err := s.store.CreatePlan(ctx, plan); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to create plan %s: %v", slug, err)), nil
+				}
+				return marshalToolResult(plan), nil
+
+			case "archive", "unarchive":
+				if slug == "" {
+					return mcp.NewToolResultError("slug is required for " + action), nil
+				}
+				archived := action == "archive"
+				if err := s.store.ArchivePlan(ctx, slug, archived); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to %s plan %s: %v", action, slug, err)), nil
+				}
+				return marshalToolResult(map[string]any{"slug": slug, "archived": archived}), nil
+
+			case "list":
+				plans, err := s.store.ListPlans(ctx, request.GetBool("include_archived", false))
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list plans: %v", err)), nil
+				}
+				if plans == nil {
+					plans = []domain.Plan{}
+				}
+				return marshalToolResult(plans), nil
+
+			default:
+				return mcp.NewToolResultError("unknown action (expected create, archive, unarchive, or list)"), nil
 			}
-			title, err := request.RequireString("title")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			now := time.Now().UTC()
-			plan := domain.Plan{
-				Slug:      slug,
-				Title:     title,
-				Status:    "ACTIVE",
-				CreatedAt: now,
-				UpdatedAt: now,
-			}
-			if err := s.store.CreatePlan(ctx, plan); err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create plan: %v", err)), nil
-			}
-			return mcp.NewToolResultText(fmt.Sprintf("Plan '%s' (%s) created successfully in SQLite WAL.", slug, title)), nil
 		},
 	)
+}
 
-	// 2. zenfd_create_task
+// taskInput is the wire shape accepted by zenfd_tasks create.
+type taskInput struct {
+	ID                   string   `json:"id"`
+	Title                string   `json:"title"`
+	Description          string   `json:"description"`
+	Dependencies         []string `json:"dependencies"`
+	TargetFiles          []string `json:"target_files"`
+	Skills               []string `json:"skills"`
+	AcceptanceCriteria   []string `json:"acceptance_criteria"`
+	VerificationCommands []string `json:"verification_commands"`
+	Priority             string   `json:"priority"`
+	Harness              string   `json:"harness"`
+	WorktreePath         string   `json:"worktree_path"`
+}
+
+func toDomainTask(planID string, in taskInput) domain.Task {
+	priority := domain.TaskPriority(in.Priority)
+	if priority == "" {
+		priority = domain.PriorityP2
+	}
+	harness := in.Harness
+	if harness == "" {
+		harness = "orchestrator"
+	}
+	status := domain.StatusPending
+	if len(in.Dependencies) == 0 {
+		status = domain.StatusReady
+	}
+	return domain.Task{
+		ID:                   in.ID,
+		PlanID:               planID,
+		Title:                in.Title,
+		Description:          in.Description,
+		Dependencies:         in.Dependencies,
+		TargetFiles:          in.TargetFiles,
+		RequiredSkills:       in.Skills,
+		AcceptanceCriteria:   in.AcceptanceCriteria,
+		VerificationCommands: in.VerificationCommands,
+		Priority:             priority,
+		Harness:              harness,
+		WorktreePath:         in.WorktreePath,
+		Status:               status,
+	}
+}
+
+func (s *Server) registerTaskTools() {
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_create_task",
-			mcp.WithDescription("Creates or updates a vertical slice task in a plan DAG directly in SQLite WAL."),
-			mcp.WithString("plan_id", mcp.Required(), mcp.Description("Parent plan slug")),
-			mcp.WithString("id", mcp.Required(), mcp.Description("Unique task ID (e.g. 'P-01')")),
-			mcp.WithString("title", mcp.Required(), mcp.Description("Task title")),
-			mcp.WithString("description", mcp.Description("Detailed task description and context")),
-			mcp.WithArray("dependencies", mcp.Description("List of prerequisite task IDs")),
-			mcp.WithArray("target_files", mcp.Description("Target files for this task")),
-			mcp.WithArray("skills", mcp.Description("Required skill names")),
-			mcp.WithArray("acceptance_criteria", mcp.Description("Acceptance criteria that must be satisfied")),
-			mcp.WithArray("verification_commands", mcp.Description("Commands that verify implementation correctness")),
-			mcp.WithString("priority", mcp.Description("P0, P1, P2, P3")),
-			mcp.WithString("harness", mcp.Description("Execution harness (default 'orchestrator' for agent-driven tasks, or 'shell')")),
-			mcp.WithString("worktree_path", mcp.Description("Optional worktree path. When set, completion stops at AWAITING_MERGE.")),
+		mcp.NewTool("zenfd_tasks",
+			mcp.WithDescription("Manage tasks: create a batch in one transaction, get one task with its ContextPacket, or list tasks. Prefer a single batch create over many calls."),
+			mcp.WithString("action", mcp.Required(), mcp.Description("create | get | list")),
+			mcp.WithString("plan_id", mcp.Description("Parent plan slug (required for create)")),
+			mcp.WithArray("tasks", mcp.Description("Batch of tasks to create. Each item: id, title, description, dependencies, target_files, skills, acceptance_criteria, verification_commands, priority, harness, worktree_path."),
+				mcp.Items(map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"id":                    map[string]any{"type": "string"},
+						"title":                 map[string]any{"type": "string"},
+						"description":           map[string]any{"type": "string"},
+						"dependencies":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"target_files":          map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"skills":                map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"acceptance_criteria":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"verification_commands": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+						"priority":              map[string]any{"type": "string", "enum": []string{"P0", "P1", "P2", "P3"}},
+						"harness":               map[string]any{"type": "string"},
+						"worktree_path":         map[string]any{"type": "string"},
+					},
+					"required": []string{"id", "title"},
+				}),
+			),
+			mcp.WithString("task_id", mcp.Description("Task ID (required for get)")),
+			mcp.WithString("status", mcp.Description("Optional status filter for list")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			planID, err := request.RequireString("plan_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			id, err := request.RequireString("id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			title, err := request.RequireString("title")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			desc := request.GetString("description", "")
-			deps := request.GetStringSlice("dependencies", []string{})
-			files := request.GetStringSlice("target_files", []string{})
-			skills := request.GetStringSlice("skills", []string{})
-			criteria := request.GetStringSlice("acceptance_criteria", []string{})
-			verification := request.GetStringSlice("verification_commands", []string{})
-			priority := domain.TaskPriority(request.GetString("priority", "P2"))
-			harness := request.GetString("harness", "orchestrator")
-			worktreePath := request.GetString("worktree_path", "")
+			switch request.GetString("action", "") {
+			case "create":
+				planID := request.GetString("plan_id", "")
+				if planID == "" {
+					return mcp.NewToolResultError("plan_id is required for create"), nil
+				}
+				rawTasks, ok := request.GetArguments()["tasks"].([]any)
+				if !ok || len(rawTasks) == 0 {
+					return mcp.NewToolResultError("tasks must be a non-empty array"), nil
+				}
 
-			task := domain.Task{
-				ID:                   id,
-				PlanID:               planID,
-				Title:                title,
-				Description:          desc,
-				Dependencies:         deps,
-				TargetFiles:          files,
-				RequiredSkills:       skills,
-				AcceptanceCriteria:   criteria,
-				VerificationCommands: verification,
-				Priority:             priority,
-				WorktreePath:         worktreePath,
-				Harness:              harness,
-				SkillCommand:         fmt.Sprintf("zenfd task claim %s", id),
+				tasks := make([]domain.Task, 0, len(rawTasks))
+				for i, raw := range rawTasks {
+					encoded, err := json.Marshal(raw)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("invalid task at index %d: %v", i, err)), nil
+					}
+					var in taskInput
+					if err := json.Unmarshal(encoded, &in); err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("invalid task at index %d: %v", i, err)), nil
+					}
+					if in.ID == "" || in.Title == "" {
+						return mcp.NewToolResultError(fmt.Sprintf("task at index %d requires id and title", i)), nil
+					}
+					tasks = append(tasks, toDomainTask(planID, in))
+				}
+
+				if err := s.store.CreateTasks(ctx, tasks); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to create %d task(s): %v", len(tasks), err)), nil
+				}
+
+				ids := make([]string, len(tasks))
+				for i, task := range tasks {
+					ids[i] = task.ID
+				}
+				return marshalToolResult(map[string]any{"plan_id": planID, "created": len(tasks), "task_ids": ids}), nil
+
+			case "get":
+				taskID := request.GetString("task_id", "")
+				if taskID == "" {
+					return mcp.NewToolResultError("task_id is required for get"), nil
+				}
+				packet, err := s.store.GetTaskContextPacket(ctx, taskID)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to load task %s: %v", taskID, err)), nil
+				}
+				return marshalToolResult(packet), nil
+
+			case "list":
+				planID := request.GetString("plan_id", "")
+				if planID != "" {
+					tasks, err := s.store.GetTasksByPlan(ctx, planID)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("failed to list tasks: %v", err)), nil
+					}
+					if tasks == nil {
+						tasks = []domain.Task{}
+					}
+					return marshalToolResult(tasks), nil
+				}
+
+				status := domain.TaskStatus(request.GetString("status", ""))
+				tasks, err := s.store.ListTasks(ctx, status)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to list tasks: %v", err)), nil
+				}
+				if tasks == nil {
+					tasks = []domain.Task{}
+				}
+				return marshalToolResult(tasks), nil
+
+			default:
+				return mcp.NewToolResultError("unknown action (expected create, get, or list)"), nil
 			}
-			if len(deps) == 0 {
-				task.Status = domain.StatusReady
-			} else {
-				task.Status = domain.StatusPending
-			}
-			if err := s.store.CreateTask(ctx, task); err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create task: %v", err)), nil
-			}
-			return mcp.NewToolResultText(fmt.Sprintf("Task '%s' created successfully in plan '%s'.", id, planID)), nil
 		},
 	)
+}
 
-	// 3. zenfd_claim_task
+func (s *Server) registerWorkflowTools() {
+	// zenfd_claim_task
 	s.mcpServer.AddTool(
 		mcp.NewTool("zenfd_claim_task",
 			mcp.WithDescription("Atomically claims a READY task with mutual exclusion lock, transitions to RUNNING, and returns its ContextPacket."),
@@ -167,72 +293,67 @@ func (s *Server) registerTools() {
 			orchestratorID := request.GetString("orchestrator_id", "")
 			workerRole := request.GetString("worker_role", "CODER")
 
-			packet, err := s.store.ClaimTaskWithMeta(ctx, taskID, workerID, orchestratorID, workerRole, 0, 0)
+			packet, err := s.store.ClaimTaskWithMeta(ctx, taskID, workerID, orchestratorID, workerRole)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to claim task %s: %v", taskID, err)), nil
 			}
-			bytes, _ := json.MarshalIndent(packet, "", "  ")
-			return mcp.NewToolResultText(string(bytes)), nil
+			return marshalToolResult(packet), nil
 		},
 	)
 
-	// 4. zenfd_request_review
+	// zenfd_review
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_request_review",
-			mcp.WithDescription("Pauses task execution and records a scope-drift question in AWAITING_REVIEW. The main orchestrator agent surfaces the question to the human; the worker must exit after calling this."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID currently in RUNNING status")),
-			mcp.WithString("reason", mcp.Required(), mcp.Description("Short summary of architectural or requirement drift")),
-			mcp.WithString("details", mcp.Required(), mcp.Description("Detailed explanation of the issue or trade-offs")),
-			mcp.WithArray("options", mcp.Description("List of actionable choice strings for developer to decide")),
+		mcp.NewTool("zenfd_review",
+			mcp.WithDescription("Review handshake. action=request pauses a RUNNING task at AWAITING_REVIEW (worker exits); action=resolve records the human decision and returns the task to READY (main agent only)."),
+			mcp.WithString("action", mcp.Required(), mcp.Description("request | resolve")),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("reason", mcp.Description("Short summary of architectural or requirement drift (request)")),
+			mcp.WithString("details", mcp.Description("Detailed explanation and trade-offs (request)")),
+			mcp.WithArray("options", mcp.Description("Actionable choice strings for the developer (request)")),
+			mcp.WithString("response", mcp.Description("Human decision relayed by the main agent (resolve)")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			taskID, err := request.RequireString("task_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			reason, err := request.RequireString("reason")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+
+			switch request.GetString("action", "") {
+			case "request":
+				reason, err := request.RequireString("reason")
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+				details, err := request.RequireString("details")
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+				options := request.GetStringSlice("options", []string{})
+				if err := s.store.RequestReview(ctx, taskID, reason, details, options); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to request review: %v", err)), nil
+				}
+				return marshalToolResult(map[string]any{"task_id": taskID, "status": domain.StatusAwaitingReview}), nil
+
+			case "resolve":
+				response, err := request.RequireString("response")
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+				if err := s.store.ResolveReview(ctx, taskID, response); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to resolve review: %v", err)), nil
+				}
+				return marshalToolResult(map[string]any{"task_id": taskID, "status": domain.StatusReady}), nil
+
+			default:
+				return mcp.NewToolResultError("unknown action (expected request or resolve)"), nil
 			}
-			details, err := request.RequireString("details")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			options := request.GetStringSlice("options", []string{})
-			if err := s.store.RequestReview(ctx, taskID, reason, details, options); err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to request review: %v", err)), nil
-			}
-			return mcp.NewToolResultText(fmt.Sprintf("Task %s paused at AWAITING_REVIEW. The main agent must surface the decision request to the human.", taskID)), nil
 		},
 	)
 
-	// 5. zenfd_resolve_review
-	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_resolve_review",
-			mcp.WithDescription("Resolves an AWAITING_REVIEW task with guidance supplied by the human through the main orchestrator agent, then transitions back to READY. Only the main agent should call this tool."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID currently in AWAITING_REVIEW")),
-			mcp.WithString("response", mcp.Required(), mcp.Description("Human decision or guidance relayed by the main agent")),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			taskID, err := request.RequireString("task_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			response, err := request.RequireString("response")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			if err := s.store.ResolveReview(ctx, taskID, response); err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to resolve review: %v", err)), nil
-			}
-			return mcp.NewToolResultText(fmt.Sprintf("Task %s resolved and transitioned to READY with human guidance recorded.", taskID)), nil
-		},
-	)
-
-	// 6. zenfd_transition_task
+	// zenfd_transition_task
 	s.mcpServer.AddTool(
 		mcp.NewTool("zenfd_transition_task",
-			mcp.WithDescription("Applies a state transition to one or more tasks. COMPLETE stages worktree tasks to AWAITING_MERGE or completes them; merge_outcome resolves AWAITING_MERGE/CONFLICT. FAIL marks RUNNING tasks FAILED. RESET returns RUNNING/SUSPENDED tasks to READY. CANCEL cancels RUNNING/SUSPENDED tasks. Each task is processed independently."),
+			mcp.WithDescription("Applies a state transition to one or more tasks. COMPLETE stages worktree tasks to AWAITING_MERGE or completes them; merge_outcome resolves AWAITING_MERGE/CONFLICT. FAIL marks RUNNING tasks FAILED and blocks downstream dependents. RESET clears the claim and returns to READY (or BLOCKED when prerequisites are unfinished). CANCEL cancels. Each task is processed independently."),
 			mcp.WithArray("task_ids", mcp.Required(), mcp.Description("Task IDs to transition")),
 			mcp.WithString("action", mcp.Required(), mcp.Description("COMPLETE, FAIL, RESET, or CANCEL")),
 			mcp.WithString("reason", mcp.Description("Failure, reset, or cancellation reason (appended to Notes)")),
@@ -265,28 +386,38 @@ func (s *Server) registerTools() {
 				results = append(results, taskResult{TaskID: taskID, Status: string(status)})
 			}
 
-			bytes, _ := json.MarshalIndent(map[string]any{"results": results}, "", "  ")
-			return mcp.NewToolResultText(string(bytes)), nil
+			return marshalToolResult(map[string]any{"results": results}), nil
 		},
 	)
 
-	// 7. zenfd_get_task
+	// zenfd_attach_media
 	s.mcpServer.AddTool(
-		mcp.NewTool("zenfd_get_task",
-			mcp.WithDescription("Retrieves metadata and prompt ContextPacket for a task without mutating state."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID to retrieve")),
+		mcp.NewTool("zenfd_attach_media",
+			mcp.WithDescription("Attaches input media (image, PDF, document) to a task that is READY or PENDING. The file is copied into the ZenForge attachment store and registered as an INPUT artifact, so the next claim includes it in the ContextPacket."),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task in READY or PENDING status")),
+			mcp.WithString("file_path", mcp.Required(), mcp.Description("Absolute path to a local file to copy into the attachment store")),
+			mcp.WithString("name", mcp.Description("Display name (defaults to the file name)")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			taskID, err := request.RequireString("task_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			packet, err := s.store.GetTaskContextPacket(ctx, taskID)
+			filePath, err := request.RequireString("file_path")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			bytes, _ := json.MarshalIndent(packet, "", "  ")
-			return mcp.NewToolResultText(string(bytes)), nil
+
+			artifact, err := attachment.Ingest(taskID, filePath, request.GetString("name", ""))
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to ingest media: %v", err)), nil
+			}
+
+			if err := s.store.RecordArtifact(ctx, artifact); err != nil {
+				_ = os.Remove(artifact.FilePath)
+				return mcp.NewToolResultError(fmt.Sprintf("failed to register media for task %s: %v", taskID, err)), nil
+			}
+			return marshalToolResult(artifact), nil
 		},
 	)
 }
@@ -317,24 +448,21 @@ func (s *Server) transitionTask(ctx context.Context, taskID string, action strin
 			if task.WorktreePath != "" {
 				target = domain.StatusAwaitingMerge
 			}
-			if err := s.store.UpdateTaskStatus(ctx, taskID, domain.StatusRunning, target); err != nil {
+			if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusRunning, target, note); err != nil {
 				return "", err
 			}
-			_ = s.store.AppendTaskNotes(ctx, taskID, note)
 			return target, nil
 		case domain.StatusAwaitingMerge:
 			switch mergeOutcome {
 			case "MERGED":
-				if err := s.store.UpdateTaskStatus(ctx, taskID, domain.StatusAwaitingMerge, domain.StatusCompleted); err != nil {
+				if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusAwaitingMerge, domain.StatusCompleted, note); err != nil {
 					return "", err
 				}
-				_ = s.store.AppendTaskNotes(ctx, taskID, note)
 				return domain.StatusCompleted, nil
 			case "CONFLICT":
-				if err := s.store.UpdateTaskStatus(ctx, taskID, domain.StatusAwaitingMerge, domain.StatusConflict); err != nil {
+				if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusAwaitingMerge, domain.StatusConflict, note); err != nil {
 					return "", err
 				}
-				_ = s.store.AppendTaskNotes(ctx, taskID, note)
 				return domain.StatusConflict, nil
 			default:
 				return "", fmt.Errorf("merge_outcome MERGED or CONFLICT is required when task is AWAITING_MERGE")
@@ -343,10 +471,9 @@ func (s *Server) transitionTask(ctx context.Context, taskID string, action strin
 			if mergeOutcome != "MERGED" {
 				return "", fmt.Errorf("merge_outcome MERGED is required when task is CONFLICT")
 			}
-			if err := s.store.UpdateTaskStatus(ctx, taskID, domain.StatusConflict, domain.StatusCompleted); err != nil {
+			if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusConflict, domain.StatusCompleted, note); err != nil {
 				return "", err
 			}
-			_ = s.store.AppendTaskNotes(ctx, taskID, note)
 			return domain.StatusCompleted, nil
 		default:
 			return "", fmt.Errorf("cannot COMPLETE task in %s status", task.Status)
@@ -355,37 +482,46 @@ func (s *Server) transitionTask(ctx context.Context, taskID string, action strin
 		if task.Status != domain.StatusRunning {
 			return "", fmt.Errorf("cannot FAIL task in %s status", task.Status)
 		}
-		if err := s.store.UpdateTaskStatus(ctx, taskID, domain.StatusRunning, domain.StatusFailed); err != nil {
+		if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusRunning, domain.StatusFailed, note); err != nil {
 			return "", err
 		}
-		_ = s.store.AppendTaskNotes(ctx, taskID, note)
 		return domain.StatusFailed, nil
 	case "RESET":
-		if task.Status != domain.StatusRunning && task.Status != domain.StatusSuspended {
+		if task.Status != domain.StatusRunning {
 			return "", fmt.Errorf("cannot RESET task in %s status", task.Status)
 		}
 		resetReason := reason
 		if resetReason == "" {
 			resetReason = "Reset by orchestrator"
 		}
-		if err := s.store.EvictTask(ctx, taskID, resetReason, "RESET_TO_READY"); err != nil {
+		status, err := s.store.EvictTask(ctx, taskID, resetReason, "RESET_TO_READY")
+		if err != nil {
 			return "", err
 		}
-		_ = s.store.AppendTaskNotes(ctx, taskID, note)
-		return domain.StatusReady, nil
+		if note != "" {
+			if err := s.store.AppendTaskNotes(ctx, taskID, note); err != nil {
+				return "", err
+			}
+		}
+		return status, nil
 	case "CANCEL":
-		if task.Status != domain.StatusRunning && task.Status != domain.StatusSuspended {
+		if task.Status != domain.StatusRunning {
 			return "", fmt.Errorf("cannot CANCEL task in %s status", task.Status)
 		}
 		cancelReason := reason
 		if cancelReason == "" {
 			cancelReason = "Cancelled by orchestrator"
 		}
-		if err := s.store.EvictTask(ctx, taskID, cancelReason, "CANCEL"); err != nil {
+		status, err := s.store.EvictTask(ctx, taskID, cancelReason, "CANCEL")
+		if err != nil {
 			return "", err
 		}
-		_ = s.store.AppendTaskNotes(ctx, taskID, note)
-		return domain.StatusCancelled, nil
+		if note != "" {
+			if err := s.store.AppendTaskNotes(ctx, taskID, note); err != nil {
+				return "", err
+			}
+		}
+		return status, nil
 	default:
 		return "", fmt.Errorf("unknown action %q (expected COMPLETE, FAIL, RESET, or CANCEL)", action)
 	}

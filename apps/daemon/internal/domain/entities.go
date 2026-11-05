@@ -11,32 +11,26 @@ type TaskStatus string
 const (
 	StatusPending        TaskStatus = "PENDING"         // Waiting for upstream dependencies
 	StatusReady          TaskStatus = "READY"           // Dependencies fulfilled, ready to claim
-	StatusRunning        TaskStatus = "RUNNING"         // Actively executing under an agent runner
+	StatusRunning        TaskStatus = "RUNNING"         // Actively being executed by a worker
 	StatusAwaitingReview TaskStatus = "AWAITING_REVIEW" // Paused: Plan/scope drift detected, awaiting developer decision
-	StatusSuspended      TaskStatus = "SUSPENDED"       // Paused: Worker process died unexpectedly or orchestrator lost
 	StatusAwaitingMerge  TaskStatus = "AWAITING_MERGE"  // Implemented & tested on worktree, staged for git merge
 	StatusConflict       TaskStatus = "CONFLICT"        // Git merge conflict encountered during integration
 	StatusBlocked        TaskStatus = "BLOCKED"         // Blocked by upstream failure, environment, or human review
 	StatusCompleted      TaskStatus = "COMPLETED"       // Verified with exit code 0 and passing tests
 	StatusFailed         TaskStatus = "FAILED"          // Execution failure or test assertion failure
-	StatusCancelled      TaskStatus = "CANCELLED"       // Terminated via operator abort or -PGID cascade kill
+	StatusCancelled      TaskStatus = "CANCELLED"       // Terminated by an explicit operator abort
 )
 
 // IsValid checks if the status is a known domain status.
 func (s TaskStatus) IsValid() bool {
 	switch s {
 	case StatusPending, StatusReady, StatusRunning, StatusAwaitingReview,
-		StatusSuspended, StatusAwaitingMerge, StatusConflict, StatusBlocked,
+		StatusAwaitingMerge, StatusConflict, StatusBlocked,
 		StatusCompleted, StatusFailed, StatusCancelled:
 		return true
 	default:
 		return false
 	}
-}
-
-// IsTerminal returns true if the status represents a final execution state.
-func (s TaskStatus) IsTerminal() bool {
-	return s == StatusCompleted || s == StatusCancelled
 }
 
 // CanTransitionTo enforces the state machine transition rules.
@@ -61,15 +55,12 @@ func (s TaskStatus) CanTransitionTo(target TaskStatus) bool {
 	case StatusReady:
 		return target == StatusRunning || target == StatusBlocked || target == StatusCancelled
 	case StatusRunning:
-		return target == StatusAwaitingReview || target == StatusSuspended ||
+		return target == StatusAwaitingReview ||
 			target == StatusAwaitingMerge || target == StatusCompleted ||
 			target == StatusFailed || target == StatusCancelled || target == StatusBlocked || target == StatusReady
 	case StatusAwaitingReview:
 		// Resumed back to READY (recommended) or RUNNING, or failed/cancelled
 		return target == StatusReady || target == StatusRunning || target == StatusFailed || target == StatusCancelled
-	case StatusSuspended:
-		// Resumed via reclaim (RUNNING), reset to READY, or cancelled
-		return target == StatusReady || target == StatusRunning || target == StatusCancelled || target == StatusFailed
 	case StatusAwaitingMerge:
 		// Merged to COMPLETED, hit CONFLICT, rejected back to RUNNING, or cancelled
 		return target == StatusCompleted || target == StatusConflict ||
@@ -117,11 +108,12 @@ const (
 
 // Plan represents a living plan dossier and its associated task DAG.
 type Plan struct {
-	Slug      string    `json:"slug"`
-	Title     string    `json:"title"`
-	Status    string    `json:"status"` // ACTIVE, COMPLETED, DRIFTED
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Slug       string     `json:"slug"`
+	Title      string     `json:"title"`
+	Status     string     `json:"status"` // ACTIVE, COMPLETED, DRIFTED
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // Task represents an atomic vertical slice of execution in the DAG.
@@ -143,17 +135,14 @@ type Task struct {
 	AcceptanceCriteria   []string       `json:"acceptance_criteria,omitempty"`
 	VerificationCommands []string       `json:"verification_commands,omitempty"`
 	Harness              string         `json:"harness"`
-	SkillCommand         string         `json:"skill_command"`
 	WorktreePath         string         `json:"worktree_path,omitempty"`
 
 	// 3. State & Claim Mutual Exclusion
-	Status          TaskStatus `json:"status"`
-	ClaimedBy       string     `json:"claimed_by,omitempty"`
-	OrchestratorID  string     `json:"orchestrator_id,omitempty"`
-	WorkerRole      string     `json:"worker_role,omitempty"`
-	PID             int        `json:"pid,omitempty"`
-	OrchestratorPID int        `json:"orchestrator_pid,omitempty"`
-	ClaimedAt       *time.Time `json:"claimed_at,omitempty"`
+	Status         TaskStatus `json:"status"`
+	ClaimedBy      string     `json:"claimed_by,omitempty"`
+	OrchestratorID string     `json:"orchestrator_id,omitempty"`
+	WorkerRole     string     `json:"worker_role,omitempty"`
+	ClaimedAt      *time.Time `json:"claimed_at,omitempty"`
 
 	// 4. Developer Seeding & Supplemental Notes
 	Notes string `json:"notes,omitempty"`
@@ -170,6 +159,11 @@ type Task struct {
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// DependenciesCorrupt reports that the persisted dependency list could not
+	// be decoded. It is internal to storage and never serialized; topology-aware
+	// operations (claim, transitions) must refuse to act on such a task.
+	DependenciesCorrupt bool `json:"-"`
 }
 
 // Validate checks task integrity.
@@ -196,30 +190,14 @@ type ContextPacket struct {
 	PromptMarkdown       string     `json:"prompt_markdown"`
 }
 
-// Run tracks an individual execution attempt of a task under an agent runner.
-type Run struct {
-	ID         string     `json:"id"`
-	TaskID     string     `json:"task_id"`
-	PID        int        `json:"pid"`
-	PGID       int        `json:"pgid"` // Negative PGID used for cascade kill
-	Status     TaskStatus `json:"status"`
-	LogPath    string     `json:"log_path"` // Claim-check path on disk
-	ExitCode   int        `json:"exit_code"`
-	StartedAt  time.Time  `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
-	LastBeatAt time.Time  `json:"last_beat_at"` // Heartbeat timestamp
-}
-
 // ArtifactType categorizes concrete outputs produced during task execution.
 type ArtifactType string
 
 const (
-	ArtifactTypeImage      ArtifactType = "IMAGE"
-	ArtifactTypeLog        ArtifactType = "LOG"
-	ArtifactTypeTestResult ArtifactType = "TEST_RESULT"
-	ArtifactTypeMarkdown   ArtifactType = "MARKDOWN"
-	ArtifactTypeDoc        ArtifactType = "DOC"
-	ArtifactTypeFile       ArtifactType = "FILE"
+	ArtifactTypeImage    ArtifactType = "IMAGE"
+	ArtifactTypeMarkdown ArtifactType = "MARKDOWN"
+	ArtifactTypeDoc      ArtifactType = "DOC"
+	ArtifactTypeFile     ArtifactType = "FILE"
 )
 
 const (
@@ -230,8 +208,7 @@ const (
 // IsValid checks if the artifact type is supported.
 func (a ArtifactType) IsValid() bool {
 	switch a {
-	case ArtifactTypeImage, ArtifactTypeLog,
-		ArtifactTypeTestResult, ArtifactTypeMarkdown, ArtifactTypeDoc, ArtifactTypeFile:
+	case ArtifactTypeImage, ArtifactTypeMarkdown, ArtifactTypeDoc, ArtifactTypeFile:
 		return true
 	default:
 		return false
@@ -241,7 +218,6 @@ func (a ArtifactType) IsValid() bool {
 // Artifact represents a concrete file input or output tracked via the Claim-Check pattern.
 type Artifact struct {
 	ID        string       `json:"id"`
-	RunID     string       `json:"run_id,omitempty"`
 	TaskID    string       `json:"task_id"`
 	Role      string       `json:"role"` // "INPUT" (spec/mockup) or "OUTPUT" (log/result)
 	Name      string       `json:"name"` // Display filename or caption
@@ -253,12 +229,14 @@ type Artifact struct {
 	CreatedAt time.Time    `json:"created_at"`
 }
 
-// EventMessage represents an append-only event broadcasted over SSE.
+// EventMessage is one entry of the append-only activity log. Rows are produced
+// by database triggers, so every writer (MCP, CLI, HTTP, raw SQL) is recorded
+// and the daemon can stream the same log it shows in the UI.
 type EventMessage struct {
 	ID        int64     `json:"id"`
-	RunID     string    `json:"run_id,omitempty"`
+	PlanID    string    `json:"plan_id,omitempty"`
 	TaskID    string    `json:"task_id,omitempty"`
-	Type      string    `json:"type"` // e.g. "task:status", "run:heartbeat", "artifact:created"
+	Type      string    `json:"type"` // e.g. "task.created", "task.updated", "plan.archived"
 	Payload   string    `json:"payload"`
 	Timestamp time.Time `json:"timestamp"`
 }

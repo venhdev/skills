@@ -32,7 +32,8 @@ Infrastructure, toolchain manifest, and execution environment specification.
 - **Secrets Boundary**: Strictly forbid reading `.env*` (except `.env.example`), private keys (`*.pem`, `*.key`, `id_rsa`).
 - **Ephemeral Scratch Directory**: `.agents/scratch/` (strictly git-ignored).
 - **Persistent State Directory**: `~/.zenforge/` (local machine daemon state and database).
-- **Claim-Check Disk Cache**: `.agents/scratch/logs/` and `.agents/scratch/artifacts/`.
+- **Attachment Store**: `~/.zenforge/attachments/<task>/` (INPUT media copied by MCP; 25 MB per file).
+- **Activity Log**: `events` table in `~/.zenforge/state.db`, appended by DB triggers, pruned after 30 days.
 
 ## 5. Development Mode & Live-Reload Workflow
 
@@ -50,5 +51,5 @@ make -C apps/daemon dev
 cd apps/web && pnpm dev
 ```
 
-(Starts Vite dev server at `http://localhost:5173` with Instant HMR and automated reverse proxy forwarding API/SSE/WebSocket traffic to daemon port 1123).
+(Starts Vite dev server at `http://localhost:5173` with Instant HMR and automated reverse proxy forwarding API/SSE traffic to daemon port 1123).
 

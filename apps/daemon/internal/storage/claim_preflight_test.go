@@ -1,4 +1,4 @@
-package storage_test
+package storage
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"zenfd/internal/contextpacket"
 	"zenfd/internal/domain"
 	"zenfd/internal/domain/prompt"
-	"zenfd/internal/storage"
 )
 
 // blockingCompiler lets a test hold prompt compilation open so it can prove
@@ -45,7 +45,7 @@ func (c *blockingCompiler) Release() {
 	c.releaseOnce.Do(func() { close(c.release) })
 }
 
-func seedClaimTasks(t *testing.T, store *storage.Store, ids ...string) {
+func seedClaimTasks(t *testing.T, store *Store, ids ...string) {
 	t.Helper()
 	tasks := make([]domain.Task, len(ids))
 	for i, id := range ids {
@@ -66,14 +66,19 @@ func seedClaimTasks(t *testing.T, store *storage.Store, ids ...string) {
 	}
 }
 
-func newClaimTestStore(t *testing.T, opts ...storage.Option) (*storage.Store, context.Context) {
+func newClaimTestStore(t *testing.T, compiler prompt.Compiler) (*Store, context.Context) {
 	t.Helper()
-	db, err := storage.Open(filepath.Join(t.TempDir(), "claim-preflight.db"))
+	db, err := Open(filepath.Join(t.TempDir(), "claim-preflight.db"))
 	if err != nil {
 		t.Fatalf("Open failed: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return storage.NewStore(db, opts...), context.Background()
+
+	store := NewStore(db)
+	if compiler != nil {
+		store.TaskLifecycle.packets = contextpacket.New(store.ArtifactRepository, compiler)
+	}
+	return store, context.Background()
 }
 
 func TestClaimTaskWithMeta_BuildsPacketOutsideWriteLock(t *testing.T) {
@@ -81,13 +86,13 @@ func TestClaimTaskWithMeta_BuildsPacketOutsideWriteLock(t *testing.T) {
 		started: make(chan struct{}),
 		release: make(chan struct{}),
 	}
-	store, ctx := newClaimTestStore(t, storage.WithPromptCompiler(compiler))
+	store, ctx := newClaimTestStore(t, compiler)
 	seedClaimTasks(t, store, "T-CLAIM-A", "T-WRITE-B")
 	defer compiler.Release()
 
 	claimErr := make(chan error, 1)
 	go func() {
-		_, err := store.ClaimTaskWithMeta(ctx, "T-CLAIM-A", "worker-a", "", "CODER", 0, 0)
+		_, err := store.ClaimTaskWithMeta(ctx, "T-CLAIM-A", "worker-a", "", "CODER")
 		claimErr <- err
 	}()
 
@@ -136,10 +141,10 @@ func TestClaimTaskWithMeta_PacketFailureLeavesTaskReady(t *testing.T) {
 		err:     errors.New("prompt compilation failed"),
 	}
 	compiler.Release()
-	store, ctx := newClaimTestStore(t, storage.WithPromptCompiler(compiler))
+	store, ctx := newClaimTestStore(t, compiler)
 	seedClaimTasks(t, store, "T-FAIL")
 
-	if _, err := store.ClaimTaskWithMeta(ctx, "T-FAIL", "worker-fail", "", "CODER", 0, 0); err == nil {
+	if _, err := store.ClaimTaskWithMeta(ctx, "T-FAIL", "worker-fail", "", "CODER"); err == nil {
 		t.Fatal("expected claim to fail when packet compilation fails")
 	}
 
@@ -153,7 +158,7 @@ func TestClaimTaskWithMeta_PacketFailureLeavesTaskReady(t *testing.T) {
 }
 
 func TestClaimTaskWithMeta_ConcurrentSameTask(t *testing.T) {
-	store, ctx := newClaimTestStore(t)
+	store, ctx := newClaimTestStore(t, nil)
 	seedClaimTasks(t, store, "T-RACE")
 
 	const workers = 8
@@ -163,7 +168,7 @@ func TestClaimTaskWithMeta_ConcurrentSameTask(t *testing.T) {
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
-			_, err := store.ClaimTaskWithMeta(ctx, "T-RACE", "worker-race", "", "CODER", 0, 0)
+			_, err := store.ClaimTaskWithMeta(ctx, "T-RACE", "worker-race", "", "CODER")
 			results <- err
 		}(i)
 	}
@@ -175,7 +180,7 @@ func TestClaimTaskWithMeta_ConcurrentSameTask(t *testing.T) {
 		switch {
 		case err == nil:
 			successes++
-		case errors.Is(err, storage.ErrConflictStatus):
+		case errors.Is(err, ErrConflictStatus):
 			conflicts++
 		default:
 			t.Errorf("unexpected claim error: %v", err)

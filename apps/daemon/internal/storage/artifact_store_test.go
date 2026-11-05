@@ -32,7 +32,6 @@ func TestArtifactStore_ClaimCheck(t *testing.T) {
 	// Create output artifact
 	artifact := domain.Artifact{
 		ID:        "art-123",
-		RunID:     "run-dummy",
 		TaskID:    "t1",
 		Role:      domain.ArtifactRoleOutput,
 		Name:      "diff.png",

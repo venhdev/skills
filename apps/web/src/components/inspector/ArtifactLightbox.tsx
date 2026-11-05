@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   Download,
   Image as ImageIcon,
-  FileText,
   FileSpreadsheet,
   Paperclip,
   Maximize2,
@@ -12,45 +11,16 @@ import {
 import type { Artifact } from '../../types/contracts'
 
 interface ArtifactLightboxProps {
-  taskId?: string
   artifacts: Artifact[]
 }
 
-export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
-  taskId,
-  artifacts,
-}) => {
-  const [activeTab, setActiveTab] = useState<'inputs' | 'logs'>('inputs')
-  const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null)
-  const [taskLogs, setTaskLogs] = useState<string>('')
+export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({ artifacts }) => {
   const [zoomImageSrc, setZoomImageSrc] = useState<string | null>(null)
 
-  const inputArtifacts = artifacts.filter((a) => a.role === 'INPUT')
-
-  // Set default selected artifact when tab changes or artifacts list updates
-  useEffect(() => {
-    if (activeTab === 'inputs') {
-      if (inputArtifacts.length > 0 && !inputArtifacts.some((a) => a.id === selectedArtifactId)) {
-        setSelectedArtifactId(inputArtifacts[0].id)
-      }
-    }
-  }, [activeTab, inputArtifacts, selectedArtifactId])
-
-  // Fetch raw task logs when logs tab is active
-  useEffect(() => {
-    if (activeTab === 'logs' && taskId) {
-      const controller = new AbortController()
-      fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}/logs`, { signal: controller.signal })
-        .then((res) => (res.ok ? res.text() : ''))
-        .then((txt) => setTaskLogs(txt))
-        .catch((err) => {
-          if (err.name !== 'AbortError') {
-            setTaskLogs('// Failed to load task logs')
-          }
-        })
-      return () => controller.abort()
-    }
-  }, [activeTab, taskId])
+  const inputArtifacts = useMemo(
+    () => artifacts.filter((a) => a.role === 'INPUT'),
+    [artifacts]
+  )
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-zinc-950 font-sans select-none">
@@ -66,42 +36,21 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setActiveTab('inputs')}
-            className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors ${
-              activeTab === 'inputs'
-                ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <ImageIcon className="h-3 w-3" />
-            <span>Inputs ({inputArtifacts.length})</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('logs')}
-            className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors ${
-              activeTab === 'logs'
-                ? 'bg-zinc-800 text-white font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <FileText className="h-3 w-3" />
-            <span>Logs</span>
-          </button>
+        <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
+          <ImageIcon className="h-3 w-3" />
+          <span>Inputs ({inputArtifacts.length})</span>
         </div>
       </div>
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-zinc-950 p-3">
-        {/* TAB 1: INPUTS (Mockups, Specs & Attachments) */}
-        {activeTab === 'inputs' && (
-          <div className="space-y-3">
+        <div className="space-y-3">
             {/* Read-only notice: artifacts are seeded by agents/MCP/CLI */}
             <div className="flex items-center gap-2.5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-400">
               <Lock className="h-4 w-4 text-zinc-500 shrink-0" />
               <span>
-                Read-only hub. Attachments are added by the agent / MCP / CLI, not from this cockpit.
+                Read-only hub. Agents attach media through MCP while the task is READY or
+                PENDING; this cockpit only displays and downloads it.
               </span>
             </div>
 
@@ -161,17 +110,7 @@ export const ArtifactLightbox: React.FC<ArtifactLightboxProps> = ({
                 })}
               </div>
             )}
-          </div>
-        )}
-
-        {/* TAB 2: LOGS (Raw terminal logs) */}
-        {activeTab === 'logs' && (
-          <div className="h-full rounded border border-zinc-850 bg-zinc-900/60 p-3 font-mono text-xs text-zinc-300 overflow-x-auto">
-            <pre className="whitespace-pre-wrap select-text leading-relaxed">
-              {taskLogs || '// No logs recorded yet for this task.'}
-            </pre>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Image Fullscreen Lightbox Modal */}

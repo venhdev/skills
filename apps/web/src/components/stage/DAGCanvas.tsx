@@ -38,8 +38,6 @@ function estimateNodeHeight(task: Task): number {
   if (task.dependencies && task.dependencies.length > 0) height += 16
   if (task.status === 'RUNNING') {
     height += task.orchestrator_id ? 36 : 20
-  } else if (task.status === 'SUSPENDED') {
-    height += 22
   } else if (task.status === 'COMPLETED' && task.claimed_by) {
     height += 20
   }
@@ -325,8 +323,20 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
     }
   }, [])
 
+  // Dagre only depends on topology and node height, not on titles, notes, or
+  // the current selection. Keying the layout on that signature keeps a data
+  // refresh from re-running layout when the graph is unchanged.
+  const layoutKey = useMemo(
+    () =>
+      tasks
+        .map((t) => `${t.id}:${t.status}:${(t.dependencies || []).join(',')}`)
+        .join('|'),
+    [tasks]
+  )
+  const layout = useMemo(() => computeLayout(tasks), [layoutKey])
+  const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+
   const { nodes, edges } = useMemo(() => {
-    const layout = computeLayout(tasks)
     const directNeighbors = getDirectNeighbors(selectedTaskId, tasks)
     const blastDepth = showBlast
       ? getDownstreamDepth(selectedTaskId, tasks)
@@ -351,7 +361,7 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
       return {
         ...node,
         data: {
-          task: (node.data as { task: Task }).task,
+          task: tasksById.get(node.id) ?? (node.data as { task: Task }).task,
           isSelected,
           isFocusNeighbor: !!selectedTaskId && !isSelected && isDirectNeighbor,
           isBlastRadius,
@@ -473,7 +483,7 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
     })
 
     return { nodes: updatedNodes, edges: updatedEdges }
-  }, [tasks, selectedTaskId, showBlast, onSelectTask])
+  }, [layout, tasksById, tasks, selectedTaskId, showBlast, onSelectTask])
 
   return (
     <main className="relative flex flex-1 flex-col h-full w-full min-h-0 overflow-hidden bg-zinc-950">

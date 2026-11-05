@@ -48,10 +48,10 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 		t.Fatalf("SavePlanWithTasks failed: %v", err)
 	}
 
-	// Launch concurrent writers: each task is claimed, annotated, audited, and
-	// completed through the same serialized write path.
+	// Launch concurrent writers: each task is claimed, annotated, and completed
+	// through the same serialized write path.
 	var wg sync.WaitGroup
-	errCh := make(chan error, numTasks*3)
+	errCh := make(chan error, numTasks*2)
 
 	for i := 0; i < numTasks; i++ {
 		taskID := fmt.Sprintf("task-%02d", i)
@@ -68,15 +68,6 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 
 			if err := store.AppendTaskNotes(ctx, tID, "worker started"); err != nil {
 				errCh <- fmt.Errorf("AppendTaskNotes %s failed: %w", tID, err)
-				return
-			}
-
-			if err := store.AppendEvent(ctx, domain.EventMessage{
-				TaskID:  tID,
-				Type:    "task:status",
-				Payload: `{"status":"RUNNING"}`,
-			}); err != nil {
-				errCh <- fmt.Errorf("AppendEvent %s failed: %w", tID, err)
 				return
 			}
 
@@ -111,5 +102,24 @@ func TestStorage_HighConcurrencyWrites(t *testing.T) {
 		if task.Notes != "worker started" {
 			t.Errorf("Task %s notes = %q, want %q", task.ID, task.Notes, "worker started")
 		}
+	}
+
+	// The trigger-backed activity log must contain one entry per mutation, for
+	// every writer, without the daemon appending anything itself.
+	events, err := store.ListEvents(ctx, 0, 500)
+	if err != nil {
+		t.Fatalf("ListEvents failed: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("expected trigger-produced activity events")
+	}
+	created := 0
+	for _, evt := range events {
+		if evt.Type == "task.created" {
+			created++
+		}
+	}
+	if created != numTasks {
+		t.Errorf("expected %d task.created events, got %d", numTasks, created)
 	}
 }

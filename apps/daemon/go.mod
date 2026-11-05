@@ -3,8 +3,6 @@ module zenfd
 go 1.26.0
 
 require (
-	github.com/coder/websocket v1.8.15
-	github.com/creack/pty v1.1.24
 	github.com/mark3labs/mcp-go v1.5.0
 	github.com/ncruces/go-sqlite3 v0.36.0
 	github.com/spf13/cobra v1.10.2

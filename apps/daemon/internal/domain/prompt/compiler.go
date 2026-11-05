@@ -45,6 +45,9 @@ func (c *MarkdownPromptCompiler) Compile(
 	sb.WriteString(fmt.Sprintf("# Task Assignment: %s (%s)\n\n", task.Title, task.ID))
 	sb.WriteString(fmt.Sprintf("- **Plan**: `%s`\n", task.PlanID))
 	sb.WriteString(fmt.Sprintf("- **Priority**: `%s` | **Complexity**: `%s` | **Risk**: `%s`\n", task.Priority, task.Complexity, task.RiskLevel))
+	if task.Harness != "" {
+		sb.WriteString(fmt.Sprintf("- **Intended executor**: `%s`\n", task.Harness))
+	}
 	if task.WorktreePath != "" {
 		sb.WriteString(fmt.Sprintf("- **Worktree Path**: `%s`\n", task.WorktreePath))
 	}
@@ -82,7 +85,7 @@ func (c *MarkdownPromptCompiler) Compile(
 
 	sb.WriteString("## 5. MCP Tool Handshake Protocol\n")
 	sb.WriteString(fmt.Sprintf("- **Claim**: Call `zenfd_claim_task(task_id=\"%s\", worker_role=\"CODER\")` before editing files.\n", task.ID))
-	sb.WriteString(fmt.Sprintf("- **Architectural Drift / Blocked**: Call `zenfd_request_review(task_id=\"%s\", reason=\"...\", details=\"...\", options=[\"...\"])` and exit immediately. Do not resolve the review yourself; the main orchestrator agent relays the human decision and calls `zenfd_resolve_review`.\n", task.ID))
+	sb.WriteString(fmt.Sprintf("- **Architectural Drift / Blocked**: Call `zenfd_review(action=\"request\", task_id=\"%s\", reason=\"...\", details=\"...\", options=[\"...\"])` and exit immediately. The main orchestrator agent relays the human decision and calls `zenfd_review(action=\"resolve\", ...)`.\n", task.ID))
 	sb.WriteString(fmt.Sprintf("- **Complete**: Once all verification commands pass with exit code 0, call `zenfd_transition_task(task_ids=[\"%s\"], action=\"COMPLETE\", summary=\"...\")`. Tasks with a worktree stop at AWAITING_MERGE for the orchestrator to merge outside MCP.\n", task.ID))
 	sb.WriteString(fmt.Sprintf("- **Failure**: If the task cannot be completed, call `zenfd_transition_task(task_ids=[\"%s\"], action=\"FAIL\", reason=\"...\")`.\n", task.ID))
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import type { Plan, Task, Artifact } from '../types/contracts'
 
 type ApiResult<T> =
@@ -6,12 +6,10 @@ type ApiResult<T> =
   | { ok: false; error: string; status?: number }
 
 export function useZenfdAPI() {
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchPlans = useCallback(async (): Promise<ApiResult<string[]>> => {
+  const fetchPlans = useCallback(async (includeArchived = false): Promise<ApiResult<Plan[]>> => {
     try {
-      const res = await fetch('/api/v1/plans')
+      const query = includeArchived ? '?include_archived=true' : ''
+      const res = await fetch(`/api/v1/plans${query}`)
       if (!res.ok) {
         return {
           ok: false,
@@ -31,30 +29,22 @@ export function useZenfdAPI() {
 
   const fetchPlan = useCallback(
     async (slug: string): Promise<ApiResult<{ plan: Plan; tasks: Task[] }>> => {
-      setLoading(true)
-      setError(null)
       try {
         const res = await fetch(`/api/v1/plans/${encodeURIComponent(slug)}`)
         if (!res.ok) {
           const msg = `Failed to fetch plan ${slug}: ${res.statusText}`
-          setError(msg)
           return { ok: false, error: msg, status: res.status }
         }
         return { ok: true, data: await res.json() }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        setError(msg)
         return { ok: false, error: msg }
-      } finally {
-        setLoading(false)
       }
     },
     []
   )
 
   const fetchTasks = useCallback(async (status?: string): Promise<Task[] | null> => {
-    setLoading(true)
-    setError(null)
     try {
       const params = new URLSearchParams()
       if (status) params.set('status', status)
@@ -64,12 +54,8 @@ export function useZenfdAPI() {
       }
       const data = await res.json()
       return data || []
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(msg)
+    } catch {
       return null
-    } finally {
-      setLoading(false)
     }
   }, [])
 
@@ -100,8 +86,6 @@ export function useZenfdAPI() {
   }, [])
 
   return {
-    loading,
-    error,
     fetchPlans,
     fetchPlan,
     fetchTasks,

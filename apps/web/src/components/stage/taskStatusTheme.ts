@@ -4,7 +4,6 @@ import {
   PlayCircle,
   Clock,
   AlertTriangle,
-  Unplug,
   GitMerge,
   AlertCircle,
   Ban,
@@ -59,15 +58,6 @@ export const TASK_STATUS_CONFIG: Record<TaskStatus, TaskStatusMetadata> = {
     glow: 'shadow-[0_0_16px_rgba(249,115,22,0.3)] animate-pulse',
     badge: 'border-orange-500/40 bg-orange-500/15 text-orange-400 animate-pulse',
     icon: React.createElement(AlertTriangle, { className: 'h-3.5 w-3.5 text-orange-400' }),
-  },
-  SUSPENDED: {
-    label: 'Suspended',
-    border: 'border-amber-600/70',
-    bg: 'bg-amber-950/30',
-    text: 'text-amber-400',
-    glow: 'shadow-[0_0_14px_rgba(217,119,6,0.3)]',
-    badge: 'border-amber-600/50 bg-amber-600/15 text-amber-400 font-bold',
-    icon: React.createElement(Unplug, { className: 'h-3.5 w-3.5 text-amber-500' }),
   },
   AWAITING_MERGE: {
     label: 'Awaiting Merge',

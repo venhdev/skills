@@ -16,11 +16,9 @@ import (
 
 	"zenfd/internal/domain"
 	"zenfd/internal/gateway"
-	"zenfd/internal/harness"
 	zenfdmcp "zenfd/internal/mcp"
 	"zenfd/internal/parser"
 	"zenfd/internal/storage"
-	"zenfd/internal/supervisor"
 
 	"github.com/spf13/cobra"
 )
@@ -50,7 +48,7 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "0.1.0"
+const Version = "0.1.1"
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -58,8 +56,8 @@ func main() {
 		Version: Version,
 		Short:   "ZenForge Daemon (zenfd) - Background Agent Execution & Orchestration Daemon",
 		Long: `zenfd is the single-binary control plane for ZenForge.
-It manages POSIX process groups, PTY sessions, SQLite WAL state, and provides
-real-time SSE/WebSocket endpoints on port 1123.`,
+It owns the SQLite WAL tracking plane, exposes an MCP stdio surface for agents,
+and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 	}
 
 	rootCmd.PersistentFlags().StringVar(&defaultURL, "url", "http://127.0.0.1:1123", "Daemon control plane URL")
@@ -86,14 +84,8 @@ real-time SSE/WebSocket endpoints on port 1123.`,
 			defer db.Close()
 			store := storage.NewStore(db)
 
-			// 2. Supervisor & Harness Registry
-			scratchDir := filepath.Dir(dbPath)
-			super := supervisor.NewProcessSupervisor(filepath.Join(scratchDir, "logs"))
-			harnessReg := harness.DefaultRegistry()
-			super.SetHarnessRegistry(harnessReg)
-
-			// 3. Gateway
-			gw := gateway.NewServer(store, super)
+			// 2. Gateway (read-only viewer + public data API + SSE)
+			gw := gateway.NewServer(store)
 
 			// 4. Context & Signals
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -116,7 +108,7 @@ real-time SSE/WebSocket endpoints on port 1123.`,
 			case err := <-errChan:
 				return fmt.Errorf("gateway error: %w", err)
 			case <-ctx.Done():
-				fmt.Printf("\nShutdown requested. Draining active runs and flushing WAL...\n")
+				fmt.Printf("\nShutdown requested. Flushing WAL and closing the gateway...\n")
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				_ = gw.Shutdown(shutdownCtx)
@@ -126,7 +118,7 @@ real-time SSE/WebSocket endpoints on port 1123.`,
 		},
 	}
 
-	daemonCmd.Flags().IntVarP(&defaultPort, "port", "p", 1123, "Port to bind HTTP/SSE/WebSocket gateway")
+	daemonCmd.Flags().IntVarP(&defaultPort, "port", "p", 1123, "Port to bind the HTTP/SSE gateway")
 	daemonCmd.Flags().StringVarP(&defaultDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
 	rootCmd.AddCommand(daemonCmd)
 
@@ -247,9 +239,9 @@ real-time SSE/WebSocket endpoints on port 1123.`,
 			}
 
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-			fmt.Fprintf(w, "TASK ID\tPLAN\tSTATUS\tCOMMAND\n")
+			fmt.Fprintf(w, "TASK ID\tPLAN\tSTATUS\tHARNESS\n")
 			for _, t := range tasks {
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, t.PlanID, t.Status, t.SkillCommand)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.ID, t.PlanID, t.Status, t.Harness)
 			}
 			return w.Flush()
 		},
@@ -344,9 +336,10 @@ real-time SSE/WebSocket endpoints on port 1123.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
+			// The CLI is not the worker: it prints the packet and exits, so it
+			// never records a process identity on the task.
 			payload := map[string]any{
 				"worker_id": claimWorker,
-				"pid":       os.Getpid(),
 			}
 			bodyBytes, _ := json.Marshal(payload)
 			resp, err := http.Post(fmt.Sprintf("%s/api/v1/tasks/%s/claim", defaultURL, taskID), "application/json", bytes.NewReader(bodyBytes))
@@ -376,42 +369,13 @@ real-time SSE/WebSocket endpoints on port 1123.`,
 			return nil
 		},
 	}
-	taskClaimCmd.Flags().StringVarP(&claimWorker, "worker", "w", "", "Worker identifier (defaults to CLI PID)")
+	taskClaimCmd.Flags().StringVarP(&claimWorker, "worker", "w", "", "Worker identifier (defaults to a generated id)")
 	taskClaimCmd.Flags().BoolVar(&claimJSON, "json", false, "Output raw ContextPacket JSON")
 	taskCmd.AddCommand(taskClaimCmd)
 
 	rootCmd.AddCommand(taskCmd)
 
-	// 5. Run Kill Command
-	runKillCmd := &cobra.Command{
-		Use:   "kill <run-id>",
-		Short: "Immediately terminate an active agent run cascade using -PGID",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			runID := args[0]
-			resp, err := http.Post(fmt.Sprintf("%s/api/v1/runs/%s/kill", defaultURL, runID), "application/json", nil)
-			if err != nil {
-				return fmt.Errorf("failed to issue kill request: %w", err)
-			}
-			defer resp.Body.Close()
-
-			if resp.StatusCode != http.StatusOK {
-				return fmt.Errorf("kill failed with HTTP %d", resp.StatusCode)
-			}
-
-			fmt.Printf("✓ Process group for run %s terminated (-PGID cascade kill executed)\n", runID)
-			return nil
-		},
-	}
-
-	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "Inspect and control task runs",
-	}
-	runCmd.AddCommand(runKillCmd)
-	rootCmd.AddCommand(runCmd)
-
-	// 6. Status Command
+	// 5. Status Command
 	statusCmd := &cobra.Command{
 		Use:   "status",
 		Short: "Check the health and connection status of the ZenForge Daemon",

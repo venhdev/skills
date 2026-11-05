@@ -10,8 +10,8 @@ import {
   AlertTriangle,
   GitMerge,
   FolderGit2,
-  Unplug,
 } from 'lucide-react'
+import { LiveLog } from './LiveLog'
 import type { Task, TaskStatus } from '../../types/contracts'
 
 interface PlanTreeProps {
@@ -20,6 +20,7 @@ interface PlanTreeProps {
   onSelectTask: (task: Task, source?: 'sidebar') => void
   collapsed: boolean
   onToggleCollapse: () => void
+  logTick: number
 }
 
 export const PlanTree: React.FC<PlanTreeProps> = ({
@@ -28,6 +29,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
   onSelectTask,
   collapsed,
   onToggleCollapse,
+  logTick,
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
@@ -35,15 +37,16 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
       ALL: tasks.length,
-      RUNNING: 0,
+      PENDING: 0,
       READY: 0,
-      SUSPENDED: 0,
+      RUNNING: 0,
       AWAITING_REVIEW: 0,
       AWAITING_MERGE: 0,
       CONFLICT: 0,
+      BLOCKED: 0,
       COMPLETED: 0,
       FAILED: 0,
-      PENDING: 0,
+      CANCELLED: 0,
     }
     tasks.forEach((t) => {
       counts[t.status] = (counts[t.status] || 0) + 1
@@ -74,8 +77,6 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
         return <Clock className="h-3.5 w-3.5 text-amber-400" />
       case 'AWAITING_REVIEW':
         return <AlertTriangle className="h-3.5 w-3.5 text-orange-400" />
-      case 'SUSPENDED':
-        return <Unplug className="h-3.5 w-3.5 text-amber-500" />
       case 'AWAITING_MERGE':
         return <GitMerge className="h-3.5 w-3.5 text-cyan-400" />
       case 'CONFLICT':
@@ -153,7 +154,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
 
       {/* Filter Tabs */}
       <div className="flex gap-1 border-b border-zinc-800 p-1.5 text-[10px] font-medium overflow-x-auto">
-        {['ALL', 'RUNNING', 'READY', 'COMPLETED', 'FAILED'].map((st) => (
+        {['ALL', 'PENDING', 'READY', 'RUNNING', 'AWAITING_REVIEW', 'AWAITING_MERGE', 'CONFLICT', 'BLOCKED', 'FAILED', 'COMPLETED'].map((st) => (
           <button
             key={st}
             onClick={() => setStatusFilter(st)}
@@ -169,7 +170,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
       </div>
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+      <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-1">
         {filteredTasks.map((t) => {
           const isSelected = t.id === selectedTaskId
           return (
@@ -226,6 +227,7 @@ export const PlanTree: React.FC<PlanTreeProps> = ({
           </div>
         )}
       </div>
+      <LiveLog tick={logTick} />
     </aside>
   )
 }

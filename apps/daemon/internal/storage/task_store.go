@@ -32,8 +32,8 @@ func scanTask(s scanner) (*domain.Task, error) {
 		&t.ID, &t.PlanID, &t.Title, &t.Description, &depsJSON,
 		&priorityStr, &complexityStr, &riskStr, &skillsJSON, &toolsJSON,
 		&filesJSON, &criteriaJSON, &verifJSON,
-		&t.Harness, &t.SkillCommand, &t.WorktreePath, &statusStr, &t.ClaimedBy, &claimedAt,
-		&t.OrchestratorID, &t.WorkerRole, &t.PID, &t.OrchestratorPID, &t.Notes,
+		&t.Harness, &t.WorktreePath, &statusStr, &t.ClaimedBy, &claimedAt,
+		&t.OrchestratorID, &t.WorkerRole, &t.Notes,
 		&t.ReviewReason, &t.ReviewDetails, &optionsJSON, &t.ReviewResponse, &t.ResolvedBy,
 		&conflictJSON, &t.CreatedAt, &t.UpdatedAt,
 	)
@@ -59,7 +59,9 @@ func scanTask(s scanner) (*domain.Task, error) {
 		t.ClaimedAt = &claimedAt.Time
 	}
 
-	t.Dependencies = unmarshalStrings(depsJSON)
+	deps, depsCorrupt := decodeStringArray(depsJSON)
+	t.Dependencies = deps
+	t.DependenciesCorrupt = depsCorrupt
 	t.RequiredSkills = unmarshalStrings(skillsJSON)
 	t.RequiredTools = unmarshalStrings(toolsJSON)
 	t.TargetFiles = unmarshalStrings(filesJSON)
@@ -71,21 +73,34 @@ func scanTask(s scanner) (*domain.Task, error) {
 	return &t, nil
 }
 
-// unmarshalStrings decodes a JSON string array and normalizes nil to an empty
-// slice so JSON responses never emit null.
-func unmarshalStrings(raw string) []string {
+// decodeStringArray decodes a JSON string array and reports whether the stored
+// value was malformed. Dependencies are DAG-critical, so callers that act on
+// topology (claim, transitions) must refuse a corrupt value instead of silently
+// treating the task as dependency-free.
+func decodeStringArray(raw string) ([]string, bool) {
 	if raw == "" {
-		return []string{}
+		return []string{}, false
 	}
 	var out []string
-	if err := json.Unmarshal([]byte(raw), &out); err != nil || out == nil {
-		return []string{}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return []string{}, true
 	}
+	if out == nil {
+		return []string{}, false
+	}
+	return out, false
+}
+
+// unmarshalStrings decodes a JSON string array and normalizes nil to an empty
+// slice so JSON responses never emit null. It is used for presentation fields
+// where a corrupt value must not break reads.
+func unmarshalStrings(raw string) []string {
+	out, _ := decodeStringArray(raw)
 	return out
 }
 
-// taskArgs builds the upsert argument list in taskColumns order.
-func taskArgs(task *domain.Task, planID string) []any {
+// taskArgs builds the insert argument list in taskColumns order.
+func taskArgs(task *domain.Task) []any {
 	depsJSON, _ := json.Marshal(task.Dependencies)
 	skillsJSON, _ := json.Marshal(task.RequiredSkills)
 	toolsJSON, _ := json.Marshal(task.RequiredTools)
@@ -109,30 +124,25 @@ func taskArgs(task *domain.Task, planID string) []any {
 	}
 
 	return []any{
-		task.ID, planID, task.Title, task.Description, string(depsJSON),
+		task.ID, task.PlanID, task.Title, task.Description, string(depsJSON),
 		priority, complexity, risk, string(skillsJSON), string(toolsJSON),
 		string(filesJSON), string(criteriaJSON), string(verifJSON),
-		task.Harness, task.SkillCommand, task.WorktreePath, string(task.Status),
+		task.Harness, task.WorktreePath, string(task.Status),
 		task.ClaimedBy, task.ClaimedAt,
-		task.OrchestratorID, task.WorkerRole, task.PID, task.OrchestratorPID, task.Notes,
+		task.OrchestratorID, task.WorkerRole, task.Notes,
 		task.ReviewReason, task.ReviewDetails, string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
 		string(conflictJSON), task.CreatedAt, task.UpdatedAt,
 	}
 }
 
-func upsertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, defaultPlanID string, now time.Time) error {
-	if err := task.Validate(); err != nil {
-		return err
-	}
+// normalizeTaskForWrite applies the create-time defaults shared by both write
+// paths. Lifecycle fields are only defaulted for a new row; callers that patch
+// an existing row never reach this with a meaningful status.
+func normalizeTaskForWrite(task *domain.Task, now time.Time) {
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = now
 	}
 	task.UpdatedAt = now
-
-	planID := task.PlanID
-	if planID == "" {
-		planID = defaultPlanID
-	}
 
 	if task.Status == "" {
 		task.Status = domain.StatusPending
@@ -140,8 +150,41 @@ func upsertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, defaultPla
 			task.Status = domain.StatusReady
 		}
 	}
+}
 
-	if _, err := tx.ExecContext(ctx, taskUpsertQuery, taskArgs(task, planID)...); err != nil {
+// insertTaskTx creates a task. It never overwrites an existing row, so a
+// duplicate ID surfaces as ErrAlreadyExists instead of silently resetting the
+// task's lifecycle state.
+func insertTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
+	normalizeTaskForWrite(task, now)
+	if err := task.Validate(); err != nil {
+		return err
+	}
+
+	res, err := tx.ExecContext(ctx, taskInsertQuery, taskArgs(task)...)
+	if err != nil {
+		return fmt.Errorf("failed to insert task %s: %w", task.ID, err)
+	}
+	rows, err := affectedOrErr(res, "insert task", task.ID)
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("%w: task %s", ErrAlreadyExists, task.ID)
+	}
+	return nil
+}
+
+// patchTaskTx creates a task when it is missing and otherwise updates only the
+// authoring metadata. Status, claim, notes, review, and created_at stay under
+// the control of the task state machine.
+func patchTaskTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
+	normalizeTaskForWrite(task, now)
+	if err := task.Validate(); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, taskPatchQuery, taskArgs(task)...); err != nil {
 		return fmt.Errorf("failed to upsert task %s: %w", task.ID, err)
 	}
 	return nil
@@ -188,38 +231,6 @@ func (r *TaskRepository) GetTasksByPlan(ctx context.Context, planSlug string) ([
 	return tasks, rows.Err()
 }
 
-// GetReadyTasks returns tasks whose status is READY.
-func (r *TaskRepository) GetReadyTasks(ctx context.Context, limit int) ([]domain.Task, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-
-	query := fmt.Sprintf(`
-	SELECT %s
-	FROM tasks
-	WHERE status = 'READY'
-	ORDER BY created_at ASC
-	LIMIT ?
-	`, taskSelectCols)
-
-	rows, err := r.db.Query(ctx, query, limit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query ready tasks: %w", err)
-	}
-	defer rows.Close()
-
-	var tasks []domain.Task
-	for rows.Next() {
-		t, err := scanTask(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan ready task: %w", err)
-		}
-		tasks = append(tasks, *t)
-	}
-
-	return tasks, rows.Err()
-}
-
 // ListTasks returns tasks filtered optionally by status.
 func (r *TaskRepository) ListTasks(ctx context.Context, status domain.TaskStatus) ([]domain.Task, error) {
 	var query string
@@ -259,21 +270,121 @@ func (r *TaskRepository) ListTasks(ctx context.Context, status domain.TaskStatus
 	return tasks, rows.Err()
 }
 
-// CreateTask inserts a single task.
+// CreateTask inserts a single task. It fails with ErrAlreadyExists when the ID
+// is taken; callers that mean to edit authoring metadata must not use it.
 func (r *TaskRepository) CreateTask(ctx context.Context, task domain.Task) error {
+	return r.CreateTasks(ctx, []domain.Task{task})
+}
+
+// CreateTasks inserts a batch of tasks in one transaction. The batch is atomic:
+// a duplicate ID or an invalid graph rolls the whole call back, and forward
+// references inside the batch are validated after every row is written.
+func (r *TaskRepository) CreateTasks(ctx context.Context, tasks []domain.Task) error {
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	planID := tasks[0].PlanID
+	if planID == "" {
+		return fmt.Errorf("task plan_id cannot be empty")
+	}
+
 	now := time.Now().UTC()
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		return upsertTaskTx(ctx, tx, &task, task.PlanID, now)
+		for i := range tasks {
+			if tasks[i].PlanID == "" {
+				tasks[i].PlanID = planID
+			}
+			if tasks[i].PlanID != planID {
+				return fmt.Errorf("%w: batch spans plans %s and %s", ErrInvalidGraph, planID, tasks[i].PlanID)
+			}
+			if err := insertTaskTx(ctx, tx, &tasks[i], now); err != nil {
+				return err
+			}
+		}
+		if err := validateTaskGraphTx(ctx, tx, planID); err != nil {
+			return err
+		}
+		return resyncTaskStatuses(ctx, tx, planID, tasks, now)
 	})
+}
+
+// resyncTaskStatuses recomputes the initial status of newly inserted tasks from
+// the prerequisites that already exist in the plan. Without this, a task added
+// after its dependencies completed would stay PENDING forever.
+func resyncTaskStatuses(ctx context.Context, tx *sql.Tx, planID string, tasks []domain.Task, now time.Time) error {
+	statuses, err := loadPlanStatuses(ctx, tx, planID)
+	if err != nil {
+		return err
+	}
+
+	for _, task := range tasks {
+		current := statuses[task.ID]
+		// Explicit lifecycle states (RUNNING, terminal, BLOCKED) are preserved;
+		// only the derived initial states are recomputed.
+		if current != domain.StatusReady && current != domain.StatusPending {
+			continue
+		}
+		target := deriveStatus(statuses, task.Dependencies)
+		if current == target {
+			continue
+		}
+		if err := setTaskStatus(ctx, tx, task.ID, target, now); err != nil {
+			return err
+		}
+		statuses[task.ID] = target
+	}
+	return nil
 }
 
 // UpdateTaskDependencies updates the task dependency list.
 func (r *TaskRepository) UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error {
 	now := time.Now().UTC()
-	depsJSON, _ := json.Marshal(deps)
+	depsJSON, err := json.Marshal(deps)
+	if err != nil {
+		return fmt.Errorf("failed to encode dependencies for task %s: %w", taskID, err)
+	}
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, "UPDATE tasks SET dependencies = ?, updated_at = ? WHERE id = ?", string(depsJSON), now, taskID)
-		return err
+		res, err := tx.ExecContext(ctx, "UPDATE tasks SET dependencies = ?, updated_at = ? WHERE id = ?", string(depsJSON), now, taskID)
+		if err != nil {
+			return err
+		}
+		rows, err := affectedOrErr(res, "update task dependencies", taskID)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return fmt.Errorf("%w: task %s", ErrNotFound, taskID)
+		}
+
+		planID, err := planIDOf(ctx, tx, taskID)
+		if err != nil {
+			return err
+		}
+		if err := validateTaskGraphTx(ctx, tx, planID); err != nil {
+			return err
+		}
+
+		// Recompute this task's readiness after the edge change, but never move
+		// a task that is already executing or finished.
+		var status string
+		if err := tx.QueryRowContext(ctx, "SELECT status FROM tasks WHERE id = ?", taskID).Scan(&status); err != nil {
+			return err
+		}
+		if current := domain.TaskStatus(status); current == domain.StatusPending ||
+			current == domain.StatusBlocked || current == domain.StatusReady {
+			statuses, err := loadPlanStatuses(ctx, tx, planID)
+			if err != nil {
+				return err
+			}
+			target := deriveStatus(statuses, deps)
+			if target != current {
+				if err := setTaskStatus(ctx, tx, taskID, target, now); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	})
 }
 
@@ -281,8 +392,18 @@ func (r *TaskRepository) UpdateTaskDependencies(ctx context.Context, taskID stri
 func (r *TaskRepository) UpdateTaskNotes(ctx context.Context, taskID string, notes string) error {
 	now := time.Now().UTC()
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, "UPDATE tasks SET notes = ?, updated_at = ? WHERE id = ?", notes, now, taskID)
-		return err
+		res, err := tx.ExecContext(ctx, "UPDATE tasks SET notes = ?, updated_at = ? WHERE id = ?", notes, now, taskID)
+		if err != nil {
+			return err
+		}
+		rows, err := affectedOrErr(res, "update task notes", taskID)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			return fmt.Errorf("%w: task %s", ErrNotFound, taskID)
+		}
+		return nil
 	})
 }
 
@@ -293,11 +414,26 @@ func (r *TaskRepository) AppendTaskNotes(ctx context.Context, taskID string, not
 	}
 	now := time.Now().UTC()
 	return r.db.ExecImmediate(ctx, func(tx *sql.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-			UPDATE tasks
-			SET notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END, updated_at = ?
-			WHERE id = ?
-		`, note, note, now, taskID)
-		return err
+		return appendTaskNotesTx(ctx, tx, taskID, note, now)
 	})
+}
+
+// appendTaskNotesTx appends a note inside an existing transaction.
+func appendTaskNotesTx(ctx context.Context, tx *sql.Tx, taskID string, note string, now time.Time) error {
+	res, err := tx.ExecContext(ctx, `
+		UPDATE tasks
+		SET notes = CASE WHEN notes = '' THEN ? ELSE notes || '\n' || ? END, updated_at = ?
+		WHERE id = ?
+	`, note, note, now, taskID)
+	if err != nil {
+		return err
+	}
+	rows, err := affectedOrErr(res, "append task notes", taskID)
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("%w: task %s", ErrNotFound, taskID)
+	}
+	return nil
 }

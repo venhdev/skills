@@ -45,15 +45,12 @@ func TestTaskStore_RoundTripPreservesEveryColumn(t *testing.T) {
 		AcceptanceCriteria:   []string{"criterion-a", "criterion-b"},
 		VerificationCommands: []string{"command-a", "command-b"},
 		Harness:              "harness-sentinel",
-		SkillCommand:         "skill-command-sentinel",
 		WorktreePath:         "/worktree/sentinel",
 		Status:               domain.StatusRunning,
 		ClaimedBy:            "worker-sentinel",
 		ClaimedAt:            &claimedAt,
 		OrchestratorID:       "orchestrator-sentinel",
 		WorkerRole:           "CODER",
-		PID:                  4242,
-		OrchestratorPID:      4343,
 		Notes:                "notes-sentinel",
 		ReviewReason:         "review-reason-sentinel",
 		ReviewDetails:        "review-details-sentinel",
@@ -65,8 +62,13 @@ func TestTaskStore_RoundTripPreservesEveryColumn(t *testing.T) {
 	}
 
 	plan := domain.Plan{Slug: want.PlanID, Title: "Round Trip Plan", Status: "ACTIVE"}
-	if err := store.SavePlanWithTasks(ctx, plan, []domain.Task{want}); err != nil {
-		t.Fatalf("SavePlanWithTasks failed: %v", err)
+	if err := store.CreatePlan(ctx, plan); err != nil {
+		t.Fatalf("CreatePlan failed: %v", err)
+	}
+	// CreateTask allows forward references, so the sentinel dependency IDs do
+	// not need real rows; the point here is column round-trip fidelity.
+	if err := store.CreateTask(ctx, want); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
 	}
 
 	got, err := store.GetTask(ctx, want.ID)
@@ -113,9 +115,6 @@ func TestTaskStore_RoundTripPreservesEveryColumn(t *testing.T) {
 	if got.Harness != want.Harness {
 		t.Errorf("harness = %q, want %q", got.Harness, want.Harness)
 	}
-	if got.SkillCommand != want.SkillCommand {
-		t.Errorf("skill_command = %q, want %q", got.SkillCommand, want.SkillCommand)
-	}
 	if got.WorktreePath != want.WorktreePath {
 		t.Errorf("worktree_path = %q, want %q", got.WorktreePath, want.WorktreePath)
 	}
@@ -133,12 +132,6 @@ func TestTaskStore_RoundTripPreservesEveryColumn(t *testing.T) {
 	}
 	if got.WorkerRole != want.WorkerRole {
 		t.Errorf("worker_role = %q, want %q", got.WorkerRole, want.WorkerRole)
-	}
-	if got.PID != want.PID {
-		t.Errorf("pid = %d, want %d", got.PID, want.PID)
-	}
-	if got.OrchestratorPID != want.OrchestratorPID {
-		t.Errorf("orchestrator_pid = %d, want %d", got.OrchestratorPID, want.OrchestratorPID)
 	}
 	if got.Notes != want.Notes {
 		t.Errorf("notes = %q, want %q", got.Notes, want.Notes)

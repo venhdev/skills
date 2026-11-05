@@ -3,7 +3,6 @@ export type TaskStatus =
   | 'READY'
   | 'RUNNING'
   | 'AWAITING_REVIEW'
-  | 'SUSPENDED'
   | 'AWAITING_MERGE'
   | 'CONFLICT'
   | 'COMPLETED'
@@ -19,6 +18,7 @@ export interface Plan {
   slug: string
   title: string
   status: string
+  archived_at?: string
   created_at: string
   updated_at: string
 }
@@ -38,14 +38,11 @@ export interface Task {
   acceptance_criteria?: string[]
   verification_commands?: string[]
   harness: string
-  skill_command: string
   worktree_path?: string
   status: TaskStatus
   claimed_by?: string
   orchestrator_id?: string
   worker_role?: string
-  pid?: number
-  orchestrator_pid?: number
   claimed_at?: string
   notes?: string
   review_reason?: string
@@ -58,33 +55,10 @@ export interface Task {
   updated_at: string
 }
 
-export interface ContextPacket {
-  task: Task
-  target_files: string[]
-  skill_paths: string[]
-  input_attachments: Artifact[]
-  verification_commands: string[]
-  prompt_markdown: string
-}
-
-export interface Run {
-  id: string
-  task_id: string
-  pid: number
-  pgid: number
-  status: TaskStatus
-  log_path: string
-  exit_code: number
-  started_at: string
-  finished_at?: string
-  last_beat_at: string
-}
-
-export type ArtifactType = 'IMAGE' | 'LOG' | 'TEST_RESULT' | 'MARKDOWN' | 'DOC' | 'FILE'
+export type ArtifactType = 'IMAGE' | 'MARKDOWN' | 'DOC' | 'FILE'
 
 export interface Artifact {
   id: string
-  run_id?: string
   task_id: string
   role: 'INPUT' | 'OUTPUT'
   name: string
@@ -97,15 +71,10 @@ export interface Artifact {
 }
 
 export interface EventMessage {
-  id?: number
-  run_id?: string
+  id: number
+  plan_id?: string
   task_id?: string
   type: string
   payload: string
   timestamp: string
-}
-
-export interface WindowSize {
-  rows: number
-  cols: number
 }

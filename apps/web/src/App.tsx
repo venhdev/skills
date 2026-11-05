@@ -9,7 +9,9 @@ import { useZenfdAPI } from './hooks/useZenfdAPI'
 import type { Plan, Task, Artifact } from './types/contracts'
 
 export default function App() {
-  const [plans, setPlans] = useState<string[]>([])
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [showArchived, setShowArchived] = useState(false)
+  const [logTick, setLogTick] = useState(0)
   const [activePlan, setActivePlan] = useState<Plan | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [currentView, setCurrentView] = useState<CockpitView>('dag')
@@ -24,6 +26,7 @@ export default function App() {
   const activePlanRef = useRef<Plan | null>(null)
   activePlanRef.current = activePlan
   const refreshSeqRef = useRef(0)
+  const refreshTimerRef = useRef<number | null>(null)
 
   const {
     fetchPlans,
@@ -56,30 +59,30 @@ export default function App() {
     // recent generation is allowed to apply its results.
     const seq = ++refreshSeqRef.current
 
-    const taskList = await fetchTasks()
-    if (taskList === null) {
-      // Network error occurred. Retain current state safely without wiping.
-      return
-    }
-    if (seq !== refreshSeqRef.current) return
-
     // The plans endpoint is the source of truth for the selector and includes
     // plans that do not have any tasks yet. A failed request must not be
     // interpreted as "no plans".
-    const plansResult = await fetchPlans()
+    const plansResult = await fetchPlans(showArchived)
     if (!plansResult.ok) return
     if (seq !== refreshSeqRef.current) return
 
     const availablePlans = plansResult.data
     setPlans(availablePlans)
+    const availableSlugs = new Set(availablePlans.map((p) => p.slug))
 
-    // Determine target plan. When nothing is selected, prefer a plan that has
-    // tasks so the canvas is not empty on first load, while still exposing
-    // plans without tasks through the selector.
+    // Determine target plan. When nothing is selected, the global task list is
+    // needed once to prefer a plan that has tasks so the canvas is not empty on
+    // first load. Once a plan is active, skip that request entirely.
     let targetPlanSlug = activePlanRef.current?.slug
-    if (!targetPlanSlug || !availablePlans.includes(targetPlanSlug)) {
-      const planWithTasks = taskList.find((t) => availablePlans.includes(t.plan_id))?.plan_id
-      targetPlanSlug = planWithTasks || availablePlans[0]
+    if (!targetPlanSlug || !availableSlugs.has(targetPlanSlug)) {
+      const taskList = await fetchTasks()
+      if (taskList === null) {
+        // Network error occurred. Retain current state safely without wiping.
+        return
+      }
+      if (seq !== refreshSeqRef.current) return
+      targetPlanSlug = taskList.find((t) => availableSlugs.has(t.plan_id))?.plan_id
+      targetPlanSlug = targetPlanSlug || availablePlans[0]?.slug
     }
 
     if (!targetPlanSlug) {
@@ -118,13 +121,44 @@ export default function App() {
       }
       return planTasks[0]?.id || null
     })
-  }, [fetchTasks, fetchPlans, fetchPlan])
+  }, [fetchTasks, fetchPlans, fetchPlan, showArchived])
+
+  // SSE bursts (for example plan:created followed by state:changed) are
+  // collapsed into a single refresh instead of one request triple per event.
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current)
+    }
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null
+      void refreshData()
+    }, 120)
+  }, [refreshData])
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current)
+      }
+    }
+  }, [])
 
   // Initial fetch on mount
   useEffect(() => {
     refreshData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The archive toggle changes the server-side plan filter, so reload when it
+  // flips (skipping the initial render, which the mount effect already covers).
+  const archiveToggleReady = useRef(false)
+  useEffect(() => {
+    if (!archiveToggleReady.current) {
+      archiveToggleReady.current = true
+      return
+    }
+    void refreshData()
+  }, [showArchived, refreshData])
 
   // Safety-net reconcile when the tab regains focus. Primary updates arrive
   // through the daemon's state:changed event (which covers MCP/CLI writers).
@@ -147,19 +181,16 @@ export default function App() {
   // Real-time SSE updates
   const { connected } = useSSE({
     onEvent: (evt) => {
-      if (
-        evt.type === 'task:status' ||
-        evt.type === 'task:created' ||
-        evt.type === 'task:dependencies_updated' ||
-        evt.type === 'task:notes_updated' ||
-        evt.type === 'plan:created' ||
-        evt.type === 'plan:deleted' ||
-        evt.type === 'state:changed' ||
-        evt.type === 'run:killed'
-      ) {
-        refreshData()
+      setLogTick((value) => value + 1)
+      // The activity log covers every writer, so any event here is a concrete
+      // refresh signal. Artifact-only events do not change task state.
+      if (evt.type === 'artifact.added') {
+        refreshArtifacts(selectedTaskId)
+        return
       }
-      if (evt.type === 'task:artifact_added') {
+      scheduleRefresh()
+      // An external writer may also have attached media to the selected task.
+      if (evt.type === 'state.changed') {
         refreshArtifacts(selectedTaskId)
       }
     },
@@ -168,37 +199,48 @@ export default function App() {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null
   const activeWorkerCount = tasks.filter((t) => t.status === 'RUNNING').length
 
-  const handleSelectPlan = async (slug: string) => {
-    const result = await fetchPlan(slug)
-    if (!result.ok) return
-    const data = result.data
-    setActivePlan(data.plan)
-    setTasks(data.tasks || [])
-    const firstTask = data.tasks?.[0]
-    if (firstTask) {
-      setSelectedTaskId(firstTask.id)
-      setFocusTarget({ id: firstTask.id, timestamp: Date.now() })
-    } else {
-      setSelectedTaskId(null)
-    }
-  }
+  const handleSelectPlan = useCallback(
+    async (slug: string) => {
+      // Invalidate any in-flight refresh so it cannot overwrite this selection.
+      refreshSeqRef.current++
+      const result = await fetchPlan(slug)
+      if (!result.ok) return
+      const data = result.data
+      setActivePlan(data.plan)
+      setTasks(data.tasks || [])
+      const firstTask = data.tasks?.[0]
+      if (firstTask) {
+        setSelectedTaskId(firstTask.id)
+        setFocusTarget({ id: firstTask.id, timestamp: Date.now() })
+      } else {
+        setSelectedTaskId(null)
+      }
+    },
+    [fetchPlan]
+  )
 
-  const handleSelectTask = (task: Task, source: 'sidebar' | 'canvas' | 'dock' = 'sidebar') => {
-    setSelectedTaskId(task.id)
-    if (source !== 'canvas') {
-      setFocusTarget({ id: task.id, timestamp: Date.now() })
-    }
-  }
+  const handleSelectTask = useCallback(
+    (task: Task, source: 'sidebar' | 'canvas' | 'dock' = 'sidebar') => {
+      setSelectedTaskId(task.id)
+      if (source !== 'canvas') {
+        setFocusTarget({ id: task.id, timestamp: Date.now() })
+      }
+    },
+    []
+  )
 
-  const handleSelectTaskId = (taskId: string) => {
-    const t = tasks.find((x) => x.id === taskId)
-    if (t) {
-      handleSelectTask(t, 'dock')
-    } else {
-      setSelectedTaskId(taskId)
-      setFocusTarget({ id: taskId, timestamp: Date.now() })
-    }
-  }
+  const handleSelectTaskId = useCallback(
+    (taskId: string) => {
+      const t = tasks.find((x) => x.id === taskId)
+      if (t) {
+        handleSelectTask(t, 'dock')
+      } else {
+        setSelectedTaskId(taskId)
+        setFocusTarget({ id: taskId, timestamp: Date.now() })
+      }
+    },
+    [tasks, handleSelectTask]
+  )
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100">
@@ -208,6 +250,8 @@ export default function App() {
         activePlan={activePlan}
         plans={plans}
         onSelectPlan={handleSelectPlan}
+        showArchived={showArchived}
+        onToggleArchived={() => setShowArchived((value) => !value)}
         activeWorkers={activeWorkerCount}
         currentView={currentView}
         onChangeView={(v) => setCurrentView(v)}
@@ -223,6 +267,7 @@ export default function App() {
             onSelectTask={(task) => handleSelectTask(task, 'sidebar')}
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+            logTick={logTick}
           />
 
           {/* Center: Topological DAG Flow Canvas (read-only view) */}
@@ -233,7 +278,7 @@ export default function App() {
             focusTarget={focusTarget}
           />
 
-          {/* Right: Read-only Inspection Dock (spec, artifacts & logs) */}
+          {/* Right: Read-only Inspection Dock (spec & artifacts) */}
           <InspectionDock
             selectedTask={selectedTask}
             allTasks={tasks}

@@ -63,7 +63,7 @@ func TestParseMarkdownPlanFile_SyntheticDossier(t *testing.T) {
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **P-00** | Walking Skeleton Plumbing Proof | - | **VERIFIED** | main | go test ./... |
 | **P-01** | Domain Core, Entities & SQLite Engine | P-00 | **VERIFIED** | main | go test ./... |
-| **P-02** | Process Group Supervisor & Unix PTY | P-01 | **VERIFIED** | main | go test ./... |
+| **P-02** | Batch Task Ingestion & Graph Validation | P-01 | **VERIFIED** | main | go test ./... |
 | **P-03** | DAG Dependency Scheduler | P-01, P-02 | **VERIFIED** | main | go test ./... |
 | **P-04** | Go 1.22+ Standard Gateway & SSE | P-01, P-03 | **VERIFIED** | main | go test ./... |
 `

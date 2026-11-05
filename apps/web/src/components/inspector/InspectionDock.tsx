@@ -95,10 +95,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
 
         {(activePane === 'split' || activePane === 'artifacts') && (
           <div className={activePane === 'split' ? 'h-1/2 overflow-hidden' : 'h-full overflow-hidden'}>
-            <ArtifactLightbox
-              taskId={selectedTask?.id}
-              artifacts={artifacts}
-            />
+            <ArtifactLightbox artifacts={artifacts} />
           </div>
         )}
       </div>

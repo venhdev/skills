@@ -194,8 +194,6 @@ func buildHeaderMap(headers []string) map[string]int {
 			m["deps"] = i
 		case strings.Contains(clean, "harness"):
 			m["harness"] = i
-		case strings.Contains(clean, "command") || strings.Contains(clean, "skill"):
-			m["cmd"] = i
 		}
 	}
 	return m
@@ -250,13 +248,6 @@ func parseTaskRow(parts []string, colMap map[string]int, planID string) domain.T
 		}
 	}
 
-	cmd := fmt.Sprintf("/forge %s", rawID)
-	if cmdIdx, ok := colMap["cmd"]; ok && cmdIdx < len(parts) {
-		if c := CleanMarkdownToken(parts[cmdIdx]); c != "" {
-			cmd = c
-		}
-	}
-
 	now := time.Now().UTC()
 	return domain.Task{
 		ID:           rawID,
@@ -264,7 +255,6 @@ func parseTaskRow(parts []string, colMap map[string]int, planID string) domain.T
 		Title:        title,
 		Dependencies: deps,
 		Harness:      harness,
-		SkillCommand: cmd,
 		Status:       status,
 		CreatedAt:    now,
 		UpdatedAt:    now,

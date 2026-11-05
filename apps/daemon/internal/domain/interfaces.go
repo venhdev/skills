@@ -2,38 +2,7 @@ package domain
 
 import (
 	"context"
-	"io"
-	"time"
 )
-
-// WindowSize conveys terminal dimensions for interactive PTY resizing.
-type WindowSize struct {
-	Rows uint16 `json:"rows"`
-	Cols uint16 `json:"cols"`
-}
-
-// Supervisor manages OS process lifecycles and PTY allocation with zero orphan leaks.
-type Supervisor interface {
-	// SpawnHeadless launches an agent runner using stdio pipes (non-interactive).
-	SpawnHeadless(ctx context.Context, task Task, envOverrides map[string]string) (*Run, error)
-
-	// SpawnPTY allocates a pseudo-terminal and launches an interactive agent runner.
-	SpawnPTY(ctx context.Context, task Task, win WindowSize, envOverrides map[string]string) (*Run, io.ReadWriteCloser, error)
-
-	// Kill terminates the entire process group using -PGID (SIGTERM then SIGKILL escalation).
-	Kill(runID string, gracePeriod time.Duration) error
-
-	// ResizePTY sends a SIGWINCH window size update to the interactive PTY.
-	ResizePTY(runID string, win WindowSize) error
-
-	// GetRun retrieves the current run state snapshot.
-	GetRun(runID string) (*Run, error)
-}
-
-// EventBroadcaster distributes real-time events to connected clients and event stores.
-type EventBroadcaster interface {
-	Broadcast(evt EventMessage)
-}
 
 // PlanRepository persists plans and the plan/task bundles written by authoring
 // tools.
@@ -47,11 +16,15 @@ type PlanRepository interface {
 	// GetPlan retrieves a plan by slug.
 	GetPlan(ctx context.Context, slug string) (*Plan, error)
 
-	// ListPlans returns every plan registered in the plans table, including
-	// plans that do not have any tasks yet.
-	ListPlans(ctx context.Context) ([]Plan, error)
+	// ListPlans returns plans ordered by archive state and slug. Archived plans
+	// are included only when includeArchived is true.
+	ListPlans(ctx context.Context, includeArchived bool) ([]Plan, error)
 
-	// DeletePlan deletes a plan and cascades to its tasks, runs, and artifacts.
+	// ArchivePlan sets or clears archived_at. Archived plans stay readable but
+	// are hidden from the default selector and DAG.
+	ArchivePlan(ctx context.Context, slug string, archived bool) error
+
+	// DeletePlan deletes a plan and cascades to its tasks and artifacts.
 	DeletePlan(ctx context.Context, slug string) error
 }
 
@@ -66,13 +39,11 @@ type TaskRepository interface {
 	// ListTasks returns tasks filtered optionally by status.
 	ListTasks(ctx context.Context, status TaskStatus) ([]Task, error)
 
-	// GetReadyTasks returns tasks currently in READY status, oldest first.
-	// It does not re-verify dependency state; readiness is owned by the
-	// lifecycle transition that unlocks dependents.
-	GetReadyTasks(ctx context.Context, limit int) ([]Task, error)
-
-	// CreateTask inserts a single task.
+	// CreateTask inserts a single task and fails when the ID is taken.
 	CreateTask(ctx context.Context, task Task) error
+
+	// CreateTasks inserts a batch atomically and validates the plan graph once.
+	CreateTasks(ctx context.Context, tasks []Task) error
 
 	// UpdateTaskDependencies updates the task dependency list.
 	UpdateTaskDependencies(ctx context.Context, taskID string, deps []string) error
@@ -90,14 +61,20 @@ type TaskLifecycle interface {
 	// UpdateTaskStatus atomically transitions task status from an expected current state.
 	UpdateTaskStatus(ctx context.Context, taskID string, from TaskStatus, to TaskStatus) error
 
-	// ClaimTask atomically verifies readiness, sets claim lock (workerID & pid), transitions to RUNNING, and returns ContextPacket.
-	ClaimTask(ctx context.Context, taskID string, workerID string, pid int) (*ContextPacket, error)
+	// UpdateTaskStatusWithNote applies a transition and appends an audit note in
+	// the same transaction.
+	UpdateTaskStatusWithNote(ctx context.Context, taskID string, from TaskStatus, to TaskStatus, note string) error
+
+	// ClaimTask atomically verifies readiness, sets the claim lock, transitions to RUNNING, and returns the ContextPacket.
+	ClaimTask(ctx context.Context, taskID string, workerID string) (*ContextPacket, error)
 
 	// ClaimTaskWithMeta atomically claims a ready task with full metadata.
-	ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string, pid int, orchestratorPID int) (*ContextPacket, error)
+	ClaimTaskWithMeta(ctx context.Context, taskID string, workerID string, orchestratorID string, workerRole string) (*ContextPacket, error)
 
-	// EvictTask evicts a running or suspended task, resetting it to READY or cancelling it.
-	EvictTask(ctx context.Context, taskID string, reason string, action string) error
+	// EvictTask evicts a running task, resetting it to READY (or
+	// BLOCKED when prerequisites are unmet) or cancelling it. It returns the
+	// status actually written.
+	EvictTask(ctx context.Context, taskID string, reason string, action string) (TaskStatus, error)
 
 	// RequestReview pauses execution, records review reasons/options, and transitions task to AWAITING_REVIEW.
 	RequestReview(ctx context.Context, taskID string, reason string, details string, options []string) error
@@ -127,10 +104,11 @@ type ArtifactReader interface {
 	GetArtifactsByTask(ctx context.Context, taskID string, role string) ([]Artifact, error)
 }
 
-// EventLog persists audit events.
-type EventLog interface {
-	// AppendEvent records an audit event in the database.
-	AppendEvent(ctx context.Context, evt EventMessage) error
+// EventRepository reads the trigger-produced activity log.
+type EventRepository interface {
+	// ListEvents returns up to limit events newer than afterID in ascending
+	// order. When afterID is zero it returns the most recent window.
+	ListEvents(ctx context.Context, afterID int64, limit int) ([]EventMessage, error)
 }
 
 // StateFingerprinter summarizes plans/tasks state so callers can detect writes
