@@ -24,7 +24,7 @@ sessions and manages WORKER definitions.
 
 ## Prerequisites
 
-- Read `zenfd-tools` for exact `agents` and `sessions` payloads.
+- Read `zenf-tools` for exact `agents` and `sessions` payloads.
 - Decide the persona: `EXPLORER` (investigate), `CODER` (implement), `REVIEWER`
   (verify), or `CUSTOM`.
 - Decide the mode: `HEADLESS` (runner executes without a human at the terminal)
@@ -125,7 +125,7 @@ sessions and manages WORKER definitions.
 
 ## Handoffs
 
-- Need exact definition or session payloads → (via /zenfd-tools).
+- Need exact definition or session payloads → (via /zenf-tools).
 - Need to place the agent on a plan/task DAG → (via /zenf-project).
 - Need to attach a persona charter or operating guide → (via /zenf-docs).
 - Need to design the runner or dispatch loop → (via /architect-decision).

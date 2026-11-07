@@ -788,7 +788,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 				}
 				fmt.Printf(" • %-14s : %s (%s)\n", cs.Client, badge, cs.ConfigPath)
 			}
-			fmt.Println("\n💡 To configure an AI client: run 'zenf mcp setup --client <name>'")
+			fmt.Println("\n💡 To configure an AI client: run 'zenf mcp setup <client>'")
 			fmt.Println("────────────────────────────────────────────────────────────────────────")
 			return nil
 		},
@@ -843,8 +843,8 @@ When invoked in an interactive terminal, it displays the integration status and 
 				}
 
 				fmt.Println("\nAVAILABLE MCP ACTIONS:")
-				fmt.Println("  zenf mcp setup --client <name>   Configure MCP server for AI client (agy, claude, cursor, opencode)")
-				fmt.Println("  zenf mcp check --client <name>   Audit detailed client configuration and binary validity")
+				fmt.Println("  zenf mcp setup <client>          Configure MCP server for AI client (agy, claude, cursor, opencode)")
+				fmt.Println("  zenf mcp check [client]          Audit detailed client configuration and binary validity")
 				fmt.Println("  zenf mcp --stdio                 Force start JSON-RPC stdio server (for manual piping)")
 				fmt.Println("\nℹ When an AI client spawns 'zenf mcp', stdio JSON-RPC runs automatically.")
 				fmt.Println("────────────────────────────────────────────────────────────────────────")
@@ -879,10 +879,17 @@ When invoked in an interactive terminal, it displays the integration status and 
 	var checkConfig string
 	var checkJSON bool
 	mcpCheckCmd := &cobra.Command{
-		Use:   "check",
+		Use:   "check [client]",
 		Short: "Audit client MCP configuration for zenf",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			res, err := zenfmcp.CheckMCP(zenfmcp.ClientType(checkClient), checkConfig)
+			clientName := checkClient
+			if len(args) > 0 {
+				clientName = args[0]
+			}
+			if clientName == "" {
+				clientName = "agy"
+			}
+			res, err := zenfmcp.CheckMCP(zenfmcp.ClientType(clientName), checkConfig)
 			if err != nil {
 				return fmt.Errorf("mcp check failed: %w", err)
 			}
@@ -911,11 +918,33 @@ When invoked in an interactive terminal, it displays the integration status and 
 	var setupForce bool
 	var setupDryRun bool
 	mcpSetupCmd := &cobra.Command{
-		Use:   "setup",
-		Short: "Configure zenf MCP server in client configuration (default: agy)",
+		Use:   "setup [client]",
+		Short: "Configure zenf MCP server in client configuration",
+		Long: `The 'zenf mcp setup' command configures the zenf MCP server in an AI client's configuration.
+
+Supported AI Clients:
+  agy         Antigravity / Gemini CLI (~/.gemini/config/mcp_config.json)
+  claude      Claude Code (~/.claude.json)
+  cursor      Cursor IDE (~/.cursor/mcp.json)
+  opencode    OpenCode interpreter (~/.config/opencode/opencode.json)
+
+Usage Examples:
+  zenf mcp setup agy
+  zenf mcp setup claude
+  zenf mcp setup cursor
+  zenf mcp setup opencode
+  zenf mcp setup --client agy --dry-run
+  zenf mcp setup -c claude --force`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			clientName := setupClient
+			if clientName == "" && len(args) > 0 {
+				clientName = args[0]
+			}
+			if clientName == "" {
+				return cmd.Help()
+			}
 			res, err := zenfmcp.SetupMCP(zenfmcp.SetupOptions{
-				Client:     zenfmcp.ClientType(setupClient),
+				Client:     zenfmcp.ClientType(clientName),
 				ConfigPath: setupConfig,
 				DBPath:     setupDB,
 				BinaryPath: setupBinary,
@@ -946,7 +975,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 			return nil
 		},
 	}
-	mcpSetupCmd.Flags().StringVarP(&setupClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor, opencode")
+	mcpSetupCmd.Flags().StringVarP(&setupClient, "client", "c", "", "Target AI client: agy, claude, cursor, opencode")
 	mcpSetupCmd.Flags().StringVar(&setupConfig, "config", "", "Override client config file path")
 	mcpSetupCmd.Flags().StringVarP(&setupDB, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
 	mcpSetupCmd.Flags().StringVarP(&setupBinary, "binary", "b", "", "Path to zenf binary (auto-detected if omitted)")

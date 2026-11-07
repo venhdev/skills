@@ -103,7 +103,7 @@ a searchable snapshot.
 
 ## Handoffs
 
-- Need exact registry payloads or schema fields → (via /zenfd-tools).
+- Need exact registry payloads or schema fields → (via /zenf-tools).
 - Need to reconcile conflicting authorities → (via /ssot).
 - Need to attach the document as task input context → (via /zenf-project).
 - Need to bind the document to a worker persona → (via /zenf-agent).

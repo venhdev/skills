@@ -71,7 +71,7 @@ func DefaultConfigFile(client ClientType) (string, error) {
 		return "", fmt.Errorf("unable to resolve user home dir: %w", err)
 	}
 	switch client {
-	case ClientAgy, "":
+	case ClientAgy:
 		return filepath.Join(home, ".gemini", "config", "mcp_config.json"), nil
 	case ClientClaude:
 		return filepath.Join(home, ".claude.json"), nil
@@ -80,7 +80,7 @@ func DefaultConfigFile(client ClientType) (string, error) {
 	case ClientOpenCode:
 		return filepath.Join(home, ".config", "opencode", "opencode.json"), nil
 	default:
-		return "", fmt.Errorf("unsupported client: %s (supported: agy, claude, cursor, opencode)", client)
+		return "", fmt.Errorf("unsupported client: %q (supported: agy, claude, cursor, opencode)", client)
 	}
 }
 
@@ -139,6 +139,13 @@ func ResolveBinaryPath(override string) (string, error) {
 
 // CheckMCP audits the client's MCP configuration for zenf.
 func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error) {
+	switch client {
+	case ClientAgy, ClientClaude, ClientCursor, ClientOpenCode:
+		// supported
+	default:
+		return nil, fmt.Errorf("unsupported client: %q (supported: agy, claude, cursor, opencode)", client)
+	}
+
 	cfgPath := configPathOverride
 	if cfgPath == "" {
 		var err error
@@ -197,7 +204,11 @@ func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error
 
 	zenfRaw, ok := servers["zenf"]
 	if !ok {
-		res.StatusMessage = fmt.Sprintf("Server 'zenf' is not configured in %s", serversKey)
+		if _, hasLegacy := servers["zenfd"]; hasLegacy {
+			res.StatusMessage = fmt.Sprintf("Server 'zenf' is not configured in %s (found deprecated 'zenfd'; run 'zenf mcp setup %s' to migrate)", serversKey, client)
+		} else {
+			res.StatusMessage = fmt.Sprintf("Server 'zenf' is not configured in %s", serversKey)
+		}
 		return res, nil
 	}
 
@@ -229,8 +240,11 @@ func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error
 
 // SetupMCP injects or updates the zenf MCP server entry in the target client's configuration file.
 func SetupMCP(opts SetupOptions) (*SetupResult, error) {
-	if opts.Client == "" {
-		opts.Client = ClientAgy
+	switch opts.Client {
+	case ClientAgy, ClientClaude, ClientCursor, ClientOpenCode:
+		// supported
+	default:
+		return nil, fmt.Errorf("unsupported client: %q (supported: agy, claude, cursor, opencode)", opts.Client)
 	}
 	cfgPath := opts.ConfigPath
 	if cfgPath == "" {

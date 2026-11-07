@@ -252,3 +252,38 @@ func TestMCPSetup_PurgesLegacyZenfdEntry(t *testing.T) {
 	assert.NotContains(t, servers, "zenfd")
 	assert.Contains(t, servers, "zenf")
 }
+
+func TestMCPCheck_DetectsLegacyZenfdWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "mcp_config.json")
+
+	initialJSON := `{
+  "mcpServers": {
+    "zenfd": {
+      "command": "/old/path/zenf",
+      "args": ["mcp"]
+    }
+  }
+}`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(initialJSON), 0644))
+
+	res, err := CheckMCP(ClientAgy, cfgPath)
+	require.NoError(t, err)
+	assert.False(t, res.Configured)
+	assert.Contains(t, res.StatusMessage, "found deprecated 'zenfd'")
+	assert.Contains(t, res.StatusMessage, "run 'zenf mcp setup agy' to migrate")
+}
+
+func TestMCPSetup_RejectsUnsupportedOrEmptyClient(t *testing.T) {
+	_, err := SetupMCP(SetupOptions{Client: ""})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported client")
+
+	_, err = SetupMCP(SetupOptions{Client: "vscode"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported client")
+
+	_, err = CheckMCP("", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported client")
+}

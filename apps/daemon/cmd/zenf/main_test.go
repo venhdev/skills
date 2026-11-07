@@ -153,3 +153,41 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 
 	t.Log("✓ All Cobra CLI commands (status, plan push, plan get, task list, task start/done/update) verified successfully against running daemon")
 }
+
+func TestCLI_MCPSetup_NoParamShowsHelp(t *testing.T) {
+	tempDir := t.TempDir()
+	binPath := filepath.Join(tempDir, "zenf")
+
+	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to build zenf: %v, out: %s", err, string(out))
+	}
+
+	// 1. Run `zenf mcp setup` with no parameters -> must print help and not fail
+	setupCmd := exec.Command(binPath, "mcp", "setup")
+	out, err := setupCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("expected zenf mcp setup with no params to succeed (show help), got error: %v, output: %s", err, string(out))
+	}
+
+	outStr := string(out)
+	if !strings.Contains(outStr, "The 'zenf mcp setup' command configures") {
+		t.Fatalf("expected help description in output, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "Supported AI Clients:") {
+		t.Fatalf("expected Supported AI Clients in help output, got: %s", outStr)
+	}
+	if !strings.Contains(outStr, "zenf mcp setup agy") {
+		t.Fatalf("expected usage example in help output, got: %s", outStr)
+	}
+
+	// 2. Run `zenf mcp setup invalid-client` -> must return error
+	invalidCmd := exec.Command(binPath, "mcp", "setup", "invalid-client")
+	out, err = invalidCmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected error for invalid client, got success")
+	}
+	if !strings.Contains(string(out), "unsupported client") {
+		t.Fatalf("expected unsupported client error message, got: %s", string(out))
+	}
+}

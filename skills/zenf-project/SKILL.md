@@ -9,18 +9,18 @@ disable-model-invocation: true
 Use this card when the caller wants to register a project, open a plan, author a
 task DAG, decide whether work is a plan task / project task / orphan, or inspect
 the execution board. It routes execution writes to the owning surface and never
-duplicates `zenfd-tools` lifecycle rules.
+duplicates `zenf-tools` lifecycle rules.
 
 ## Prerequisites
 
 - Confirm the project root exists and is a Git repository when the project owns
   code. A project can also be documentation-only.
-- Read `zenfd-tools` when a mutation needs the exact task lifecycle or payload.
+- Read `zenf-tools` when a mutation needs the exact task lifecycle or payload.
 - Choose one write surface:
   - **MCP** (preferred when connected): `projects`, `plans`, `tasks`, `search`.
   - **HTTP** (MCP unavailable): `POST /api/v1/projects`, `POST /api/v1/plans`,
     `POST /api/v1/tasks`.
-  - **CLI**: `zenfd plan push <file.md> --project <slug>` for Markdown plans.
+  - **CLI**: `zenf plan push <file.md> --project <slug>` for Markdown plans.
 - If the daemon is unreachable and the caller only needs a plan document, write
   the Markdown file and stop; do not invent a database state.
 
@@ -112,8 +112,8 @@ Return a compact project brief:
 
 ## Handoffs
 
-- Need exact tool payloads or lifecycle transitions → (via /zenfd-tools).
+- Need exact tool payloads or lifecycle transitions → (via /zenf-tools).
 - Need to register supporting documents → (via /zenf-docs).
 - Need worker personas, schedules, or session tracking → (via /zenf-agent).
 - Need to decompose an accepted design into slices → (via /split-tasks).
-- Need to persist an external tracker instead of zenfd → (via /track-tasks).
+- Need to persist an external tracker instead of zenf → (via /track-tasks).

@@ -1,9 +1,9 @@
 ---
-name: zenfd-tools
+name: zenf-tools
 description: "Use when working with ZenForge daemon MCP tools: projects, plans, batched tasks with inline media, SSOT documents, agent definitions, observed sessions, cross-entity search, claim, review, and mixed transitions."
 ---
 
-# zenfd-tools — ZenForge Tracking Plane
+# zenf-tools — ZenForge Tracking Plane
 
 Use this card when work is governed by `zenf`. The daemon is a **tracking
 plane**, not a process runtime: it stores projects, plans, tasks, document
@@ -78,33 +78,51 @@ Recovery is `RESET` followed by a fresh claim.
 Clients namespace tools by server: OpenCode shows `zenf.plans`, `zenf.tasks`,
 and so on; Claude Code shows `mcp__zenf__plans`.
 
-### `tasks[]` item shape
+### `tasks[]` item shape & Gold Standard Context Mandate
 
-Only `id` and `title` are required per item. Everything else is optional:
+- **Engine Minimum**: The SQLite database engine strictly requires only `id` and `title` to insert a task record.
+- **Autonomous Context Mandate (Anti-Shallow Rule)**: For autonomous workers to execute without human intervention or ambiguous drift, the Main Agent **MUST** provide rich execution context for every task:
+  - `description`: Scope, rationale, boundaries, and expected behavior.
+  - `target_files`: Explicit relative file paths to create or modify.
+  - `acceptance_criteria`: Measurable conditions of satisfaction (DoD).
+  - `verification_commands`: Exact test/lint commands for the worker to prove completion.
+  - `skills`: Required skills worker should activate (e.g. `["tdd"]`).
+  - `docs`: SSOT documentation keys registered in `docs` registry.
+  - `phases`: Intra-task micro-phases for non-trivial tasks (checkpointed via `transition_task(action="CHECKPOINT")`).
+  - `media`: Visual assets, wireframes, or specs (`[{"file_path": "..."}]`).
 
 ```json
 {
   "id": "P-02",
-  "title": "Implement claim preflight",
-  "description": "Move packet assembly outside the write transaction.",
+  "title": "Implement claim preflight and context packet decouple",
+  "description": "Move packet assembly outside the write transaction to prevent SQLite lock contention.",
   "dependencies": ["P-01"],
-  "target_files": ["apps/daemon/internal/storage/task_lifecycle.go"],
+  "target_files": [
+    "apps/daemon/internal/storage/task_lifecycle.go",
+    "apps/daemon/internal/storage/task_lifecycle_test.go"
+  ],
   "skills": ["tdd"],
-  "docs": ["ARCH"],
-  "acceptance_criteria": ["claim no longer holds the write lock"],
-  "verification_commands": ["go test ./..."],
+  "docs": ["ARCH-DECISION-01"],
+  "acceptance_criteria": [
+    "ClaimTask builds ContextPacket outside write lock",
+    "No race conditions during concurrent worker claims",
+    "All unit tests in task_lifecycle_test.go pass"
+  ],
+  "verification_commands": [
+    "go test -v -race ./apps/daemon/internal/storage/..."
+  ],
   "priority": "P1",
   "complexity": "MEDIUM",
   "risk_level": "LOW",
   "agent_slug": "coder-alpha",
   "harness": "orchestrator",
   "worktree_path": "/path/to/worktree",
-  "media": [{ "file_path": "/abs/design.png", "name": "Checkout redesign" }],
+  "media": [{ "file_path": "/abs/design.png", "name": "Architecture Topology" }],
   "phases": [
-    { "id": "analysis", "title": "Analyze call sites" },
-    { "id": "red_test", "title": "Write failing tests" },
-    { "id": "green_impl", "title": "Implement migration" },
-    { "id": "verify", "title": "Run regression test suite" }
+    { "id": "analysis", "title": "Analyze call sites and lock boundaries" },
+    { "id": "red_test", "title": "Write failing concurrency tests" },
+    { "id": "green_impl", "title": "Decouple builder from write transaction" },
+    { "id": "verify", "title": "Run regression and race detection suite" }
   ],
   "current_phase": "analysis"
 }
@@ -129,9 +147,33 @@ automatically.
   "slug": "auth-refactor",
   "title": "Auth refactor",
   "tasks": [
-    { "id": "P-01", "title": "Freeze session schema", "media": [{ "file_path": "/abs/spec.pdf" }] },
-    { "id": "P-02", "title": "Migrate call sites", "dependencies": ["P-01"] },
-    { "id": "P-03", "title": "Delete legacy path", "dependencies": ["P-02"] }
+    {
+      "id": "P-01",
+      "title": "Freeze session schema",
+      "description": "Establish baseline session types and immutable DTO contracts.",
+      "target_files": ["internal/domain/session.go"],
+      "acceptance_criteria": ["Session struct defines all token fields"],
+      "verification_commands": ["go test ./internal/domain/..."],
+      "media": [{ "file_path": "/abs/spec.pdf", "name": "Session Spec" }]
+    },
+    {
+      "id": "P-02",
+      "title": "Migrate call sites",
+      "description": "Switch all auth handlers to the new session contract.",
+      "dependencies": ["P-01"],
+      "target_files": ["internal/gateway/auth_handlers.go"],
+      "acceptance_criteria": ["All auth handlers consume domain.Session"],
+      "verification_commands": ["go test ./internal/gateway/..."]
+    },
+    {
+      "id": "P-03",
+      "title": "Delete legacy path",
+      "description": "Prune obsolete authentication shims and flags.",
+      "dependencies": ["P-02"],
+      "target_files": ["internal/gateway/legacy_auth.go"],
+      "acceptance_criteria": ["Legacy auth file removed without compile errors"],
+      "verification_commands": ["go test ./..."]
+    }
   ]
 }
 ```

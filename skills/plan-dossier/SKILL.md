@@ -61,6 +61,7 @@ PLAN | slug: <slug> | rev: <v1.N> | status: <STATUS> | active: <phase-id> | veri
 ### Routing
 
 - Complex phase scope needs vertical task decomposition → (via /split-tasks).
+- Living plan staged or updated; persist or register full task DAG to ZenForge tracking plane → (via /zenf-tools).
 - Claimed phase ready for immediate in-turn implementation → (via /forge).
 - Phase drifted requiring architectural redesign → (via /architect-decision) or clarification → (via /clarify).
 - All phases VERIFIED; promote durable specifications to documentation authority → (via /ssot).
