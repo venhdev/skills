@@ -9,8 +9,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"zenfd/internal/attachment"
-	"zenfd/internal/domain"
+	"zenf/internal/attachment"
+	"zenf/internal/domain"
 )
 
 // mediaInput is a local file to copy into the attachment store.

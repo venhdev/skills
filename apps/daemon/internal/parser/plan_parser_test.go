@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func TestParseMarkdownPlan_Synthetic(t *testing.T) {
@@ -55,7 +55,7 @@ Target: payment-service
 }
 
 func TestParseMarkdownPlanFile_SyntheticDossier(t *testing.T) {
-	content := `# Plan Dossier: zenfd · ACTIVE
+	content := `# Plan Dossier: zenf · ACTIVE
 
 ## Master State Dashboard
 
@@ -77,8 +77,8 @@ func TestParseMarkdownPlanFile_SyntheticDossier(t *testing.T) {
 		t.Fatalf("ParseMarkdownPlanFile failed: %v", err)
 	}
 
-	if plan.Slug != "zenfd" {
-		t.Errorf("expected plan slug zenfd, got %s", plan.Slug)
+	if plan.Slug != "zenf" {
+		t.Errorf("expected plan slug zenf, got %s", plan.Slug)
 	}
 
 	if len(tasks) != 5 {

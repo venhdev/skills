@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // artifactSelectCols is the projection shared by every artifact read.

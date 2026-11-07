@@ -3,7 +3,7 @@ package storage_test
 import (
 	"testing"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func TestSearchRepository_CrossEntitySearch(t *testing.T) {

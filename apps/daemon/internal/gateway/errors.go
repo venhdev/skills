@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // APIError represents the canonical error payload following RFC-7807 semantics.

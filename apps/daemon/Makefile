@@ -24,7 +24,6 @@ build-web:
 build: build-web
 	@mkdir -p $(BIN_DIR)
 	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY) ./cmd/zenf
-	@ln -sf $(BIN_NAME) $(BIN_DIR)/zenfd
 
 test:
 	go vet ./...

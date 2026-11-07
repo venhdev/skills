@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // TaskLifecycle owns the task state machine, claim mutual exclusion, and the

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 type CreatePlanRequest struct {

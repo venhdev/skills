@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // DocumentRepository persists the file-canonical document registry. Files stay

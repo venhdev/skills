@@ -8,7 +8,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 
-import type { ApiResult } from '../../hooks/useZenfdAPI'
+import type { ApiResult } from '../../hooks/useZenfAPI'
 
 interface GlobalEnvViewProps {
   onFetchEnv: () => Promise<ApiResult<Record<string, any>>>
@@ -144,7 +144,7 @@ export const GlobalEnvView: React.FC<GlobalEnvViewProps> = ({ onFetchEnv }) => {
             </div>
             <div className="flex items-center justify-between border-b border-zinc-800 py-2">
               <span className="font-semibold text-zinc-200">Model Context Protocol (MCP):</span>
-              <span className="font-mono text-emerald-400">JSON-RPC 2.0 stdio (zenfd mcp)</span>
+              <span className="font-mono text-emerald-400">JSON-RPC 2.0 stdio (zenf mcp)</span>
             </div>
             <div className="flex items-center justify-between border-b border-zinc-800 py-2">
               <span className="font-semibold text-zinc-200">Execution Safety Protocol:</span>

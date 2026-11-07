@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // The storage package re-exports the domain sentinels so existing call sites and

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 func (s *Server) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	projects, err := s.storage.ListProjects(r.Context(), r.URL.Query().Get("include_archived") == "true")

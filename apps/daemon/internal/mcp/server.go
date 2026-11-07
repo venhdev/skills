@@ -9,8 +9,8 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
-	"zenfd/internal/contextpacket"
-	"zenfd/internal/domain"
+	"zenf/internal/contextpacket"
+	"zenf/internal/domain"
 )
 
 // Storage is the subset of persistence the MCP tool surface needs. It composes
@@ -27,7 +27,7 @@ type Storage interface {
 	domain.SearchRepository
 }
 
-// Server implements a Model Context Protocol (MCP) server for zenfd.
+// Server implements a Model Context Protocol (MCP) server for zenf.
 type Server struct {
 	mcpServer *server.MCPServer
 	store     Storage
@@ -46,7 +46,7 @@ func NewServer(store Storage) *Server {
 	}
 
 	s := &Server{
-		mcpServer: server.NewMCPServer("zenfd", "0.2.1", server.WithToolCapabilities(true)),
+		mcpServer: server.NewMCPServer("zenf", "0.3.2", server.WithToolCapabilities(true)),
 		store:     store,
 	}
 	s.registerTools()

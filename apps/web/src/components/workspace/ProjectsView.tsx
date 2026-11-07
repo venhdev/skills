@@ -9,7 +9,7 @@ import {
   Trash2,
   ArrowRight,
 } from 'lucide-react'
-import { useZenfdAPI } from '../../hooks/useZenfdAPI'
+import { useZenfAPI } from '../../hooks/useZenfAPI'
 import type { Plan, Project } from '../../types/contracts'
 
 interface ProjectsViewProps {
@@ -37,7 +37,7 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
   onOpenProject,
   onProjectsChanged,
 }) => {
-  const { fetchProjects, fetchPlans, createProject, updateProject, deleteProject } = useZenfdAPI()
+  const { fetchProjects, fetchPlans, createProject, updateProject, deleteProject } = useZenfAPI()
   const [projects, setProjects] = useState<Project[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [includeArchived, setIncludeArchived] = useState(false)

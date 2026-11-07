@@ -82,7 +82,7 @@ function queryString(params: Record<string, string | number | boolean | undefine
   return encoded ? `?${encoded}` : ''
 }
 
-export function useZenfdAPI() {
+export function useZenfAPI() {
   // -------------------------------------------------------------------------
   // Projects
   // -------------------------------------------------------------------------

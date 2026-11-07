@@ -11,7 +11,7 @@ import {
   Trash2,
   UserCog,
 } from 'lucide-react'
-import { useZenfdAPI } from '../../hooks/useZenfdAPI'
+import { useZenfAPI } from '../../hooks/useZenfAPI'
 import type {
   Agent,
   AgentMode,
@@ -118,7 +118,7 @@ export const AgentsView: React.FC<AgentsViewProps> = ({ tick }) => {
     updateAgent,
     deleteAgent,
     fetchSessions,
-  } = useZenfdAPI()
+  } = useZenfAPI()
 
   const [agents, setAgents] = useState<Agent[]>([])
   const [sessions, setSessions] = useState<AgentSession[]>([])

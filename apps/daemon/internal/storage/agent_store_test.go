@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/storage"
+	"zenf/internal/domain"
+	"zenf/internal/storage"
 )
 
 func TestAgentStore_CreateDefaultsAndValidation(t *testing.T) {

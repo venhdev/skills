@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/storage"
+	"zenf/internal/domain"
+	"zenf/internal/storage"
 )
 
 func TestTaskLifecycle_TransitionRules(t *testing.T) {

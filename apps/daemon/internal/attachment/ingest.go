@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // MaxBytes bounds a single attachment. Agents should downscale screenshots
@@ -24,7 +24,7 @@ const MaxBytes = 25 << 20
 
 // RootEnv overrides the attachment directory (used by tests and by operators
 // who keep state outside the home directory).
-const RootEnv = "ZENFD_ATTACHMENTS_DIR"
+const RootEnv = "ZENF_ATTACHMENTS_DIR"
 
 // StorageRoot returns the root directory for attachments, honoring RootEnv.
 func StorageRoot() (string, error) {

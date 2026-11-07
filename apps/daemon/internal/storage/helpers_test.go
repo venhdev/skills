@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/storage"
+	"zenf/internal/domain"
+	"zenf/internal/storage"
 )
 
 // newTestStore opens a fresh v0.2 database in t.TempDir().

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"zenfd/internal/contextpacket"
-	"zenfd/internal/domain"
-	"zenfd/internal/domain/prompt"
+	"zenf/internal/contextpacket"
+	"zenf/internal/domain"
+	"zenf/internal/domain/prompt"
 )
 
 type fakeArtifacts struct {

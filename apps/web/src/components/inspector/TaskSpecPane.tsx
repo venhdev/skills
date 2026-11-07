@@ -26,7 +26,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react'
 import type { Task, ContextPacket, Artifact } from '../../types/contracts'
-import type { ApiResult } from '../../hooks/useZenfdAPI'
+import type { ApiResult } from '../../hooks/useZenfAPI'
 import { getTaskStatusStyle } from '../stage/taskStatusTheme'
 import { parseTaskDescription } from '../../lib/taskDescriptionParser'
 

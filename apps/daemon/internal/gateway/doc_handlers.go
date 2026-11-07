@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()

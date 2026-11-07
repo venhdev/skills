@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useZenfdAPI } from '../../hooks/useZenfdAPI'
+import { useZenfAPI } from '../../hooks/useZenfAPI'
 import type {
   Document,
   DocumentScope,
@@ -106,7 +106,7 @@ export const DocsView: React.FC<DocsViewProps> = ({ projects, activeProjectSlug 
     updateDocument,
     refreshDocument,
     deleteDocument,
-  } = useZenfdAPI()
+  } = useZenfAPI()
 
   const [projectFilter, setProjectFilter] = useState(activeProjectSlug || '')
   const [includeGlobal, setIncludeGlobal] = useState(true)

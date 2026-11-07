@@ -32,7 +32,7 @@ type CheckResult struct {
 	StatusMessage string     `json:"status_message"`
 }
 
-// SetupOptions holds parameters for configuring the zenfd MCP server.
+// SetupOptions holds parameters for configuring the zenf MCP server.
 type SetupOptions struct {
 	Client     ClientType
 	ConfigPath string
@@ -84,7 +84,7 @@ func DefaultConfigFile(client ClientType) (string, error) {
 	}
 }
 
-// ResolveBinaryPath locates the zenfd executable.
+// ResolveBinaryPath locates the zenf executable.
 func ResolveBinaryPath(override string) (string, error) {
 	if override != "" {
 		clean := ExpandHome(override)
@@ -109,13 +109,8 @@ func ResolveBinaryPath(override string) (string, error) {
 		}
 	}
 
-	// 2. Check PATH (prefer zenf, then zenfd)
+	// 2. Check PATH
 	if path, err := exec.LookPath("zenf"); err == nil {
-		if abs, err := filepath.Abs(path); err == nil {
-			return abs, nil
-		}
-	}
-	if path, err := exec.LookPath("zenfd"); err == nil {
 		if abs, err := filepath.Abs(path); err == nil {
 			return abs, nil
 		}
@@ -125,11 +120,8 @@ func ResolveBinaryPath(override string) (string, error) {
 	cwd, _ := os.Getwd()
 	candidates := []string{
 		filepath.Join(cwd, "apps", "daemon", "bin", "zenf"),
-		filepath.Join(cwd, "apps", "daemon", "bin", "zenfd"),
 		filepath.Join(cwd, "bin", "zenf"),
-		filepath.Join(cwd, "bin", "zenfd"),
 		filepath.Join(cwd, "zenf"),
-		filepath.Join(cwd, "zenfd"),
 	}
 	for _, cand := range candidates {
 		if fi, err := os.Stat(cand); err == nil && !fi.IsDir() {
@@ -142,10 +134,10 @@ func ResolveBinaryPath(override string) (string, error) {
 		return execPath, nil
 	}
 
-	return "", errors.New("could not resolve zenfd binary path; please provide --binary flag")
+	return "", errors.New("could not resolve zenf binary path; please provide --binary flag")
 }
 
-// CheckMCP audits the client's MCP configuration for zenfd.
+// CheckMCP audits the client's MCP configuration for zenf.
 func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error) {
 	cfgPath := configPathOverride
 	if cfgPath == "" {
@@ -203,23 +195,23 @@ func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error
 		return res, nil
 	}
 
-	zenfdRaw, ok := servers["zenfd"]
+	zenfRaw, ok := servers["zenf"]
 	if !ok {
-		res.StatusMessage = fmt.Sprintf("Server 'zenfd' is not configured in %s", serversKey)
+		res.StatusMessage = fmt.Sprintf("Server 'zenf' is not configured in %s", serversKey)
 		return res, nil
 	}
 
-	zenfdMap, ok := zenfdRaw.(map[string]any)
+	zenfMap, ok := zenfRaw.(map[string]any)
 	if !ok {
-		res.StatusMessage = "'zenfd' entry is not a JSON object"
+		res.StatusMessage = "'zenf' entry is not a JSON object"
 		return res, nil
 	}
 
 	res.Configured = true
 
-	res.BinaryPath = entryBinary(zenfdMap, client)
+	res.BinaryPath = entryBinary(zenfMap, client)
 	if res.BinaryPath == "" {
-		res.StatusMessage = "Configured 'zenfd' entry is missing a valid command"
+		res.StatusMessage = "Configured 'zenf' entry is missing a valid command"
 		return res, nil
 	}
 	if _, err := os.Stat(res.BinaryPath); err == nil {
@@ -229,13 +221,13 @@ func CheckMCP(client ClientType, configPathOverride string) (*CheckResult, error
 		return res, nil
 	}
 
-	res.DBPath = entryDBPath(zenfdMap, client)
+	res.DBPath = entryDBPath(zenfMap, client)
 
-	res.StatusMessage = fmt.Sprintf("zenfd MCP server is configured and valid in %s", cfgPath)
+	res.StatusMessage = fmt.Sprintf("zenf MCP server is configured and valid in %s", cfgPath)
 	return res, nil
 }
 
-// SetupMCP injects or updates the zenfd MCP server entry in the target client's configuration file.
+// SetupMCP injects or updates the zenf MCP server entry in the target client's configuration file.
 func SetupMCP(opts SetupOptions) (*SetupResult, error) {
 	if opts.Client == "" {
 		opts.Client = ClientAgy
@@ -300,11 +292,14 @@ func SetupMCP(opts SetupOptions) (*SetupResult, error) {
 		root[serversKey] = servers
 	}
 
-	// Construct the client-specific zenfd server entry.
-	zenfdEntry := buildEntry(opts.Client, binPath, expandedDB)
+	// Construct the client-specific zenf server entry.
+	zenfEntry := buildEntry(opts.Client, binPath, expandedDB)
+
+	// Purge legacy "zenfd" entry if present (zero-trace migration)
+	delete(servers, "zenfd")
 
 	// Check if already cleanly configured
-	if existingEntry, ok := servers["zenfd"].(map[string]any); ok && !opts.Force {
+	if existingEntry, ok := servers["zenf"].(map[string]any); ok && !opts.Force {
 		if entryBinary(existingEntry, opts.Client) == binPath {
 			res.Action = "already_configured"
 			formatted, _ := json.MarshalIndent(root, "", "  ")
@@ -313,7 +308,7 @@ func SetupMCP(opts SetupOptions) (*SetupResult, error) {
 		}
 	}
 
-	servers["zenfd"] = zenfdEntry
+	servers["zenf"] = zenfEntry
 
 	formatted, err := json.MarshalIndent(root, "", "  ")
 	if err != nil {
@@ -359,7 +354,7 @@ func serverMapKey(client ClientType) string {
 	return "mcpServers"
 }
 
-// buildEntry constructs the client-specific zenfd server entry.
+// buildEntry constructs the client-specific zenf server entry.
 func buildEntry(client ClientType, binPath, dbPath string) map[string]any {
 	if client == ClientOpenCode {
 		return map[string]any{
@@ -374,7 +369,7 @@ func buildEntry(client ClientType, binPath, dbPath string) map[string]any {
 	}
 }
 
-// entryBinary extracts the configured binary path from a zenfd entry.
+// entryBinary extracts the configured binary path from a zenf entry.
 func entryBinary(entry map[string]any, client ClientType) string {
 	if client == ClientOpenCode {
 		switch cmd := entry["command"].(type) {
@@ -396,7 +391,7 @@ func entryBinary(entry map[string]any, client ClientType) string {
 	return s
 }
 
-// entryDBPath extracts the --db value from a zenfd entry.
+// entryDBPath extracts the --db value from a zenf entry.
 func entryDBPath(entry map[string]any, client ClientType) string {
 	if client == ClientOpenCode {
 		switch cmd := entry["command"].(type) {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/contextpacket"
-	"zenfd/internal/domain"
-	"zenfd/internal/domain/prompt"
+	"zenf/internal/contextpacket"
+	"zenf/internal/domain"
+	"zenf/internal/domain/prompt"
 )
 
 // mockPromptCompiler records the packet input passed through the builder.

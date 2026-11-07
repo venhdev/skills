@@ -10,8 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/domain/prompt"
+	"zenf/internal/domain"
+	"zenf/internal/domain/prompt"
 )
 
 // Builder compiles context packets for tasks.

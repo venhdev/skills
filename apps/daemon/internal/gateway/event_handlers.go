@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 func (s *Server) Broadcast(evt domain.EventMessage) {
 	if evt.Timestamp.IsZero() {

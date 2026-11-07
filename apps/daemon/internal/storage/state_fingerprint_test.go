@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func TestStateFingerprint_TracksEveryMutation(t *testing.T) {

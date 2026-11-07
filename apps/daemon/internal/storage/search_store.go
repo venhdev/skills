@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // SearchRepository provides cross-entity search over projects, plans, tasks,

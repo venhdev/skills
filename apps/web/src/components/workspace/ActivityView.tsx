@@ -10,7 +10,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
-import { useZenfdAPI } from '../../hooks/useZenfdAPI'
+import { useZenfAPI } from '../../hooks/useZenfAPI'
 import type { EventMessage, SearchResult } from '../../types/contracts'
 import { formatEvent } from '../../lib/eventFormatter'
 
@@ -65,7 +65,7 @@ function formatTime(raw: string): string {
 }
 
 export const ActivityView: React.FC<ActivityViewProps> = ({ tick, projectSlug }) => {
-  const { fetchEvents, searchAll } = useZenfdAPI()
+  const { fetchEvents, searchAll } = useZenfAPI()
   const [events, setEvents] = useState<EventMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')

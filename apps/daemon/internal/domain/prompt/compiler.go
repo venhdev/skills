@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // Input carries every entity the compiler may render into a context packet.

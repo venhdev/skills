@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // taskNode is a lightweight topology node used by the DAG transition policy.

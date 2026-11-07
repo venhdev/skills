@@ -11,17 +11,19 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
 
-	"zenfd/internal/contextpacket"
-	"zenfd/internal/domain"
-	"zenfd/internal/gateway"
-	zenfdmcp "zenfd/internal/mcp"
-	"zenfd/internal/parser"
-	"zenfd/internal/storage"
+	"zenf/internal/contextpacket"
+	"zenf/internal/domain"
+	"zenf/internal/gateway"
+	zenfmcp "zenf/internal/mcp"
+	"zenf/internal/parser"
+	"zenf/internal/storage"
+	"zenf/internal/updater"
 
 	"github.com/spf13/cobra"
 )
@@ -51,7 +53,57 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "0.3.1"
+var (
+	Version   = "0.3.2"
+	Commit    = "none"
+	BuildDate = "unknown"
+)
+
+func restartActiveDaemonIfRunning(port int, dbPath string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	pidFile := filepath.Join(home, ".zenforge", "zenf.pid")
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		return
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return
+	}
+	if err := process.Signal(syscall.Signal(0)); err != nil {
+		// Process not running
+		return
+	}
+
+	fmt.Printf("Restarting active ZenForge background daemon (PID: %d)...\n", pid)
+	_ = process.Signal(syscall.SIGTERM)
+	time.Sleep(500 * time.Millisecond)
+
+	// Respawn daemon in background
+	execPath, err := os.Executable()
+	if err != nil {
+		execPath = "zenf"
+	}
+	args := []string{"daemon", "start", "-d"}
+	if port != 0 {
+		args = append(args, "--port", strconv.Itoa(port))
+	}
+	if dbPath != "" {
+		args = append(args, "--db", dbPath)
+	}
+
+	cmd := exec.Command(execPath, args...)
+	if err := cmd.Start(); err == nil {
+		fmt.Println("  ✔ Background daemon restarted successfully.")
+	}
+}
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -669,15 +721,15 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 
 			// 2. Audit MCP configuration for all supported clients
-			supportedClients := []zenfdmcp.ClientType{
-				zenfdmcp.ClientAgy,
-				zenfdmcp.ClientClaude,
-				zenfdmcp.ClientCursor,
-				zenfdmcp.ClientOpenCode,
+			supportedClients := []zenfmcp.ClientType{
+				zenfmcp.ClientAgy,
+				zenfmcp.ClientClaude,
+				zenfmcp.ClientCursor,
+				zenfmcp.ClientOpenCode,
 			}
 
 			for _, c := range supportedClients {
-				checkRes, _ := zenfdmcp.CheckMCP(c, "")
+				checkRes, _ := zenfmcp.CheckMCP(c, "")
 				cs := ClientStatus{
 					Client: string(c),
 				}
@@ -767,14 +819,14 @@ When invoked in an interactive terminal, it displays the integration status and 
 				fmt.Println("────────────────────────────────────────────────────────────────────────")
 				fmt.Println("AI CLIENT MCP STATUS:")
 
-				supportedClients := []zenfdmcp.ClientType{
-					zenfdmcp.ClientAgy,
-					zenfdmcp.ClientClaude,
-					zenfdmcp.ClientCursor,
-					zenfdmcp.ClientOpenCode,
+				supportedClients := []zenfmcp.ClientType{
+					zenfmcp.ClientAgy,
+					zenfmcp.ClientClaude,
+					zenfmcp.ClientCursor,
+					zenfmcp.ClientOpenCode,
 				}
 				for _, c := range supportedClients {
-					checkRes, _ := zenfdmcp.CheckMCP(c, "")
+					checkRes, _ := zenfmcp.CheckMCP(c, "")
 					var badge string
 					var cfgPath string
 					if checkRes != nil {
@@ -814,7 +866,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 				contextpacket.WithDocumentReader(store.DocumentRepository),
 			))
 
-			srv := zenfdmcp.NewServer(store)
+			srv := zenfmcp.NewServer(store)
 			return srv.ServeStdio()
 		},
 	}
@@ -830,7 +882,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 		Use:   "check",
 		Short: "Audit client MCP configuration for zenf",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			res, err := zenfdmcp.CheckMCP(zenfdmcp.ClientType(checkClient), checkConfig)
+			res, err := zenfmcp.CheckMCP(zenfmcp.ClientType(checkClient), checkConfig)
 			if err != nil {
 				return fmt.Errorf("mcp check failed: %w", err)
 			}
@@ -862,8 +914,8 @@ When invoked in an interactive terminal, it displays the integration status and 
 		Use:   "setup",
 		Short: "Configure zenf MCP server in client configuration (default: agy)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			res, err := zenfdmcp.SetupMCP(zenfdmcp.SetupOptions{
-				Client:     zenfdmcp.ClientType(setupClient),
+			res, err := zenfmcp.SetupMCP(zenfmcp.SetupOptions{
+				Client:     zenfmcp.ClientType(setupClient),
 				ConfigPath: setupConfig,
 				DBPath:     setupDB,
 				BinaryPath: setupBinary,
@@ -901,6 +953,118 @@ When invoked in an interactive terminal, it displays the integration status and 
 	mcpSetupCmd.Flags().BoolVarP(&setupForce, "force", "f", false, "Force overwrite existing entry")
 	mcpSetupCmd.Flags().BoolVar(&setupDryRun, "dry-run", false, "Preview configuration changes without writing")
 	mcpCmd.AddCommand(mcpSetupCmd)
+
+	var (
+		updateCheckOnly bool
+		updateForce     bool
+		updateVersion   string
+	)
+
+	updateCmd := &cobra.Command{
+		Use:   "update",
+		Short: "Update zenf to the latest release (or specified version)",
+		Long: `Downloads and installs the latest binary release from GitHub Releases.
+Verifies SHA-256 checksums and performs atomic in-place binary replacement without requiring sudo.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			execPath, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("failed to locate zenf executable: %w", err)
+			}
+			if resolved, err := filepath.EvalSymlinks(execPath); err == nil {
+				execPath = resolved
+			}
+
+			// Preflight write permission check (enforcing no-sudo friendly guidance)
+			if err := updater.CheckWritePermission(execPath); err != nil {
+				return err
+			}
+
+			fmt.Printf("Checking for updates (current version: v%s)...\n", Version)
+
+			const repo = "venhdev/zenforge"
+			var release *updater.Release
+			if updateVersion != "" {
+				tag := updateVersion
+				if !strings.HasPrefix(tag, "v") {
+					tag = "v" + tag
+				}
+				release = updater.ConstructReleaseFromTag(repo, tag)
+				fmt.Printf("Targeting requested version: %s\n", release.TagName)
+			} else {
+				rel, err := updater.GetLatestRelease(repo)
+				if err != nil {
+					return fmt.Errorf("failed to check for updates: %w", err)
+				}
+				release = rel
+			}
+
+			if !updateForce && updateVersion == "" && !updater.IsNewer(release.TagName, Version) {
+				fmt.Printf("✔ zenf is already up to date (v%s).\n", Version)
+				return nil
+			}
+
+			fmt.Printf("Available release: %s\n", release.TagName)
+			if updateCheckOnly {
+				fmt.Println("Run 'zenf update' to install.")
+				return nil
+			}
+
+			targetAsset := updater.TargetAssetName(release.TagName)
+			var assetURL, checksumURL string
+			for _, a := range release.Assets {
+				if a.Name == targetAsset {
+					assetURL = a.BrowserDownloadURL
+				} else if a.Name == "checksums.txt" {
+					checksumURL = a.BrowserDownloadURL
+				}
+			}
+
+			if assetURL == "" {
+				assetURL = fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, release.TagName, targetAsset)
+			}
+			if checksumURL == "" {
+				checksumURL = fmt.Sprintf("https://github.com/%s/releases/download/%s/checksums.txt", repo, release.TagName)
+			}
+
+			fmt.Printf("Downloading %s...\n", targetAsset)
+			assetBytes, err := updater.DownloadBytes(assetURL)
+			if err != nil {
+				return fmt.Errorf("download failed: %w", err)
+			}
+
+			fmt.Println("Verifying SHA-256 checksum...")
+			checksumsBytes, err := updater.DownloadBytes(checksumURL)
+			if err != nil {
+				return fmt.Errorf("failed downloading checksums: %w", err)
+			}
+
+			if err := updater.VerifyChecksum(assetBytes, string(checksumsBytes), targetAsset); err != nil {
+				return fmt.Errorf("security verification failed: %w", err)
+			}
+			fmt.Println("  ✔ Checksum verified successfully.")
+
+			fmt.Println("Extracting binary...")
+			binBytes, err := updater.ExtractBinary(assetBytes, targetAsset)
+			if err != nil {
+				return fmt.Errorf("extraction failed: %w", err)
+			}
+
+			fmt.Printf("Installing to %s...\n", execPath)
+			if err := updater.ReplaceBinary(execPath, binBytes); err != nil {
+				return fmt.Errorf("failed to replace binary: %w", err)
+			}
+
+			fmt.Printf("✔ Successfully updated zenf to %s at %s\n", release.TagName, execPath)
+
+			restartActiveDaemonIfRunning(defaultPort, defaultDBPath)
+			return nil
+		},
+	}
+
+	updateCmd.Flags().BoolVarP(&updateCheckOnly, "check", "c", false, "Check for available updates without applying")
+	updateCmd.Flags().BoolVarP(&updateForce, "force", "f", false, "Force reinstall even if version is up to date")
+	updateCmd.Flags().StringVar(&updateVersion, "version", "", "Install a specific version tag (e.g. v0.3.2)")
+	rootCmd.AddCommand(updateCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

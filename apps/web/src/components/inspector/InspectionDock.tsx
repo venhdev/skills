@@ -4,7 +4,7 @@ import { TaskSpecPane } from './TaskSpecPane'
 import { ExecutionTracePane } from './ExecutionTracePane'
 import { ClaimPacketPane } from './ClaimPacketPane'
 import type { Task, Artifact, ContextPacket } from '../../types/contracts'
-import type { ApiResult } from '../../hooks/useZenfdAPI'
+import type { ApiResult } from '../../hooks/useZenfAPI'
 
 type DockLens = 'spec' | 'trace' | 'packet'
 

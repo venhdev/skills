@@ -62,9 +62,9 @@ func serveControlPlaneBanner(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	banner := `<!DOCTYPE html>
 <html>
-<head><title>zenfd</title></head>
+<head><title>zenf</title></head>
 <body style="font-family:sans-serif;background:#09090b;color:#e4e4e7;padding:40px;">
-  <h2>zenfd Control Plane Active</h2>
+  <h2>zenf Control Plane Active</h2>
   <p>Status: Healthy (Headless/API mode)</p>
 </body>
 </html>`

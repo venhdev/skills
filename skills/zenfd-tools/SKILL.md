@@ -5,17 +5,17 @@ description: "Use when working with ZenForge daemon MCP tools: projects, plans, 
 
 # zenfd-tools — ZenForge Tracking Plane
 
-Use this card when work is governed by `zenfd`. The daemon is a **tracking
+Use this card when work is governed by `zenf`. The daemon is a **tracking
 plane**, not a process runtime: it stores projects, plans, tasks, document
 metadata, and agent definitions in SQLite WAL, serves a web cockpit, and exposes
-this MCP surface. Agents do the executing; `zenfd` records what happened.
+this MCP surface. Agents do the executing; `zenf` records what happened.
 
 This is the only skill that assumes the MCP server is connected. Every other
 skill must remain executable from local files and standard tooling.
 
 ## Boundary
 
-- Writes go through MCP (or the `zenfd` CLI / public HTTP API). The Web Cockpit
+- Writes go through MCP (or the `zenf` CLI / public HTTP API). The Web Cockpit
   is read-only for plans, tasks, and sessions; it may CRUD project, document,
   and agent definitions.
 - Context media attaches to a task while it is `READY` or `PENDING`; the next
@@ -75,8 +75,8 @@ Recovery is `RESET` followed by a fresh claim.
 | `review` | `request` pauses a `RUNNING` task at `AWAITING_REVIEW` with a drift question; `resolve` records the human decision and returns to `READY`. | `action`, `task_id` (required); request: `reason`, `details`, `options[]`; resolve: `response` |
 | `transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, `CANCEL`, or `CHECKPOINT`. Use `task_ids` + `action`, or `items[]` for mixed actions. | `task_ids[]` + `action`, or `items[]`; `reason`, `summary`, `phase_id`, `phase_status`, `merge_outcome` (`MERGED`/`CONFLICT`) |
 
-Clients namespace tools by server: OpenCode shows `zenfd.plans`, `zenfd.tasks`,
-and so on; Claude Code shows `mcp__zenfd__plans`.
+Clients namespace tools by server: OpenCode shows `zenf.plans`, `zenf.tasks`,
+and so on; Claude Code shows `mcp__zenf__plans`.
 
 ### `tasks[]` item shape
 

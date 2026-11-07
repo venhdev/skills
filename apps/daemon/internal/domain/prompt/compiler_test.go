@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/domain/prompt"
+	"zenf/internal/domain"
+	"zenf/internal/domain/prompt"
 )
 
 func TestMarkdownPromptCompiler_Compile_CompletePacket(t *testing.T) {

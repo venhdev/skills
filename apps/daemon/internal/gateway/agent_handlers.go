@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	agents, err := s.storage.ListAgents(r.Context(), r.URL.Query().Get("include_disabled") == "true")

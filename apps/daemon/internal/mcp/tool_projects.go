@@ -6,7 +6,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func (s *Server) registerProjectTools() {

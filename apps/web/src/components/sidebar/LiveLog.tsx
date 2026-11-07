@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, ScrollText } from 'lucide-react'
 import type { EventMessage } from '../../types/contracts'
 import { formatEvent, toneClass } from '../../lib/eventFormatter'
-import { useZenfdAPI } from '../../hooks/useZenfdAPI'
+import { useZenfAPI } from '../../hooks/useZenfAPI'
 
 interface LiveLogProps {
   /** Increments on every SSE event, including the daemon's state:changed. */
@@ -21,7 +21,7 @@ export const LiveLog: React.FC<LiveLogProps> = ({ tick }) => {
   const lastIdRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
-  const { fetchEvents } = useZenfdAPI()
+  const { fetchEvents } = useZenfAPI()
 
   const load = useCallback(async (initial: boolean) => {
     try {

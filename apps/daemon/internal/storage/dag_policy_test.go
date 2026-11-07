@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func newInternalTestStore(t *testing.T) (*Store, *DB, context.Context) {

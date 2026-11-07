@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/storage"
+	"zenf/internal/storage"
 )
 
 func TestGateway_MutationRejectsForeignOrigin(t *testing.T) {

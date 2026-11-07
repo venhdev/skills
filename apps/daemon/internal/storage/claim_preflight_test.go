@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/contextpacket"
-	"zenfd/internal/domain"
-	"zenfd/internal/domain/prompt"
+	"zenf/internal/contextpacket"
+	"zenf/internal/domain"
+	"zenf/internal/domain/prompt"
 )
 
 // blockingCompiler lets a test hold prompt compilation open so it can prove

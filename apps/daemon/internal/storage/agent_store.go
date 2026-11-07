@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // AgentRepository persists reusable worker definitions. Execution stays with an

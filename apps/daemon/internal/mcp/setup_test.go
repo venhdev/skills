@@ -34,7 +34,7 @@ func TestMCPCheck_ZeroByteFile(t *testing.T) {
 func TestMCPSetup_DryRun(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "mcp_config.json")
-	fakeBin := filepath.Join(tmpDir, "fake_zenfd")
+	fakeBin := filepath.Join(tmpDir, "fake_zenf")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0755))
 
 	opts := SetupOptions{
@@ -57,7 +57,7 @@ func TestMCPSetup_DryRun(t *testing.T) {
 func TestMCPSetup_PreservesExistingServersAndBacksUp(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "mcp_config.json")
-	fakeBin := filepath.Join(tmpDir, "fake_zenfd")
+	fakeBin := filepath.Join(tmpDir, "fake_zenf")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0755))
 
 	// Initial config with custom server and user metadata
@@ -89,7 +89,7 @@ func TestMCPSetup_PreservesExistingServersAndBacksUp(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, initialJSON, string(backupData))
 
-	// Read new file and verify both sqlite-helper and zenfd are present
+	// Read new file and verify both sqlite-helper and zenf are present
 	newData, err := os.ReadFile(cfgPath)
 	require.NoError(t, err)
 
@@ -99,10 +99,10 @@ func TestMCPSetup_PreservesExistingServersAndBacksUp(t *testing.T) {
 
 	servers := root["mcpServers"].(map[string]any)
 	assert.Contains(t, servers, "sqlite-helper")
-	assert.Contains(t, servers, "zenfd")
+	assert.Contains(t, servers, "zenf")
 
-	zenfdEntry := servers["zenfd"].(map[string]any)
-	assert.Equal(t, fakeBin, zenfdEntry["command"])
+	zenfEntry := servers["zenf"].(map[string]any)
+	assert.Equal(t, fakeBin, zenfEntry["command"])
 
 	// CheckMCP should now report configured & valid
 	checkRes, err := CheckMCP(ClientAgy, cfgPath)
@@ -115,7 +115,7 @@ func TestMCPSetup_PreservesExistingServersAndBacksUp(t *testing.T) {
 func TestMCPSetup_AlreadyConfiguredIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "mcp_config.json")
-	fakeBin := filepath.Join(tmpDir, "fake_zenfd")
+	fakeBin := filepath.Join(tmpDir, "fake_zenf")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0755))
 
 	opts := SetupOptions{
@@ -150,7 +150,7 @@ func TestDefaultConfigFile_OpenCode(t *testing.T) {
 func TestMCPSetup_OpenCodeFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, "opencode.json")
-	fakeBin := filepath.Join(tmpDir, "fake_zenfd")
+	fakeBin := filepath.Join(tmpDir, "fake_zenf")
 	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0755))
 
 	initialJSON := `{
@@ -186,9 +186,9 @@ func TestMCPSetup_OpenCodeFormat(t *testing.T) {
 	mcpMap, ok := root["mcp"].(map[string]any)
 	require.True(t, ok)
 	assert.Contains(t, mcpMap, "other")
-	assert.Contains(t, mcpMap, "zenfd")
+	assert.Contains(t, mcpMap, "zenf")
 
-	entry, ok := mcpMap["zenfd"].(map[string]any)
+	entry, ok := mcpMap["zenf"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "local", entry["type"])
 	assert.Equal(t, true, entry["enabled"])
@@ -213,4 +213,42 @@ func TestMCPSetup_OpenCodeFormat(t *testing.T) {
 	res2, err := SetupMCP(opts)
 	require.NoError(t, err)
 	assert.Equal(t, "already_configured", res2.Action)
+}
+
+func TestMCPSetup_PurgesLegacyZenfdEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "mcp_config.json")
+	fakeBin := filepath.Join(tmpDir, "fake_zenf")
+	require.NoError(t, os.WriteFile(fakeBin, []byte("#!/bin/sh\n"), 0755))
+
+	// Initial config with legacy zenfd entry
+	initialJSON := `{
+  "mcpServers": {
+    "zenfd": {
+      "command": "/old/path/zenfd",
+      "args": ["mcp"]
+    }
+  }
+}`
+	require.NoError(t, os.WriteFile(cfgPath, []byte(initialJSON), 0644))
+
+	opts := SetupOptions{
+		Client:     ClientAgy,
+		ConfigPath: cfgPath,
+		BinaryPath: fakeBin,
+	}
+
+	res, err := SetupMCP(opts)
+	require.NoError(t, err)
+	assert.Equal(t, "configured", res.Action)
+
+	newData, err := os.ReadFile(cfgPath)
+	require.NoError(t, err)
+
+	var root map[string]any
+	require.NoError(t, json.Unmarshal(newData, &root))
+	servers := root["mcpServers"].(map[string]any)
+
+	assert.NotContains(t, servers, "zenfd")
+	assert.Contains(t, servers, "zenf")
 }

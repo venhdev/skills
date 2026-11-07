@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 //go:embed all:web_dist
@@ -36,7 +36,7 @@ type Storage interface {
 	domain.SearchRepository
 }
 
-// Server provides the HTTP/SSE gateway for the zenfd control plane.
+// Server provides the HTTP/SSE gateway for the zenf control plane.
 type Server struct {
 	storage Storage
 
@@ -235,7 +235,7 @@ func (s *Server) watchStateChanges(ctx context.Context, interval time.Duration) 
 
 	last, err := fp.StateFingerprint(ctx)
 	if err != nil {
-		log.Printf("zenfd: state watcher disabled, fingerprint failed: %v", err)
+		log.Printf("zenf: state watcher disabled, fingerprint failed: %v", err)
 		return
 	}
 
@@ -253,7 +253,7 @@ func (s *Server) watchStateChanges(ctx context.Context, interval time.Duration) 
 				// Log transitions only: a persistent failure would otherwise
 				// spam the log every interval.
 				if msg := err.Error(); msg != lastErr {
-					log.Printf("zenfd: state fingerprint failed: %v", err)
+					log.Printf("zenf: state fingerprint failed: %v", err)
 					lastErr = msg
 				}
 				continue

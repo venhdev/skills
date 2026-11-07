@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func TestTaskStatus_ValidationAndTerminal(t *testing.T) {

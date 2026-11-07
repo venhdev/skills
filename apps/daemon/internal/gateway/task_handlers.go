@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"zenfd/internal/attachment"
-	"zenfd/internal/domain"
+	"zenf/internal/attachment"
+	"zenf/internal/domain"
 )
 // handleListTasks handles GET /api/v1/tasks?status=
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {

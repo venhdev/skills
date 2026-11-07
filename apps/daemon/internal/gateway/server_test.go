@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/storage"
+	"zenf/internal/domain"
+	"zenf/internal/storage"
 )
 
 func setupTestGateway(t *testing.T) (*Server, string, *storage.Store, func()) {

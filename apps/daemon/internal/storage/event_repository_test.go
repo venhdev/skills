@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 func eventTypes(events []domain.EventMessage) map[string]int {

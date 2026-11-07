@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // EventRepository reads the trigger-produced activity log.

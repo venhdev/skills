@@ -9,7 +9,7 @@ import { DocsView } from './components/workspace/DocsView'
 import { AgentsView } from './components/workspace/AgentsView'
 import { ActivityView } from './components/workspace/ActivityView'
 import { useSSE } from './hooks/useSSE'
-import { useZenfdAPI } from './hooks/useZenfdAPI'
+import { useZenfAPI } from './hooks/useZenfAPI'
 import type { Plan, Project, Task, Artifact } from './types/contracts'
 
 export default function App() {
@@ -43,7 +43,7 @@ export default function App() {
     fetchTaskArtifacts,
     fetchTaskPacket,
     fetchGlobalEnv,
-  } = useZenfdAPI()
+  } = useZenfAPI()
 
   const refreshArtifacts = useCallback(
     async (taskId: string | null) => {

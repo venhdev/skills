@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // handleSearch handles GET /api/v1/search?q=&project_slug=&limit=

@@ -10,8 +10,8 @@ import (
 
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/storage"
+	"zenf/internal/domain"
+	"zenf/internal/storage"
 )
 
 func newTestServer(t *testing.T) (*Server, *storage.Store) {

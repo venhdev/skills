@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // TaskRepository persists task records and their read projections.

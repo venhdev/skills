@@ -15,7 +15,7 @@ build-web:
 	fi
 
 build-daemon:
-	@echo "Building zenfd daemon..."
+	@echo "Building zenf daemon..."
 	@$(MAKE) -C apps/daemon build
 
 build: build-daemon
@@ -37,7 +37,7 @@ test-all: test-web test-daemon
 
 # Development
 dev:
-	@echo "Starting zenfd in dev mode..."
+	@echo "Starting zenf in dev mode..."
 	@$(MAKE) -C apps/daemon dev
 
 # Cleanup

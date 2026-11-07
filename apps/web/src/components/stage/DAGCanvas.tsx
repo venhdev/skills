@@ -559,7 +559,7 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
                 Push a plan via CLI:
               </span>
               <span className="text-emerald-400">
-                zenfd plan push .agents/scratch/plans/zenfd/README.md
+                zenf plan push .agents/scratch/plans/zenf/README.md
               </span>
             </div>
           </div>

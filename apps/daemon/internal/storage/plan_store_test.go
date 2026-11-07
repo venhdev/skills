@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"zenfd/internal/domain"
-	"zenfd/internal/storage"
+	"zenf/internal/domain"
+	"zenf/internal/storage"
 )
 
 func TestPlanStore_CreatePlanWithTasks(t *testing.T) {

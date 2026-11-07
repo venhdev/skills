@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // PlanRepository persists plans and the atomic plan/task authoring bundle.

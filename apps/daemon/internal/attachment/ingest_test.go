@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"zenfd/internal/attachment"
-	"zenfd/internal/domain"
+	"zenf/internal/attachment"
+	"zenf/internal/domain"
 )
 
 func TestIngest_CopiesAndClassifiesMedia(t *testing.T) {

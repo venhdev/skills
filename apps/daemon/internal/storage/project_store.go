@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"zenfd/internal/domain"
+	"zenf/internal/domain"
 )
 
 // ProjectRepository persists the top-level working environments.
