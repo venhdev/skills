@@ -1,21 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Terminal,
   Copy,
   Check,
   CheckCircle2,
-  AlertTriangle,
-  GitMerge,
   GitBranch,
-  FolderGit2,
   Clock,
   Layers,
   ExternalLink,
-  UserCheck,
-  ShieldAlert,
   FileCode,
   FileCheck,
-  FileText,
   Clipboard,
   Loader2,
   Wrench,
@@ -23,36 +17,58 @@ import {
   Sparkles,
   Bot,
   Shield,
-  Timer,
-  Hash,
   CalendarDays,
+  PlayCircle,
+  AlertCircle,
+  Paperclip,
+  ChevronRight,
+  Lock,
+  FileSpreadsheet,
 } from 'lucide-react'
-import type { Task, ContextPacket } from '../../types/contracts'
+import type { Task, ContextPacket, Artifact } from '../../types/contracts'
 import type { ApiResult } from '../../hooks/useZenfdAPI'
-import { elapsedLabel } from '../../lib/duration'
 import { getTaskStatusStyle } from '../stage/taskStatusTheme'
+import { parseTaskDescription } from '../../lib/taskDescriptionParser'
 
 interface TaskSpecPaneProps {
   task: Task | null
   allTasks: Task[]
+  artifacts?: Artifact[]
   onSelectTaskId?: (taskId: string) => void
   isMaximized?: boolean
   onToggleMaximize?: () => void
   fetchTaskPacket?: (taskId: string) => Promise<ApiResult<ContextPacket>>
+  onViewArtifacts?: () => void
 }
 
 export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   task,
   allTasks,
+  artifacts = [],
   onSelectTaskId,
   isMaximized = false,
   onToggleMaximize,
   fetchTaskPacket,
+  onViewArtifacts,
 }) => {
-  const [copiedWorktree, setCopiedWorktree] = useState(false)
   const [copiedPrompt, setCopiedPrompt] = useState(false)
   const [promptLoading, setPromptLoading] = useState(false)
   const [copiedVerify, setCopiedVerify] = useState(false)
+
+  // Timer cleanup on unmount (Resolving Finding #12)
+  const timersRef = useRef<number[]>([])
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((id) => clearTimeout(id))
+    }
+  }, [])
+
+  const setSafeTimeout = (fn: () => void, delay: number) => {
+    const id = window.setTimeout(fn, delay)
+    timersRef.current.push(id)
+  }
+
+  const parsedDesc = useMemo(() => parseTaskDescription(task?.description), [task?.description])
 
   if (!task) {
     return (
@@ -74,7 +90,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
       if (result.ok && result.data?.prompt_markdown) {
         await navigator.clipboard.writeText(result.data.prompt_markdown)
         setCopiedPrompt(true)
-        setTimeout(() => setCopiedPrompt(false), 2500)
+        setSafeTimeout(() => setCopiedPrompt(false), 2500)
       }
     } catch {
       // ignore
@@ -83,23 +99,12 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     }
   }
 
-  const handleCopyWorktree = async () => {
-    if (!task.worktree_path) return
-    try {
-      await navigator.clipboard.writeText(task.worktree_path)
-      setCopiedWorktree(true)
-      setTimeout(() => setCopiedWorktree(false), 2000)
-    } catch {
-      // ignore
-    }
-  }
-
   const handleCopyVerification = async () => {
     if (!task.verification_commands?.length) return
     try {
       await navigator.clipboard.writeText(task.verification_commands.join('\n'))
       setCopiedVerify(true)
-      setTimeout(() => setCopiedVerify(false), 2000)
+      setSafeTimeout(() => setCopiedVerify(false), 2000)
     } catch {
       // ignore
     }
@@ -157,7 +162,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             <button
               onClick={onToggleMaximize}
               className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-              title={isMaximized ? 'Split View' : 'Maximize Spec'}
+              title={isMaximized ? 'Restore View' : 'Maximize Spec'}
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </button>
@@ -167,7 +172,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
       {/* 2. Scrollable Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Title, Status & Worker Guard */}
+        {/* Title, Status & ID */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="font-mono text-sm font-bold text-zinc-100">
@@ -188,190 +193,209 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             {task.title}
           </h2>
 
-          {/* Description */}
-          {task.description && (
-            <p className="whitespace-pre-wrap text-xs text-zinc-400 leading-relaxed select-text">
-              {task.description}
-            </p>
-          )}
-
-          {/* Claim Telemetry Hub — expanded from Worker Badge */}
-          {task.claimed_by && (
+          {/* Phase Stepper Bar (Polymorphic: only rendered if phases exist) */}
+          {task.phases && task.phases.length > 0 && (
             <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 space-y-2">
-              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-                <UserCheck className="h-3 w-3 text-emerald-400" />
-                <span>Claim Telemetry</span>
+              <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-cyan-400" />
+                  <span>
+                    Execution Phases ({task.phases.filter((p) => p.status === 'COMPLETED').length}/
+                    {task.phases.length})
+                  </span>
+                </div>
+                {task.current_phase && (
+                  <span className="font-mono text-cyan-400 text-[10px] lowercase">
+                    active: {task.current_phase}
+                  </span>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
-                {/* Worker */}
-                <div className="flex items-center gap-1.5 text-zinc-400">
-                  <Bot className="h-3 w-3 text-emerald-400 shrink-0" />
-                  <span>Worker:</span>
-                  <strong className="text-zinc-200 font-mono truncate">{task.claimed_by}</strong>
-                </div>
-                {/* Role */}
-                <div className="flex items-center gap-1.5 text-zinc-400">
-                  <Shield className="h-3 w-3 text-blue-400 shrink-0" />
-                  <span>Role:</span>
-                  <strong className="text-zinc-200 font-mono">{task.worker_role || '—'}</strong>
-                </div>
-                {/* Orchestrator */}
-                {task.orchestrator_id && (
-                  <div className="flex items-center gap-1.5 text-zinc-400">
-                    <Sparkles className="h-3 w-3 text-violet-400 shrink-0" />
-                    <span>Orchestrator:</span>
-                    <strong className="text-zinc-200 font-mono truncate">{task.orchestrator_id}</strong>
-                  </div>
-                )}
-                {/* Session */}
-                {task.claim_session_id && (
-                  <div className="flex items-center gap-1.5 text-zinc-400">
-                    <Hash className="h-3 w-3 text-zinc-500 shrink-0" />
-                    <span>Session:</span>
-                    <strong className="text-zinc-200 font-mono truncate">{task.claim_session_id}</strong>
-                  </div>
-                )}
-                {/* Claimed At + Elapsed */}
-                {task.claimed_at && (
-                  <div className="flex items-center gap-1.5 text-zinc-400">
-                    <Timer className="h-3 w-3 text-amber-400 shrink-0" />
-                    <span>Claimed:</span>
-                    <strong className="text-zinc-200">
-                      {new Date(task.claimed_at).toLocaleTimeString()}
-                    </strong>
-                    {task.status === 'RUNNING' && (
-                      <span className="text-zinc-500">· {elapsedLabel(task.claimed_at)}</span>
-                    )}
-                  </div>
-                )}
-                {/* Worktree */}
-                {task.worktree_path && (
-                  <div className="col-span-2 flex items-center gap-1.5 text-zinc-400">
-                    <FolderGit2 className="h-3 w-3 text-cyan-400 shrink-0" />
-                    <span className="shrink-0">Worktree:</span>
-                    <span className="font-mono text-zinc-300 truncate select-text flex-1">{task.worktree_path}</span>
-                    <button
-                      onClick={handleCopyWorktree}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-200 shrink-0"
-                    >
-                      {copiedWorktree ? '✓' : 'Copy'}
-                    </button>
-                  </div>
-                )}
+              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5">
+                {task.phases.map((phase, idx) => {
+                  const isCurrent = task.current_phase === phase.id
+                  const isDone = phase.status === 'COMPLETED'
+                  const isFailed = phase.status === 'FAILED'
+                  const isSkipped = phase.status === 'SKIPPED'
+
+                  return (
+                    <React.Fragment key={phase.id}>
+                      <div
+                        className={`flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] font-mono shrink-0 transition-colors ${
+                          isDone
+                            ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-300'
+                            : isCurrent
+                              ? 'border-cyan-500/70 bg-cyan-950/30 text-cyan-300 ring-1 ring-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                              : isFailed
+                                ? 'border-rose-500/50 bg-rose-950/30 text-rose-300'
+                                : isSkipped
+                                  ? 'border-zinc-800 bg-zinc-900/30 text-zinc-500 line-through'
+                                  : 'border-zinc-800 bg-zinc-900/40 text-zinc-500'
+                        }`}
+                        title={phase.notes ? `${phase.title}: ${phase.notes}` : phase.title}
+                      >
+                        {isDone ? (
+                          <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
+                        ) : isCurrent ? (
+                          <PlayCircle className="h-3 w-3 text-cyan-400 animate-spin shrink-0" />
+                        ) : isFailed ? (
+                          <AlertCircle className="h-3 w-3 text-rose-400 shrink-0" />
+                        ) : (
+                          <Clock className="h-3 w-3 text-zinc-600 shrink-0" />
+                        )}
+                        <span className="font-sans font-medium text-[11px] truncate max-w-[130px]">
+                          {phase.title}
+                        </span>
+                      </div>
+                      {idx < (task.phases?.length || 0) - 1 && (
+                        <ChevronRight className="h-3 w-3 text-zinc-700 shrink-0" />
+                      )}
+                    </React.Fragment>
+                  )
+                })}
               </div>
             </div>
+          )}
+
+          {/* Structured Description Blocks */}
+          {parsedDesc.hasStructuredBlocks ? (
+            <div className="space-y-3 pt-1">
+              {/* Context Card */}
+              {parsedDesc.context && (
+                <div className="rounded-lg border border-violet-500/20 bg-violet-950/10 p-3 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-400">
+                    <Layers className="h-3 w-3" />
+                    <span>Context</span>
+                  </div>
+                  <p className="text-xs text-zinc-300 leading-relaxed select-text whitespace-pre-wrap">
+                    {parsedDesc.context}
+                  </p>
+                </div>
+              )}
+
+              {/* Input / Output 2-Column Grid */}
+              {(parsedDesc.inputs?.length || parsedDesc.outputs?.length) ? (
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Inputs */}
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-1.5">
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      <FileCode className="h-3 w-3 text-cyan-400" />
+                      <span>Inputs ({parsedDesc.inputs?.length || 0})</span>
+                    </span>
+                    <div className="space-y-1">
+                      {parsedDesc.inputs && parsedDesc.inputs.length > 0 ? (
+                        parsedDesc.inputs.map((inItem, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-cyan-300 border border-zinc-800/80 break-all select-text"
+                          >
+                            {inItem}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-zinc-500 italic">None specified</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Outputs */}
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-1.5">
+                    <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                      <span>Outputs ({parsedDesc.outputs?.length || 0})</span>
+                    </span>
+                    <div className="space-y-1">
+                      {parsedDesc.outputs && parsedDesc.outputs.length > 0 ? (
+                        parsedDesc.outputs.map((outItem, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-emerald-300 border border-zinc-800/80 break-all select-text"
+                          >
+                            {outItem}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-zinc-500 italic">None specified</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Condition Guards */}
+              {parsedDesc.conditionGuards && parsedDesc.conditionGuards.length > 0 && (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-950/10 p-2.5 space-y-1.5">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
+                    <Shield className="h-3 w-3" />
+                    <span>Condition Guards</span>
+                  </span>
+                  <div className="space-y-1 font-mono text-[11px]">
+                    {parsedDesc.conditionGuards.map((guard, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded bg-black/60 px-2.5 py-1.5 text-amber-300/90 border border-amber-500/20 select-text break-all"
+                      >
+                        <code>{guard}</code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Constraints */}
+              {parsedDesc.constraints && parsedDesc.constraints.length > 0 && (
+                <div className="rounded-lg border border-rose-500/20 bg-rose-950/10 p-2.5 space-y-1.5">
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-rose-400">
+                    <Lock className="h-3 w-3" />
+                    <span>Constraints</span>
+                  </span>
+                  <div className="space-y-1">
+                    {parsedDesc.constraints.map((c, idx) => (
+                      <div key={idx} className="text-xs text-rose-200">
+                        • {c}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Blocks */}
+              {parsedDesc.customBlocks.map((block) => (
+                <div key={block.key} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                    {block.label}
+                  </span>
+                  {block.items && block.items.length > 0 ? (
+                    <div className="space-y-1">
+                      {block.items.map((it, idx) => (
+                        <div key={idx} className="text-xs text-zinc-300">
+                          • {it}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-zinc-300 whitespace-pre-wrap select-text">
+                      {block.content}
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              {/* Preamble / General Notes */}
+              {parsedDesc.generalNotes && (
+                <p className="whitespace-pre-wrap text-xs text-zinc-400 leading-relaxed select-text">
+                  {parsedDesc.generalNotes}
+                </p>
+              )}
+            </div>
+          ) : (
+            /* Fallback to standard unstructured description */
+            task.description && (
+              <p className="whitespace-pre-wrap text-xs text-zinc-400 leading-relaxed select-text pt-1">
+                {task.description}
+              </p>
+            )
           )}
         </div>
-
-        {/* READ-ONLY: Supplemental notes supplied by the agent / operator via MCP or CLI */}
-        {task.notes && (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-1.5">
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-              <FileText className="h-3 w-3 text-zinc-400" />
-              <span>Supplemental Notes</span>
-            </span>
-            <p className="whitespace-pre-wrap text-xs text-zinc-300 select-text leading-relaxed">
-              {task.notes}
-            </p>
-          </div>
-        )}
-
-        {/* OBSERVATION GATE: Awaiting Review Handshake (read-only) */}
-        {task.status === 'AWAITING_REVIEW' && (
-          <div className="rounded-lg border border-orange-500/40 bg-orange-950/20 p-3.5 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-orange-300">
-              <AlertTriangle className="h-4 w-4 text-orange-400 shrink-0" />
-              <span>Architectural Review Requested by Worker</span>
-            </div>
-
-            {task.review_reason && (
-              <div className="text-xs text-orange-200">
-                <span className="font-semibold text-orange-300">Reason:</span> {task.review_reason}
-              </div>
-            )}
-
-            {task.review_details && (
-              <div className="rounded bg-black/40 p-2.5 text-[11px] font-mono text-zinc-300 break-words border border-orange-500/20">
-                {task.review_details}
-              </div>
-            )}
-
-            {task.review_options && task.review_options.length > 0 && (
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                  Suggested Options:
-                </span>
-                <div className="space-y-1">
-                  {task.review_options.map((opt, i) => (
-                    <div
-                      key={i}
-                      className="rounded border border-orange-500/20 bg-orange-500/5 px-2 py-1 text-[11px] text-orange-200"
-                    >
-                      {opt}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Review resolution (if already resolved) */}
-            {task.review_response && (
-              <div className="rounded border border-emerald-500/30 bg-emerald-950/20 p-2 text-[11px] text-emerald-300">
-                <span className="font-semibold">Resolution:</span> {task.review_response}
-                {task.resolved_by && (
-                  <span className="text-zinc-400"> — by <strong className="text-zinc-300 font-mono">{task.resolved_by}</strong></span>
-                )}
-              </div>
-            )}
-
-            <div className="rounded border border-orange-500/30 bg-black/30 p-2.5 text-[11px] leading-relaxed text-zinc-300">
-              This gate is resolved by your{' '}
-              <strong className="text-orange-200">main orchestrator agent</strong>, not from the Web Cockpit.
-              Reply with your decision in the agent session; the main agent records it with{' '}
-              <code className="font-mono text-orange-200">review(action=resolve)</code> and the task returns to{' '}
-              <code className="font-mono text-orange-200">READY</code>.
-            </div>
-          </div>
-        )}
-
-        {/* INTERACTIVE GATE: Awaiting Merge Gate */}
-        {task.status === 'AWAITING_MERGE' && (
-          <div className="rounded-lg border border-cyan-500/40 bg-cyan-950/20 p-3.5 space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-cyan-300">
-              <GitMerge className="h-4 w-4 text-cyan-400 shrink-0" />
-              <span>Worktree Slice Tested & Ready for Merge</span>
-            </div>
-            <p className="text-[11px] text-zinc-300">
-              Agent execution verified with passing tests on isolated worktree. Merge the worktree into the target
-              branch outside MCP, then mark the outcome with <code className="font-mono">transition_task</code>{' '}
-              (<code className="font-mono">merge_outcome=MERGED</code> or <code className="font-mono">CONFLICT</code>).
-            </p>
-          </div>
-        )}
-
-        {/* INTERACTIVE GATE: Merge Conflict Detected */}
-        {task.status === 'CONFLICT' && (
-          <div className="rounded-lg border border-rose-500/40 bg-rose-950/20 p-3.5 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-rose-300">
-              <ShieldAlert className="h-4 w-4 text-rose-400 shrink-0" />
-              <span>Git Merge Conflicts Detected</span>
-            </div>
-            <p className="text-[11px] text-zinc-300">
-              Resolve conflicts manually outside MCP, then mark the task merged via{' '}
-              <code className="font-mono">transition_task</code> with{' '}
-              <code className="font-mono">merge_outcome=MERGED</code>. Conflicting files:
-            </p>
-            {task.conflict_files && task.conflict_files.length > 0 && (
-              <div className="space-y-1">
-                {task.conflict_files.map((file, idx) => (
-                  <div key={idx} className="rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-rose-300 border border-rose-500/20">
-                    {file}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Triage Badges: Priority, Complexity, Risk */}
         {(task.priority || task.complexity || task.risk_level) && (
@@ -503,6 +527,55 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
           </div>
         )}
 
+        {/* Multi-Modal Attachments Row (Zero-Footprint empty state rule) */}
+        {artifacts.length > 0 && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-2">
+            <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              <div className="flex items-center gap-1.5">
+                <Paperclip className="h-3 w-3 text-violet-400" />
+                <span>Media Attachments ({artifacts.length})</span>
+              </div>
+              {onViewArtifacts && (
+                <button
+                  onClick={onViewArtifacts}
+                  className="text-violet-400 hover:text-violet-300 font-sans normal-case text-[11px] transition"
+                >
+                  View Full Gallery →
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto py-1">
+              {artifacts.slice(0, 4).map((art) => (
+                <div
+                  key={art.id}
+                  className="relative h-14 w-14 rounded border border-zinc-800 bg-black/40 overflow-hidden shrink-0 group"
+                  title={art.name}
+                >
+                  {art.type === 'IMAGE' || art.mime_type.startsWith('image/') ? (
+                    <img
+                      src={`/api/v1/artifacts/${art.id}`}
+                      alt={art.name}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center">
+                      <FileSpreadsheet className="h-5 w-5 text-zinc-500" />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {artifacts.length > 4 && (
+                <button
+                  onClick={onViewArtifacts}
+                  className="flex h-14 w-14 items-center justify-center rounded border border-zinc-800 bg-zinc-900/80 text-xs font-mono text-zinc-400 hover:text-white shrink-0 transition"
+                >
+                  +{artifacts.length - 4}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Dependencies Seam */}
         <div className="space-y-1.5">
           <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -545,29 +618,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
         {/* Metadata Footer */}
         <div className="space-y-2 border-t border-zinc-850 pt-3 text-xs">
-          {/* Worktree Path (only if NOT already shown in Claim Telemetry Hub above) */}
-          {!task.claimed_by && (
-            <>
-              <div className="flex items-center justify-between text-zinc-400">
-                <span className="flex items-center gap-1 text-[11px] text-zinc-400">
-                  <FolderGit2 className="h-3 w-3" />
-                  <span>Worktree Path</span>
-                </span>
-                {task.worktree_path && (
-                  <button
-                    onClick={handleCopyWorktree}
-                    className="text-[10px] text-zinc-400 hover:text-zinc-200"
-                  >
-                    {copiedWorktree ? 'Copied!' : 'Copy Path'}
-                  </button>
-                )}
-              </div>
-              <div className="truncate rounded border border-zinc-850 bg-zinc-900/50 px-2 py-1 font-mono text-[11px] text-zinc-300 select-text">
-                {task.worktree_path || 'Not set'}
-              </div>
-            </>
-          )}
-
           <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400 pt-1">
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />

@@ -2,12 +2,8 @@ package mcp
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -116,7 +112,7 @@ func (s *Server) registerDocumentTools() {
 					if err != nil {
 						return toolError("failed to load document %s: %v", id, err), nil
 					}
-					content, err = readDocumentContent(document.Path)
+					content, err = domain.ReadTextSnapshot(document.Path)
 					if err != nil {
 						return toolError("failed to read %s: %v", document.Path, err), nil
 					}
@@ -125,7 +121,7 @@ func (s *Server) registerDocumentTools() {
 				size := int64(request.GetInt("byte_size", len(content)))
 				if content != "" {
 					if hash == "" {
-						hash = contentHash(content)
+						hash = domain.ComputeContentHash(content)
 					}
 				} else if hash == "" {
 					size = 0
@@ -229,14 +225,14 @@ func (s *Server) documentFromRequest(ctx context.Context, request mcp.CallToolRe
 
 	content := request.GetString("content", "")
 	if content == "" {
-		read, err := readDocumentContent(path)
+		read, err := domain.ReadTextSnapshot(path)
 		if err == nil {
 			content = read
 		}
 	}
 	hash := request.GetString("content_hash", "")
 	if hash == "" && content != "" {
-		hash = contentHash(content)
+		hash = domain.ComputeContentHash(content)
 	}
 	size := int64(request.GetInt("byte_size", len(content)))
 	mimeType := request.GetString("mime_type", "text/markdown")
@@ -301,34 +297,4 @@ func parseDocumentPatch(args map[string]any) (domain.DocumentPatch, error) {
 		patch.Status = &status
 	}
 	return patch, nil
-}
-
-func readDocumentContent(path string) (string, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-	if info.IsDir() {
-		return "", fmt.Errorf("%s is a directory", path)
-	}
-	if info.Size() > 4<<20 {
-		return "", fmt.Errorf("%s is larger than 4 MiB; register it without a content snapshot", path)
-	}
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".md", ".markdown", ".txt", ".json", ".yaml", ".yml", ".xml", ".csv",
-		".toml", ".sql", ".go", ".ts", ".tsx", ".js", ".jsx", ".css", ".html":
-	default:
-		// Binary/media documents stay path-only; never index their bytes.
-		return "", nil
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return string(raw), nil
-}
-
-func contentHash(content string) string {
-	sum := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(sum[:])
 }

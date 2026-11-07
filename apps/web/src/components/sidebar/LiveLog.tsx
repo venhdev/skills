@@ -1,108 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, ScrollText } from 'lucide-react'
 import type { EventMessage } from '../../types/contracts'
+import { formatEvent, toneClass } from '../../lib/eventFormatter'
+import { useZenfdAPI } from '../../hooks/useZenfdAPI'
 
 interface LiveLogProps {
   /** Increments on every SSE event, including the daemon's state:changed. */
   tick: number
-}
-
-interface EventSummary {
-  text: string
-  tone: 'project' | 'plan' | 'task' | 'document' | 'agent' | 'session' | 'media' | 'muted'
-}
-
-function parsePayload(raw: string): Record<string, any> {
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-// formatEvent turns a trigger-produced row into one readable line. The payload
-// shape is owned by schema.go's audit triggers.
-function formatEvent(evt: EventMessage): EventSummary {
-  const p = parsePayload(evt.payload)
-  switch (evt.type) {
-    case 'project.created':
-      return { text: `project created · ${p.name || p.slug}`, tone: 'project' }
-    case 'project.updated':
-      return {
-        text: `project ${p.kind === 'status' ? `→ ${p.status}` : p.kind || 'updated'} · ${p.slug}`,
-        tone: 'project',
-      }
-    case 'project.deleted':
-      return { text: `project deleted · ${p.slug}`, tone: 'project' }
-    case 'plan.created':
-      return { text: `plan created · ${p.slug}`, tone: 'plan' }
-    case 'plan.updated':
-      return {
-        text:
-          p.kind === 'archived'
-            ? `plan archived · ${p.slug}`
-            : p.kind === 'unarchived'
-              ? `plan restored · ${p.slug}`
-              : `plan ${p.kind} · ${p.slug}${p.from && p.to && p.from !== p.to ? ` ${p.from}→${p.to}` : ''}`,
-        tone: 'plan',
-      }
-    case 'plan.deleted':
-      return { text: `plan deleted · ${p.slug}`, tone: 'plan' }
-    case 'task.created':
-      return { text: `task created · ${p.task_id} (${p.status})`, tone: 'task' }
-    case 'task.updated': {
-      const suffix =
-        p.kind === 'status' && p.from && p.to
-          ? ` ${p.from}→${p.to}`
-          : p.kind === 'claim'
-            ? ` claimed by ${p.claimed_by || 'worker'}`
-            : ` ${p.kind}`
-      return { text: `${p.task_id}${suffix}`, tone: 'task' }
-    }
-    case 'task.deleted':
-      return { text: `task deleted · ${p.task_id}`, tone: 'task' }
-    case 'document.created':
-      return { text: `document registered · ${p.key || p.title}`, tone: 'document' }
-    case 'document.updated':
-      return { text: `document ${p.kind || 'updated'} · ${p.title || p.key}`, tone: 'document' }
-    case 'document.deleted':
-      return { text: `document removed · ${p.title || p.key}`, tone: 'document' }
-    case 'document.tagged':
-      return { text: `document #${p.tag} · ${p.document_id}`, tone: 'document' }
-    case 'document.untagged':
-      return { text: `document −#${p.tag} · ${p.document_id}`, tone: 'document' }
-    case 'agent.created':
-      return { text: `agent created · ${p.name || p.slug} (${p.persona})`, tone: 'agent' }
-    case 'agent.updated':
-      return { text: `agent updated · ${p.name || p.slug}`, tone: 'agent' }
-    case 'agent.deleted':
-      return { text: `agent deleted · ${p.name || p.slug}`, tone: 'agent' }
-    case 'session.registered':
-      return { text: `session registered · ${p.session_type} ${p.agent_slug || p.id}`, tone: 'session' }
-    case 'session.updated':
-      return { text: `session ${p.status} · ${p.agent_slug || p.id}`, tone: 'session' }
-    case 'session.deleted':
-      return { text: `session removed · ${p.agent_slug || p.id}`, tone: 'session' }
-    case 'artifact.added':
-      return {
-        text: `${p.role === 'INPUT' ? 'media attached' : 'artifact'} · ${p.name || p.artifact_id} → ${p.task_id}`,
-        tone: 'media',
-      }
-    default:
-      return { text: `${evt.type} · ${evt.task_id || evt.plan_slug || ''}`, tone: 'muted' }
-  }
-}
-
-const toneClass: Record<EventSummary['tone'], string> = {
-  project: 'text-emerald-300',
-  plan: 'text-sky-300',
-  task: 'text-violet-300',
-  document: 'text-cyan-300',
-  agent: 'text-fuchsia-300',
-  session: 'text-amber-300',
-  media: 'text-emerald-300',
-  muted: 'text-zinc-400',
 }
 
 function formatTime(raw: string): string {
@@ -117,14 +21,14 @@ export const LiveLog: React.FC<LiveLogProps> = ({ tick }) => {
   const lastIdRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const pinnedRef = useRef(true)
+  const { fetchEvents } = useZenfdAPI()
 
   const load = useCallback(async (initial: boolean) => {
-    const query = initial ? '?limit=80' : `?after_id=${lastIdRef.current}&limit=80`
     try {
-      const res = await fetch(`/api/v1/events${query}`)
+      const afterId = initial ? 0 : lastIdRef.current
+      const res = await fetchEvents(afterId, 80)
       if (!res.ok) return
-      const raw = await res.json()
-      const batch: EventMessage[] = Array.isArray(raw) ? raw : (raw?.events || [])
+      const batch = res.data
       if (!Array.isArray(batch) || batch.length === 0) return
 
       const newest = batch[batch.length - 1].id
@@ -134,7 +38,7 @@ export const LiveLog: React.FC<LiveLogProps> = ({ tick }) => {
     } catch {
       // The daemon may be restarting; the next tick retries.
     }
-  }, [])
+  }, [fetchEvents])
 
   useEffect(() => {
     void load(true)

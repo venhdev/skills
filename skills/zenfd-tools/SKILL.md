@@ -49,7 +49,8 @@ inside the same container; a plan task cannot depend on another plan.
 calls `review(action=resolve)` → fresh claim.
 
 ```text
-PENDING ──deps done──▶ READY ──claim──▶ RUNNING ──complete──▶ COMPLETED
+PENDING ──deps done──▶ READY ──claim──▶ RUNNING ──checkpoint──▶ RUNNING (advances phase)
+                                   │        ├──complete──▶ COMPLETED
                                    │        └──complete (worktree)──▶ AWAITING_MERGE ──MERGED──▶ COMPLETED
                                    │                                  └──CONFLICT──▶ CONFLICT ──MERGED──▶ COMPLETED
                                    ├──fail──▶ FAILED  (blocks downstream dependents)
@@ -72,7 +73,7 @@ Recovery is `RESET` followed by a fresh claim.
 | `search` | Search projects, plans, tasks, and document snapshots in one call. | `query` (required); `project_slug`, `limit` |
 | `claim_task` | Atomically claim a `READY` task, transition to `RUNNING`, return its `ContextPacket`. | `task_id` (required); `worker_id`, `orchestrator_id`, `worker_role` |
 | `review` | `request` pauses a `RUNNING` task at `AWAITING_REVIEW` with a drift question; `resolve` records the human decision and returns to `READY`. | `action`, `task_id` (required); request: `reason`, `details`, `options[]`; resolve: `response` |
-| `transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, or `CANCEL`. Use `task_ids` + `action`, or `items[]` for mixed actions. | `task_ids[]` + `action`, or `items[]`; `reason`, `summary`, `merge_outcome` (`MERGED`/`CONFLICT`) |
+| `transition_task` | Apply `COMPLETE`, `FAIL`, `RESET`, `CANCEL`, or `CHECKPOINT`. Use `task_ids` + `action`, or `items[]` for mixed actions. | `task_ids[]` + `action`, or `items[]`; `reason`, `summary`, `phase_id`, `phase_status`, `merge_outcome` (`MERGED`/`CONFLICT`) |
 
 Clients namespace tools by server: OpenCode shows `zenfd.plans`, `zenfd.tasks`,
 and so on; Claude Code shows `mcp__zenfd__plans`.
@@ -98,9 +99,17 @@ Only `id` and `title` are required per item. Everything else is optional:
   "agent_slug": "coder-alpha",
   "harness": "orchestrator",
   "worktree_path": "/path/to/worktree",
-  "media": [{ "file_path": "/abs/design.png", "name": "Checkout redesign" }]
+  "media": [{ "file_path": "/abs/design.png", "name": "Checkout redesign" }],
+  "phases": [
+    { "id": "analysis", "title": "Analyze call sites" },
+    { "id": "red_test", "title": "Write failing tests" },
+    { "id": "green_impl", "title": "Implement migration" },
+    { "id": "verify", "title": "Run regression test suite" }
+  ],
+  "current_phase": "analysis"
 }
 ```
+*Note*: The 4-phase sequence above is an exemplar, not an enforced dogma. Tasks may have 0 phases (atomic task), 2-3 phases, or 4+ phases as appropriate.
 
 Tasks with no `dependencies` start `READY`. A task with dependencies starts
 `PENDING`, unless its prerequisites are already complete (→ `READY`) or already

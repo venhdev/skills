@@ -17,6 +17,17 @@ export type TaskPriority = 'P0' | 'P1' | 'P2' | 'P3'
 export type TaskComplexity = 'LOW' | 'MEDIUM' | 'HIGH' | 'SPIKE'
 export type TaskRisk = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 
+export type PhaseStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SKIPPED'
+
+export interface TaskPhase {
+  id: string
+  title: string
+  status: PhaseStatus
+  notes?: string
+  started_at?: string
+  completed_at?: string
+}
+
 export interface Project {
   slug: string
   name: string
@@ -76,6 +87,8 @@ export interface Task {
   review_response?: string
   resolved_by?: string
   conflict_files?: string[]
+  phases?: TaskPhase[]
+  current_phase?: string
   created_at: string
   updated_at: string
 }

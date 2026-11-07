@@ -26,7 +26,8 @@ const MaxBytes = 25 << 20
 // who keep state outside the home directory).
 const RootEnv = "ZENFD_ATTACHMENTS_DIR"
 
-func storageRoot() (string, error) {
+// StorageRoot returns the root directory for attachments, honoring RootEnv.
+func StorageRoot() (string, error) {
 	if override := os.Getenv(RootEnv); override != "" {
 		return override, nil
 	}
@@ -35,6 +36,10 @@ func storageRoot() (string, error) {
 		return "", fmt.Errorf("cannot resolve home directory: %w", err)
 	}
 	return filepath.Join(home, ".zenforge", "attachments"), nil
+}
+
+func storageRoot() (string, error) {
+	return StorageRoot()
 }
 
 // Ingest copies srcPath into ~/.zenforge/attachments/<taskID>/ and returns the

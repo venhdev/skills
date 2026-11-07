@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useZenfdAPI } from '../../hooks/useZenfdAPI'
 import type { EventMessage, SearchResult } from '../../types/contracts'
+import { formatEvent } from '../../lib/eventFormatter'
 
 interface ActivityViewProps {
   tick: number
@@ -48,76 +49,6 @@ const searchIcon: Record<string, React.ReactNode> = {
   document: <BookOpen className="h-3.5 w-3.5" />,
   agent: <Bot className="h-3.5 w-3.5" />,
   session: <Activity className="h-3.5 w-3.5" />,
-}
-
-function parsePayload(raw: string): Record<string, any> {
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-function summarize(evt: EventMessage, payload: Record<string, any>): string {
-  switch (evt.type) {
-    case 'project.created':
-      return `project created · ${payload.name || evt.entity_id}`
-    case 'project.updated':
-      return `project ${payload.kind || 'updated'} · ${payload.slug || evt.entity_id}${
-        payload.kind === 'status' ? ` (${payload.status})` : ''
-      }`
-    case 'project.deleted':
-      return `project deleted · ${payload.slug || evt.entity_id}`
-    case 'plan.created':
-      return `plan created · ${payload.title || payload.slug || evt.entity_id}`
-    case 'plan.updated':
-      return `plan ${payload.kind || 'updated'} · ${payload.slug || evt.entity_id}${
-        payload.kind === 'status' && payload.from && payload.to ? ` ${payload.from}→${payload.to}` : ''
-      }`
-    case 'plan.deleted':
-      return `plan deleted · ${payload.slug || evt.entity_id}`
-    case 'task.created':
-      return `task created · ${payload.title || payload.task_id || evt.entity_id}`
-    case 'task.updated': {
-      const kind = payload.kind || 'updated'
-      if (kind === 'status' && payload.from && payload.to) {
-        return `${payload.task_id || evt.entity_id} ${payload.from}→${payload.to}`
-      }
-      if (kind === 'claim') {
-        return `${payload.task_id || evt.entity_id} claimed by ${payload.claimed_by || 'worker'}`
-      }
-      return `${payload.task_id || evt.entity_id} ${kind}`
-    }
-    case 'task.deleted':
-      return `task deleted · ${payload.task_id || evt.entity_id}`
-    case 'document.created':
-      return `document registered · ${payload.key || payload.title || evt.entity_id}`
-    case 'document.updated':
-      return `document ${payload.kind || 'updated'} · ${payload.title || payload.key || evt.entity_id}`
-    case 'document.deleted':
-      return `document removed · ${payload.title || payload.key || evt.entity_id}`
-    case 'document.tagged':
-      return `${payload.document_id || evt.entity_id} #${payload.tag}`
-    case 'document.untagged':
-      return `${payload.document_id || evt.entity_id} −#${payload.tag}`
-    case 'agent.created':
-      return `agent created · ${payload.name || payload.slug} (${payload.persona})`
-    case 'agent.updated':
-      return `agent updated · ${payload.name || payload.slug} (${payload.persona}, ${payload.mode})`
-    case 'agent.deleted':
-      return `agent deleted · ${payload.name || payload.slug}`
-    case 'session.registered':
-      return `${payload.session_type || 'session'} registered · ${payload.agent_slug || 'unbound'}`
-    case 'session.updated':
-      return `${payload.session_type || 'session'} · ${payload.agent_slug || 'unbound'} → ${payload.status}`
-    case 'session.deleted':
-      return `${payload.session_type || 'session'} removed · ${payload.agent_slug || 'unbound'}`
-    case 'artifact.added':
-      return `artifact attached · ${payload.name || payload.artifact_id} → ${payload.task_id}`
-    default:
-      return `${evt.type} · ${evt.entity_id}`
-  }
 }
 
 function formatTime(raw: string): string {
@@ -257,13 +188,11 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ tick, projectSlug })
               No events for this filter yet.
             </div>
           ) : (
-            visibleEvents.map((evt) => {
-              const payload = parsePayload(evt.payload)
-              return (
-                <div
-                  key={evt.id}
-                  className="flex flex-wrap items-center gap-2 rounded border border-zinc-800/60 bg-zinc-900/30 px-2.5 py-1.5 font-mono text-[11px]"
-                >
+            visibleEvents.map((evt) => (
+              <div
+                key={evt.id}
+                className="flex flex-wrap items-center gap-2 rounded border border-zinc-800/60 bg-zinc-900/30 px-2.5 py-1.5 font-mono text-[11px]"
+              >
                   <span className="shrink-0 text-zinc-600">#{evt.id}</span>
                   <span className="shrink-0 text-zinc-600">{formatTime(evt.timestamp)}</span>
                   <span
@@ -273,12 +202,11 @@ export const ActivityView: React.FC<ActivityViewProps> = ({ tick, projectSlug })
                   >
                     {evt.entity_type}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-zinc-300">{summarize(evt, payload)}</span>
+                  <span className="min-w-0 flex-1 truncate text-zinc-300">{formatEvent(evt).text}</span>
                   {evt.project_slug && <span className="shrink-0 text-zinc-600">{evt.project_slug}</span>}
                   {evt.plan_slug && <span className="shrink-0 text-zinc-600">{evt.plan_slug}</span>}
                 </div>
-              )
-            })
+            ))
           )}
         </div>
       </div>

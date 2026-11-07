@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -119,8 +118,7 @@ func (r *DocumentRepository) CreateDocument(ctx context.Context, document domain
 	}
 	if document.Content != "" {
 		if document.ContentHash == "" {
-			sum := sha256.Sum256([]byte(document.Content))
-			document.ContentHash = hex.EncodeToString(sum[:])
+			document.ContentHash = domain.ComputeContentHash(document.Content)
 		}
 		if document.ByteSize == 0 {
 			document.ByteSize = int64(len(document.Content))

@@ -122,3 +122,13 @@ export function getTaskStatusStyle(status: TaskStatus): string {
   }
   return config.badge || `${config.border} ${config.bg} ${config.text}`
 }
+
+export const EDGE_COLORS = {
+  running: '#a855f7',
+  completed: '#10b981',
+  default: '#52525b',
+  defaultMarker: '#71717a',
+  dimmed: '#3f3f46',
+  selected: '#8b5cf6',
+  blast: '#f59e0b',
+} as const

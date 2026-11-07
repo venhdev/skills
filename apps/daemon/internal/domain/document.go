@@ -1,10 +1,55 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
+
+// MaxSnapshotSize is the 4 MiB ceiling for inlining document text snapshots.
+const MaxSnapshotSize = 4 << 20
+
+// TextExtensions are supported extensions for searchable text snapshot extraction.
+var TextExtensions = map[string]bool{
+	".md": true, ".markdown": true, ".txt": true, ".json": true,
+	".yaml": true, ".yml": true, ".xml": true, ".csv": true,
+	".toml": true, ".sql": true, ".go": true, ".ts": true,
+	".tsx": true, ".js": true, ".jsx": true, ".css": true, ".html": true,
+}
+
+// ComputeContentHash returns the hex-encoded SHA-256 digest of content.
+func ComputeContentHash(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])
+}
+
+// ReadTextSnapshot reads a text-like document up to 4 MiB and returns its content.
+// Binary/media files return ("", nil) without error so they can be registered by path only.
+func ReadTextSnapshot(path string) (string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("%s is a directory", path)
+	}
+	if info.Size() > MaxSnapshotSize {
+		return "", fmt.Errorf("%s is larger than 4 MiB; register it without a content snapshot", path)
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	if !TextExtensions[ext] {
+		return "", nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
 
 type DocumentType string
 

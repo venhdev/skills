@@ -115,6 +115,33 @@ const (
 	ScopeOrphan  TaskScope = "ORPHAN"
 )
 
+// PhaseStatus denotes the lifecycle state of an intra-task micro-phase.
+type PhaseStatus string
+
+const (
+	PhasePending   PhaseStatus = "PENDING"
+	PhaseRunning   PhaseStatus = "RUNNING"
+	PhaseCompleted PhaseStatus = "COMPLETED"
+	PhaseFailed    PhaseStatus = "FAILED"
+)
+
+func (s PhaseStatus) IsValid() bool {
+	switch s {
+	case PhasePending, PhaseRunning, PhaseCompleted, PhaseFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// TaskPhase models an intra-task micro-phase milestone.
+type TaskPhase struct {
+	ID     string      `json:"id"`
+	Title  string      `json:"title"`
+	Status PhaseStatus `json:"status"`
+	Notes  string      `json:"notes,omitempty"`
+}
+
 // Task represents an atomic vertical slice of execution in a DAG.
 type Task struct {
 	// 1. Identity, Scope & DAG Topology
@@ -138,6 +165,8 @@ type Task struct {
 	VerificationCommands []string       `json:"verification_commands,omitempty"`
 	Harness              string         `json:"harness"`
 	WorktreePath         string         `json:"worktree_path,omitempty"`
+	Phases               []TaskPhase    `json:"phases,omitempty"`
+	CurrentPhase         string         `json:"current_phase,omitempty"`
 
 	// 3. State & Claim Mutual Exclusion
 	Status         TaskStatus `json:"status"`
@@ -229,6 +258,8 @@ type TaskPatch struct {
 	VerificationCommands *[]string
 	Harness              *string
 	WorktreePath         *string
+	Phases               *[]TaskPhase
+	CurrentPhase         *string
 }
 
 // TaskFilter narrows a task query. Empty fields are not applied.

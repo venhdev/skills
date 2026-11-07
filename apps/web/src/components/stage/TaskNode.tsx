@@ -19,6 +19,20 @@ export interface TaskNodeData {
   onSelect: (task: Task) => void
 }
 
+function getBlastOpacity(isBlastRadius?: boolean, blastDepth?: number): string {
+  if (!isBlastRadius || blastDepth === undefined) return ''
+  if (blastDepth <= 2) return 'opacity-80'
+  if (blastDepth === 3) return 'opacity-60'
+  return 'opacity-40'
+}
+
+function getSelectionRing(isSelected?: boolean, isFocusNeighbor?: boolean, isBlastRadius?: boolean): string {
+  if (isSelected) return 'ring-2 ring-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.4)]'
+  if (isFocusNeighbor) return 'ring-1 ring-violet-500/45 shadow-[0_0_14px_rgba(139,92,246,0.2)]'
+  if (isBlastRadius) return 'ring-1 ring-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.25)] border-amber-500/50'
+  return ''
+}
+
 export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
   const {
     task,
@@ -30,29 +44,15 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
     onSelect,
   } = data
   const style = TASK_STATUS_CONFIG[task.status] || TASK_STATUS_CONFIG.PENDING
-  const blastOpacity =
-    isBlastRadius && blastDepth
-      ? blastDepth <= 2
-        ? 'opacity-80'
-        : blastDepth === 3
-        ? 'opacity-60'
-        : 'opacity-40'
-      : ''
+  const blastOpacity = getBlastOpacity(isBlastRadius, blastDepth)
+  const selectionRing = getSelectionRing(isSelected, isFocusNeighbor, isBlastRadius)
 
   return (
     <div
       onClick={() => onSelect(task)}
       className={`w-64 rounded-lg border p-3 transition-all cursor-pointer select-none backdrop-blur-sm ${
         style.border
-      } ${style.bg} ${style.glow} ${
-        isSelected
-          ? 'ring-2 ring-violet-500 shadow-[0_0_18px_rgba(139,92,246,0.4)]'
-          : isFocusNeighbor
-          ? 'ring-1 ring-violet-500/45 shadow-[0_0_14px_rgba(139,92,246,0.2)]'
-          : isBlastRadius
-          ? 'ring-1 ring-amber-500/80 shadow-[0_0_16px_rgba(245,158,11,0.25)] border-amber-500/50'
-          : ''
-      } ${isDimmed ? 'opacity-30' : blastOpacity}`}
+      } ${style.bg} ${style.glow} ${selectionRing} ${isDimmed ? 'opacity-30' : blastOpacity}`}
     >
       <Handle
         type="target"

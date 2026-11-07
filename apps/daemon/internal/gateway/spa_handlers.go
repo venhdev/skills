@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 	"strings"
@@ -46,11 +47,14 @@ func (s *Server) handleStaticSPA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	seeker, ok := fallback.(io.ReadSeeker)
+	if !ok {
+		serveControlPlaneBanner(w)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	http.ServeContent(w, r, "index.html", stat.ModTime(), fallback.(interface {
-		Read([]byte) (int, error)
-		Seek(int64, int) (int64, error)
-	}))
+	http.ServeContent(w, r, "index.html", stat.ModTime(), seeker)
 }
 
 func serveControlPlaneBanner(w http.ResponseWriter) {

@@ -30,6 +30,12 @@ Sequence slices topologically:
 - `READY`: All predecessor dependencies are `DONE`; ready for immediate `/forge` execution.
 - `BLOCKED`: Awaiting completion of prerequisite upstream slices.
 
+### 4. Intra-Task Micro-Phases vs Macro-DAG Tasks
+- **Macro-DAG Tasks**: Represent independent vertical slice deliverable boundaries with explicit dependencies and optional git worktrees.
+- **Intra-Task Micro-Phases (`phases[]`)**: When a vertical slice involves multiple progression stages (e.g., Analysis → RED Test → GREEN Implementation → Quality Gate Verification), define them as intra-task phases within a single task claim.
+- **Context Integrity**: Never split intra-phase progression across separate DAG claims; keeping the agent session inside the task prevents context loss and repeated environment spinups. Advance phases with `transition_task(action="CHECKPOINT", phase_id=...)`.
+- **Polymorphic Phase Model**: Phase lists are flexible: 0 phases (atomic slice), 2–3 phases, or 4+ phases as suitable for the task complexity.
+
 ## Canonical Output Contract
 
 ```markdown

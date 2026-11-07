@@ -1,13 +1,9 @@
 package gateway
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"zenfd/internal/domain"
@@ -35,27 +31,6 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"documents": documents})
 }
 
-// readTextSnapshot captures a searchable snapshot for text-like documents. It
-// deliberately skips binary/media files, which must be registered by path only.
-func readTextSnapshot(path string) (string, bool) {
-	info, err := os.Stat(path)
-	if err != nil || info.IsDir() || info.Size() > 4<<20 {
-		return "", false
-	}
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".md", ".markdown", ".txt", ".json", ".yaml", ".yml", ".xml", ".csv",
-		".toml", ".sql", ".go", ".ts", ".tsx", ".js", ".jsx", ".css", ".html":
-	default:
-		return "", false
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return "", false
-	}
-	return string(raw), true
-}
-
 // POST /api/v1/docs
 func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 	var document domain.Document
@@ -64,14 +39,13 @@ func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if document.Content == "" && document.Path != "" {
-		if raw, ok := readTextSnapshot(document.Path); ok {
+		if raw, err := domain.ReadTextSnapshot(document.Path); err == nil && raw != "" {
 			document.Content = raw
 		}
 	}
 	if document.Content != "" {
 		if document.ContentHash == "" {
-			sum := sha256.Sum256([]byte(document.Content))
-			document.ContentHash = hex.EncodeToString(sum[:])
+			document.ContentHash = domain.ComputeContentHash(document.Content)
 		}
 		if document.ByteSize == 0 {
 			document.ByteSize = int64(len(document.Content))
@@ -169,7 +143,9 @@ func (s *Server) handleRefreshDocument(w http.ResponseWriter, r *http.Request) {
 		ContentHash string `json:"content_hash"`
 		ByteSize    int64  `json:"byte_size"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
 
 	content := req.Content
 	if content == "" {
@@ -178,25 +154,18 @@ func (s *Server) handleRefreshDocument(w http.ResponseWriter, r *http.Request) {
 			writeStorageError(w, "load document", err)
 			return
 		}
-		info, err := os.Stat(document.Path)
+		raw, err := domain.ReadTextSnapshot(document.Path)
 		if err != nil {
 			writeHttpError(w, fmt.Sprintf("failed to read %s: %v", document.Path, err), http.StatusBadRequest)
 			return
 		}
-		if info.IsDir() {
-			writeHttpError(w, fmt.Sprintf("failed to read %s: path is a directory", document.Path), http.StatusBadRequest)
-			return
-		}
-		if raw, ok := readTextSnapshot(document.Path); ok {
-			content = raw
-		}
+		content = raw
 	}
 	hash := req.ContentHash
 	size := req.ByteSize
 	if content != "" {
 		if hash == "" {
-			sum := sha256.Sum256([]byte(content))
-			hash = hex.EncodeToString(sum[:])
+			hash = domain.ComputeContentHash(content)
 		}
 		if size == 0 {
 			size = int64(len(content))

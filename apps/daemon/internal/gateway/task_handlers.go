@@ -78,8 +78,15 @@ func (s *Server) handleUpdateTaskStatus(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		From   domain.TaskStatus `json:"from"`
-		Status domain.TaskStatus `json:"status"`
+		From         domain.TaskStatus  `json:"from"`
+		Status       domain.TaskStatus  `json:"status"`
+		Action       string             `json:"action"`
+		Reason       string             `json:"reason"`
+		Summary      string             `json:"summary"`
+		MergeOutcome string             `json:"merge_outcome"`
+		PhaseID      string             `json:"phase_id"`
+		PhaseStatus  domain.PhaseStatus `json:"phase_status"`
+		Notes        string             `json:"notes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeHttpError(w, fmt.Sprintf("invalid payload: %v", err), http.StatusBadRequest)
@@ -91,25 +98,109 @@ func (s *Server) handleUpdateTaskStatus(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	fromStatus := req.From
-	if fromStatus == "" {
-		current, err := s.storage.GetTask(r.Context(), taskID)
-		if err != nil {
-			writeStorageError(w, "load task status", err)
+	current, err := s.storage.GetTask(r.Context(), taskID)
+	if err != nil {
+		writeStorageError(w, "load task status", err)
+		return
+	}
+
+	action := strings.ToUpper(strings.TrimSpace(req.Action))
+	if action == "" {
+		switch req.Status {
+		case domain.StatusCompleted:
+			action = "COMPLETE"
+		case domain.StatusFailed:
+			action = "FAIL"
+		case domain.StatusCancelled:
+			action = "CANCEL"
+		case domain.StatusReady:
+			if current.Status == domain.StatusFailed || current.Status == domain.StatusCancelled || current.Status == domain.StatusConflict {
+				action = "RESET"
+			}
+		}
+	}
+
+	if action != "" {
+		evalRes, evalErr := domain.EvaluateTransition(*current, domain.TransitionTaskRequest{
+			Action:       action,
+			Reason:       req.Reason,
+			Summary:      req.Summary,
+			MergeOutcome: req.MergeOutcome,
+			PhaseID:      req.PhaseID,
+			PhaseStatus:  req.PhaseStatus,
+			Notes:        req.Notes,
+		})
+		if evalErr != nil {
+			writeHttpError(w, evalErr.Error(), http.StatusBadRequest)
 			return
 		}
+
+		if evalRes.PhasesUpdated {
+			_ = s.storage.UpdateTaskMetadata(r.Context(), taskID, domain.TaskPatch{
+				Phases:       &evalRes.Phases,
+				CurrentPhase: &evalRes.CurrentPhase,
+			})
+		}
+
+		if action == "RESET" {
+			resetReason := req.Reason
+			if resetReason == "" {
+				resetReason = "Reset by operator"
+			}
+			newStatus, err := s.storage.EvictTask(r.Context(), taskID, resetReason, "RESET_TO_READY")
+			if err != nil {
+				writeStorageError(w, "reset task", err)
+				return
+			}
+			if evalRes.AuditNote != "" {
+				_ = s.storage.AppendTaskNotes(r.Context(), taskID, evalRes.AuditNote)
+			}
+			s.Broadcast(domain.EventMessage{
+				Type:      "task.status",
+				TaskID:    taskID,
+				Payload:   eventPayload(map[string]string{"task_id": taskID, "status": string(newStatus)}),
+				Timestamp: time.Now().UTC(),
+			})
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"task_id": taskID,
+				"status":  string(newStatus),
+			})
+			return
+		}
+
+		targetStatus := evalRes.TargetStatus
+		if targetStatus != current.Status {
+			err = s.storage.UpdateTaskStatusWithNote(r.Context(), taskID, current.Status, targetStatus, evalRes.AuditNote)
+			if err != nil {
+				writeStorageError(w, "transition task status", err)
+				return
+			}
+		} else if evalRes.AuditNote != "" {
+			_ = s.storage.AppendTaskNotes(r.Context(), taskID, evalRes.AuditNote)
+		}
+
+		s.Broadcast(domain.EventMessage{
+			Type:      "task.status",
+			TaskID:    taskID,
+			Payload:   eventPayload(map[string]string{"task_id": taskID, "status": string(targetStatus)}),
+			Timestamp: time.Now().UTC(),
+		})
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"task_id": taskID,
+			"status":  string(targetStatus),
+		})
+		return
+	}
+
+	fromStatus := req.From
+	if fromStatus == "" {
 		fromStatus = current.Status
 	}
 
-	err := s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status)
-	if err != nil && errors.Is(err, domain.ErrConflictStatus) && req.From == "" {
-		// Retry once with the latest status in case of a concurrent transition.
-		if current, getErr := s.storage.GetTask(r.Context(), taskID); getErr == nil {
-			fromStatus = current.Status
-			err = s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status)
-		}
-	}
-
+	err = s.storage.UpdateTaskStatus(r.Context(), taskID, fromStatus, req.Status)
 	if err != nil {
 		writeStorageError(w, "transition task status", err)
 		return
@@ -190,8 +281,12 @@ func (s *Server) handleUploadTaskAttachment(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	home, _ := os.UserHomeDir()
-	storageDir := filepath.Join(home, ".zenforge", "attachments", taskID)
+	root, err := attachment.StorageRoot()
+	if err != nil {
+		writeHttpError(w, fmt.Sprintf("cannot resolve attachment storage: %v", err), http.StatusInternalServerError)
+		return
+	}
+	storageDir := filepath.Join(root, taskID)
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
 		writeHttpError(w, fmt.Sprintf("failed to create attachment directory: %v", err), http.StatusInternalServerError)
 		return
@@ -289,7 +384,12 @@ func (s *Server) handleClaimTask(w http.ResponseWriter, r *http.Request) {
 		WorkerRole     string `json:"worker_role"`
 		SessionID      string `json:"session_id"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeHttpError(w, fmt.Sprintf("invalid payload: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
 
 	packet, err := s.storage.ClaimTask(r.Context(), taskID, domain.ClaimOptions{
 		WorkerID:       req.WorkerID,
@@ -429,7 +529,12 @@ func (s *Server) handleEvictTask(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 		Action string `json:"action"` // "RESET_TO_READY" | "CANCEL"
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req)
+	if r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			writeHttpError(w, fmt.Sprintf("invalid payload: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
 	if req.Action == "" {
 		req.Action = "RESET_TO_READY"
 	}

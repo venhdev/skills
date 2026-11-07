@@ -8,8 +8,10 @@ import {
   RefreshCw,
 } from 'lucide-react'
 
+import type { ApiResult } from '../../hooks/useZenfdAPI'
+
 interface GlobalEnvViewProps {
-  onFetchEnv: () => Promise<Record<string, any> | null>
+  onFetchEnv: () => Promise<ApiResult<Record<string, any>>>
 }
 
 export const GlobalEnvView: React.FC<GlobalEnvViewProps> = ({ onFetchEnv }) => {
@@ -19,8 +21,12 @@ export const GlobalEnvView: React.FC<GlobalEnvViewProps> = ({ onFetchEnv }) => {
   const loadEnv = async () => {
     setLoading(true)
     try {
-      const data = await onFetchEnv()
-      setEnvData(data)
+      const res = await onFetchEnv()
+      if (res.ok) {
+        setEnvData(res.data)
+      } else {
+        setEnvData(null)
+      }
     } finally {
       setLoading(false)
     }

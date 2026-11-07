@@ -244,3 +244,52 @@ func TestMarkdownPromptCompiler_Compile_ScopeWording(t *testing.T) {
 		t.Error("expected orphan task scope wording")
 	}
 }
+
+func TestMarkdownPromptCompiler_Compile_XMLFencingAndConstraints(t *testing.T) {
+	compiler := prompt.NewCompiler()
+	ctx := context.Background()
+
+	task := domain.Task{
+		ID:                   "P-XML-01",
+		ProjectSlug:          "phoenix",
+		PlanSlug:             "phoenix-v1",
+		Title:                "XML Fenced Task Assignment",
+		Description:          "Ensure strict boundaries for coding agent.",
+		Priority:             "P0",
+		Complexity:           "LOW",
+		RiskLevel:            "LOW",
+		WorktreePath:         "/workspace/phoenix",
+		CurrentPhase:         "green_impl",
+		TargetFiles:          []string{"src/auth.go"},
+		AcceptanceCriteria:   []string{"100% test coverage"},
+		VerificationCommands: []string{"go test ./..."},
+	}
+
+	packet, err := compiler.Compile(ctx, prompt.Input{Task: task})
+	if err != nil {
+		t.Fatalf("unexpected compile error: %v", err)
+	}
+
+	md := packet.PromptMarkdown
+	expectedTags := []string{
+		"<task_context>", "</task_context>",
+		"<task_id>P-XML-01</task_id>",
+		"<current_phase>green_impl</current_phase>",
+		"<context>", "</context>",
+		"<scope>", "</scope>",
+		"<allowed_files>", "</allowed_files>",
+		"<constraints>", "</constraints>",
+		"<positive_invariants>", "</positive_invariants>",
+		"<negative_guards>", "</negative_guards>",
+		"<acceptance_criteria>", "</acceptance_criteria>",
+		"<verification_commands>", "</verification_commands>",
+		"<mcp_handshake_protocol>", "</mcp_handshake_protocol>",
+		"action=\"CHECKPOINT\"",
+	}
+
+	for _, tag := range expectedTags {
+		if !strings.Contains(md, tag) {
+			t.Errorf("prompt markdown missing expected XML tag or guideline: %q", tag)
+		}
+	}
+}

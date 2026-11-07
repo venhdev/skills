@@ -51,9 +51,11 @@ type taskInput struct {
 	Complexity           string       `json:"complexity"`
 	RiskLevel            string       `json:"risk_level"`
 	AgentSlug            string       `json:"agent_slug"`
-	Harness              string       `json:"harness"`
-	WorktreePath         string       `json:"worktree_path"`
-	Media                []mediaInput `json:"media"`
+	Harness              string             `json:"harness"`
+	WorktreePath         string             `json:"worktree_path"`
+	Phases               []domain.TaskPhase `json:"phases"`
+	CurrentPhase         string             `json:"current_phase"`
+	Media                []mediaInput       `json:"media"`
 }
 
 func toDomainTask(projectSlug, planSlug string, in taskInput) domain.Task {
@@ -77,7 +79,7 @@ func toDomainTask(projectSlug, planSlug string, in taskInput) domain.Task {
 	if len(in.Dependencies) == 0 {
 		status = domain.StatusReady
 	}
-	return domain.Task{
+	task := domain.Task{
 		ID:                   in.ID,
 		ProjectSlug:          projectSlug,
 		PlanSlug:             planSlug,
@@ -97,7 +99,16 @@ func toDomainTask(projectSlug, planSlug string, in taskInput) domain.Task {
 		Harness:              harness,
 		WorktreePath:         in.WorktreePath,
 		Status:               status,
+		Phases:               in.Phases,
+		CurrentPhase:         in.CurrentPhase,
 	}
+	if len(in.Phases) > 0 && in.CurrentPhase == "" {
+		task.CurrentPhase = in.Phases[0].ID
+		if in.Phases[0].Status == "" {
+			task.Phases[0].Status = domain.PhasePending
+		}
+	}
+	return task
 }
 
 func mediaItemSchema() map[string]any {
@@ -233,10 +244,12 @@ type taskUpdatePayload struct {
 	Complexity           *string      `json:"complexity"`
 	RiskLevel            *string      `json:"risk_level"`
 	AgentSlug            *string      `json:"agent_slug"`
-	Harness              *string      `json:"harness"`
-	WorktreePath         *string      `json:"worktree_path"`
-	MediaAdd             []mediaInput `json:"media_add"`
-	MediaRemove          []string     `json:"media_remove"`
+	Harness              *string             `json:"harness"`
+	WorktreePath         *string             `json:"worktree_path"`
+	Phases               *[]domain.TaskPhase `json:"phases"`
+	CurrentPhase         *string             `json:"current_phase"`
+	MediaAdd             []mediaInput        `json:"media_add"`
+	MediaRemove          []string            `json:"media_remove"`
 }
 
 func parseTaskPatch(args map[string]any) (domain.TaskPatch, []mediaInput, []string, error) {
@@ -262,6 +275,8 @@ func parseTaskPatch(args map[string]any) (domain.TaskPatch, []mediaInput, []stri
 		AgentSlug:            payload.AgentSlug,
 		Harness:              payload.Harness,
 		WorktreePath:         payload.WorktreePath,
+		Phases:               payload.Phases,
+		CurrentPhase:         payload.CurrentPhase,
 	}
 	if payload.Priority != nil {
 		value := domain.TaskPriority(*payload.Priority)

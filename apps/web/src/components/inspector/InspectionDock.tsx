@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { ChevronRight, ChevronLeft } from 'lucide-react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { ChevronRight, ChevronLeft, Layers, Activity, Zap } from 'lucide-react'
 import { TaskSpecPane } from './TaskSpecPane'
+import { ExecutionTracePane } from './ExecutionTracePane'
 import { ClaimPacketPane } from './ClaimPacketPane'
-import { ArtifactLightbox } from './ArtifactLightbox'
 import type { Task, Artifact, ContextPacket } from '../../types/contracts'
 import type { ApiResult } from '../../hooks/useZenfdAPI'
 
-type DockPane = 'split' | 'spec' | 'packet' | 'artifacts'
+type DockLens = 'spec' | 'trace' | 'packet'
 
 interface InspectionDockProps {
   selectedTask: Task | null
@@ -27,37 +27,44 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
   onToggleCollapse,
   fetchTaskPacket,
 }) => {
-  const [activePane, setActivePane] = useState<DockPane>('split')
+  const [activeLens, setActiveLens] = useState<DockLens>('spec')
   const [packet, setPacket] = useState<ContextPacket | null>(null)
   const [packetLoading, setPacketLoading] = useState(false)
   const [packetTaskId, setPacketTaskId] = useState<string | null>(null)
 
-  // Fetch packet when switching to packet tab or task changes while on packet tab
-  const doFetchPacket = useCallback(async () => {
-    if (!selectedTask || !fetchTaskPacket) return
-    if (packetTaskId === selectedTask.id && packet) return // already loaded
-    setPacketLoading(true)
-    try {
-      const result = await fetchTaskPacket(selectedTask.id)
-      if (result.ok) {
-        setPacket(result.data)
-        setPacketTaskId(selectedTask.id)
+  // Async sequence counter to prevent race conditions on fast task switching (Finding #12)
+  const fetchSeqRef = useRef(0)
+
+  const doFetchPacket = useCallback(
+    async (taskId: string) => {
+      if (!fetchTaskPacket) return
+      const seq = ++fetchSeqRef.current
+      setPacketLoading(true)
+      try {
+        const result = await fetchTaskPacket(taskId)
+        if (seq === fetchSeqRef.current && result.ok) {
+          setPacket(result.data)
+          setPacketTaskId(taskId)
+        }
+      } catch {
+        // ignore
+      } finally {
+        if (seq === fetchSeqRef.current) {
+          setPacketLoading(false)
+        }
       }
-    } catch {
-      // ignore
-    } finally {
-      setPacketLoading(false)
-    }
-  }, [selectedTask, fetchTaskPacket, packetTaskId, packet])
+    },
+    [fetchTaskPacket]
+  )
 
   // Auto-fetch when packet tab is active and task changes
   useEffect(() => {
-    if (activePane === 'packet' && selectedTask && selectedTask.id !== packetTaskId) {
+    if (activeLens === 'packet' && selectedTask && selectedTask.id !== packetTaskId) {
       setPacket(null)
       setPacketTaskId(null)
-      doFetchPacket()
+      doFetchPacket(selectedTask.id)
     }
-  }, [activePane, selectedTask, packetTaskId, doFetchPacket])
+  }, [activeLens, selectedTask, packetTaskId, doFetchPacket])
 
   // Reset packet when task changes
   useEffect(() => {
@@ -72,7 +79,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
       <aside className="flex w-10 flex-col items-center border-l border-zinc-800 bg-zinc-900/60 py-3 select-none">
         <button
           onClick={onToggleCollapse}
-          className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+          className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white transition"
           title="Expand Inspection Dock"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -81,44 +88,41 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
     )
   }
 
-  const tabs: { key: DockPane; label: string }[] = [
-    { key: 'split', label: 'Split (Card / Hub)' },
-    { key: 'spec', label: 'Spec Card' },
-    { key: 'packet', label: 'Claim Packet ⚡' },
-    { key: 'artifacts', label: 'Multi-Modal Hub' },
+  const lenses: { key: DockLens; label: string; icon: React.ReactNode }[] = [
+    { key: 'spec', label: 'Spec', icon: <Layers className="h-3 w-3" /> },
+    { key: 'trace', label: 'Execution & Trace', icon: <Activity className="h-3 w-3" /> },
+    { key: 'packet', label: 'Claim Packet ⚡', icon: <Zap className="h-3 w-3" /> },
   ]
-
-  // Dynamic split: give more space to spec when no artifacts
-  const hasArtifacts = artifacts.length > 0
-  const specSplitClass = hasArtifacts ? 'h-1/2' : 'h-3/4'
-  const artSplitClass = hasArtifacts ? 'h-1/2' : 'h-1/4'
 
   return (
     <aside className="relative flex w-[500px] flex-col border-l border-zinc-800 bg-zinc-950 select-none">
-      {/* Dock Top Toggle Bar */}
-      <div className="flex h-8 items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-3 text-xs text-zinc-400">
+      {/* Dock Top Lens Bar */}
+      <div className="flex h-9 items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-3 text-xs text-zinc-400">
         <div className="flex items-center gap-1">
-          {tabs.map((tab) => (
+          {lenses.map((lens) => (
             <button
-              key={tab.key}
+              key={lens.key}
               onClick={() => {
-                setActivePane(tab.key)
-                if (tab.key === 'packet' && selectedTask && !packet) {
-                  doFetchPacket()
+                setActiveLens(lens.key)
+                if (lens.key === 'packet' && selectedTask && !packet) {
+                  doFetchPacket(selectedTask.id)
                 }
               }}
-              className={`rounded px-1.5 py-0.5 text-[10px] uppercase font-bold transition-colors ${
-                activePane === tab.key ? 'bg-zinc-800 text-white' : 'hover:text-zinc-200'
+              className={`flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                activeLens === lens.key
+                  ? 'bg-zinc-800 text-white shadow-sm'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
               }`}
             >
-              {tab.label}
+              {lens.icon}
+              <span>{lens.label}</span>
             </button>
           ))}
         </div>
 
         <button
           onClick={onToggleCollapse}
-          className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+          className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white transition"
           title="Collapse Inspector Dock"
         >
           <ChevronRight className="h-3.5 w-3.5" />
@@ -127,34 +131,32 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
 
       {/* Pane Content */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {(activePane === 'split' || activePane === 'spec') && (
-          <div className={activePane === 'split' ? `${specSplitClass} border-b border-zinc-800 overflow-hidden` : 'h-full overflow-hidden'}>
+        {activeLens === 'spec' && (
+          <div className="h-full overflow-hidden">
             <TaskSpecPane
               task={selectedTask}
               allTasks={allTasks}
+              artifacts={artifacts}
               onSelectTaskId={onSelectTaskId}
-              isMaximized={activePane === 'spec'}
-              onToggleMaximize={() =>
-                setActivePane(activePane === 'spec' ? 'split' : 'spec')
-              }
               fetchTaskPacket={fetchTaskPacket}
+              onViewArtifacts={() => setActiveLens('trace')}
             />
           </div>
         )}
 
-        {activePane === 'packet' && (
+        {activeLens === 'trace' && (
+          <div className="h-full overflow-hidden">
+            <ExecutionTracePane task={selectedTask} artifacts={artifacts} />
+          </div>
+        )}
+
+        {activeLens === 'packet' && (
           <div className="h-full overflow-hidden">
             <ClaimPacketPane
               packet={packet}
               loading={packetLoading}
-              onFetch={doFetchPacket}
+              onFetch={() => selectedTask && doFetchPacket(selectedTask.id)}
             />
-          </div>
-        )}
-
-        {(activePane === 'split' || activePane === 'artifacts') && (
-          <div className={activePane === 'split' ? `${artSplitClass} overflow-hidden` : 'h-full overflow-hidden'}>
-            <ArtifactLightbox artifacts={artifacts} />
           </div>
         )}
       </div>

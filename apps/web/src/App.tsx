@@ -51,8 +51,8 @@ export default function App() {
         setArtifacts([])
         return
       }
-      const arts = await fetchTaskArtifacts(taskId)
-      setArtifacts(arts || [])
+      const artsRes = await fetchTaskArtifacts(taskId)
+      setArtifacts(artsRes.ok ? artsRes.data : [])
     },
     [fetchTaskArtifacts]
   )
@@ -99,12 +99,13 @@ export default function App() {
     // first load. Once a plan is active, skip that request entirely.
     let targetPlanSlug = activePlanRef.current?.slug
     if (!targetPlanSlug || !availableSlugs.has(targetPlanSlug)) {
-      const taskList = await fetchTasks(activeProjectSlug ? { projectSlug: activeProjectSlug } : undefined)
-      if (taskList === null) {
+      const taskRes = await fetchTasks(activeProjectSlug ? { projectSlug: activeProjectSlug } : undefined)
+      if (!taskRes.ok) {
         // Network error occurred. Retain current state safely without wiping.
         return
       }
       if (seq !== refreshSeqRef.current) return
+      const taskList = taskRes.data
       targetPlanSlug = taskList.find((t) => t.plan_slug && availableSlugs.has(t.plan_slug))?.plan_slug
       targetPlanSlug = targetPlanSlug || availablePlans[0]?.slug
     }

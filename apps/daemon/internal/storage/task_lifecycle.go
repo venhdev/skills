@@ -20,6 +20,11 @@ type TaskLifecycle struct {
 	packets domain.ContextPacketBuilder
 }
 
+// SetPacketBuilder sets the context packet builder.
+func (l *TaskLifecycle) SetPacketBuilder(b domain.ContextPacketBuilder) {
+	l.packets = b
+}
+
 // UpdateTaskStatus atomically transitions task status and resolves DAG
 // dependencies. Every failure aborts the transaction; nothing is swallowed.
 func (l *TaskLifecycle) UpdateTaskStatus(ctx context.Context, taskID string, from domain.TaskStatus, to domain.TaskStatus) error {
@@ -113,9 +118,19 @@ func (l *TaskLifecycle) ClaimTask(ctx context.Context, taskID string, opts domai
 		return nil, fmt.Errorf("%w: task %s has malformed dependencies; repair the row before claiming", ErrInvalidGraph, taskID)
 	}
 
-	packet, err := l.packets.Build(ctx, *task)
-	if err != nil {
-		return nil, err
+	var packet *domain.ContextPacket
+	if l.packets != nil {
+		p, err := l.packets.Build(ctx, *task)
+		if err != nil {
+			return nil, err
+		}
+		packet = p
+	} else {
+		packet = &domain.ContextPacket{
+			Task:                 *task,
+			TargetFiles:          task.TargetFiles,
+			VerificationCommands: task.VerificationCommands,
+		}
 	}
 
 	// Commit only the claim transition while holding the write lock. The UPDATE
@@ -317,5 +332,12 @@ func (l *TaskLifecycle) GetTaskContextPacket(ctx context.Context, taskID string)
 	if err != nil {
 		return nil, err
 	}
-	return l.packets.Build(ctx, *task)
+	if l.packets != nil {
+		return l.packets.Build(ctx, *task)
+	}
+	return &domain.ContextPacket{
+		Task:                 *task,
+		TargetFiles:          task.TargetFiles,
+		VerificationCommands: task.VerificationCommands,
+	}, nil
 }

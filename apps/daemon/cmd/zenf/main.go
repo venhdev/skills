@@ -16,6 +16,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"zenfd/internal/contextpacket"
 	"zenfd/internal/domain"
 	"zenfd/internal/gateway"
 	zenfdmcp "zenfd/internal/mcp"
@@ -188,6 +189,12 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 			defer db.Close()
 			store := storage.NewStore(db)
+			store.SetPacketBuilder(contextpacket.New(store.ArtifactRepository, nil,
+				contextpacket.WithProjectReader(store.ProjectRepository),
+				contextpacket.WithPlanReader(store.PlanRepository),
+				contextpacket.WithAgentReader(store.AgentRepository),
+				contextpacket.WithDocumentReader(store.DocumentRepository),
+			))
 
 			// 2. Gateway
 			gw := gateway.NewServer(store)
@@ -474,10 +481,21 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("daemon responded with HTTP %d", resp.StatusCode)
+			body, _ := io.ReadAll(resp.Body)
+			return fmt.Errorf("daemon responded with HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
 		}
 
-		fmt.Printf("✓ Task '%s' status updated to %s\n", taskID, newStatus)
+		var respData struct {
+			TaskID string `json:"task_id"`
+			Status string `json:"status"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&respData)
+		finalStatus := newStatus
+		if respData.Status != "" {
+			finalStatus = domain.TaskStatus(respData.Status)
+		}
+
+		fmt.Printf("✓ Task '%s' status updated to %s\n", taskID, finalStatus)
 		return nil
 	}
 
@@ -789,6 +807,12 @@ When invoked in an interactive terminal, it displays the integration status and 
 			}
 			defer db.Close()
 			store := storage.NewStore(db)
+			store.SetPacketBuilder(contextpacket.New(store.ArtifactRepository, nil,
+				contextpacket.WithProjectReader(store.ProjectRepository),
+				contextpacket.WithPlanReader(store.PlanRepository),
+				contextpacket.WithAgentReader(store.AgentRepository),
+				contextpacket.WithDocumentReader(store.DocumentRepository),
+			))
 
 			srv := zenfdmcp.NewServer(store)
 			return srv.ServeStdio()

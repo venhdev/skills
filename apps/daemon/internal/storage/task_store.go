@@ -28,7 +28,7 @@ title, description, dependencies, priority, complexity, risk_level, agent_slug,
 required_skills, required_tools, required_docs, target_files, acceptance_criteria,
 verification_commands, harness, worktree_path, status, claimed_by, claimed_at,
 orchestrator_id, worker_role, claim_session_id, notes, review_reason, review_details,
-review_options, review_response, resolved_by, conflict_files, created_at, updated_at`
+review_options, review_response, resolved_by, conflict_files, phases, current_phase, created_at, updated_at`
 
 const taskInsertQuery = `
 INSERT INTO tasks (
@@ -37,8 +37,8 @@ INSERT INTO tasks (
 	acceptance_criteria, verification_commands, harness, worktree_path, status, claimed_by,
 	claimed_at, orchestrator_id, worker_role, claim_session_id, notes, review_reason,
 	review_details, review_options, review_response, resolved_by, conflict_files,
-	created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	phases, current_phase, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO NOTHING`
 
 const taskAuthoringUpdateQuery = `
@@ -48,8 +48,8 @@ INSERT INTO tasks (
 	acceptance_criteria, verification_commands, harness, worktree_path, status, claimed_by,
 	claimed_at, orchestrator_id, worker_role, claim_session_id, notes, review_reason,
 	review_details, review_options, review_response, resolved_by, conflict_files,
-	created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	phases, current_phase, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	title = excluded.title,
 	description = excluded.description,
@@ -66,11 +66,13 @@ ON CONFLICT(id) DO UPDATE SET
 	verification_commands = excluded.verification_commands,
 	harness = excluded.harness,
 	worktree_path = excluded.worktree_path,
+	phases = excluded.phases,
+	current_phase = excluded.current_phase,
 	updated_at = excluded.updated_at`
 
 func scanTask(s scanner) (*domain.Task, error) {
 	var t domain.Task
-	var depsJSON, skillsJSON, toolsJSON, docsJSON, filesJSON, criteriaJSON, verifJSON, optionsJSON, conflictJSON string
+	var depsJSON, skillsJSON, toolsJSON, docsJSON, filesJSON, criteriaJSON, verifJSON, optionsJSON, conflictJSON, phasesJSON string
 	var priorityStr, complexityStr, riskStr, statusStr string
 	var claimedAt sql.NullTime
 
@@ -81,7 +83,7 @@ func scanTask(s scanner) (*domain.Task, error) {
 		&t.Harness, &t.WorktreePath, &statusStr, &t.ClaimedBy, &claimedAt,
 		&t.OrchestratorID, &t.WorkerRole, &t.ClaimSessionID, &t.Notes,
 		&t.ReviewReason, &t.ReviewDetails, &optionsJSON, &t.ReviewResponse, &t.ResolvedBy,
-		&conflictJSON, &t.CreatedAt, &t.UpdatedAt,
+		&conflictJSON, &phasesJSON, &t.CurrentPhase, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -116,6 +118,16 @@ func scanTask(s scanner) (*domain.Task, error) {
 	t.VerificationCommands = unmarshalStrings(verifJSON)
 	t.ReviewOptions = unmarshalStrings(optionsJSON)
 	t.ConflictFiles = unmarshalStrings(conflictJSON)
+
+	if phasesJSON != "" && phasesJSON != "[]" {
+		var phases []domain.TaskPhase
+		if err := json.Unmarshal([]byte(phasesJSON), &phases); err == nil {
+			t.Phases = phases
+		}
+	}
+	if t.Phases == nil {
+		t.Phases = []domain.TaskPhase{}
+	}
 
 	return &t, nil
 }
@@ -167,6 +179,11 @@ func taskArgs(task *domain.Task) []any {
 		harness = "orchestrator"
 	}
 
+	phasesJSON, _ := json.Marshal(task.Phases)
+	if task.Phases == nil {
+		phasesJSON = []byte("[]")
+	}
+
 	return []any{
 		task.ID, nullableString(task.ProjectSlug), nullableString(task.PlanSlug),
 		task.Title, task.Description, string(depsJSON), priority, complexity, risk,
@@ -176,7 +193,7 @@ func taskArgs(task *domain.Task) []any {
 		task.ClaimedBy, task.ClaimedAt, task.OrchestratorID, task.WorkerRole,
 		task.ClaimSessionID, task.Notes, task.ReviewReason, task.ReviewDetails,
 		string(optionsJSON), task.ReviewResponse, task.ResolvedBy,
-		string(conflictJSON), task.CreatedAt, task.UpdatedAt,
+		string(conflictJSON), string(phasesJSON), task.CurrentPhase, task.CreatedAt, task.UpdatedAt,
 	}
 }
 
@@ -420,8 +437,10 @@ func (r *TaskRepository) UpdateTaskMetadata(ctx context.Context, taskID string, 
 		if err != nil {
 			return err
 		}
-		if task.Status != domain.StatusReady && task.Status != domain.StatusPending {
-			return fmt.Errorf("%w: task %s is %s; metadata can only change while READY or PENDING", ErrInvalidState, taskID, task.Status)
+		if patch.Title != nil || patch.Description != nil || patch.Dependencies != nil {
+			if task.Status != domain.StatusReady && task.Status != domain.StatusPending {
+				return fmt.Errorf("%w: task %s is %s; metadata can only change while READY or PENDING", ErrInvalidState, taskID, task.Status)
+			}
 		}
 
 		applyTaskPatch(task, patch)
@@ -490,6 +509,12 @@ func applyTaskPatch(task *domain.Task, patch domain.TaskPatch) {
 	if patch.WorktreePath != nil {
 		task.WorktreePath = *patch.WorktreePath
 	}
+	if patch.Phases != nil {
+		task.Phases = *patch.Phases
+	}
+	if patch.CurrentPhase != nil {
+		task.CurrentPhase = *patch.CurrentPhase
+	}
 }
 
 func updateTaskAuthoringTx(ctx context.Context, tx *sql.Tx, task *domain.Task, now time.Time) error {
@@ -501,18 +526,23 @@ func updateTaskAuthoringTx(ctx context.Context, tx *sql.Tx, task *domain.Task, n
 	filesJSON, _ := json.Marshal(task.TargetFiles)
 	criteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
 	verifJSON, _ := json.Marshal(task.VerificationCommands)
+	phasesJSON, _ := json.Marshal(task.Phases)
+	if task.Phases == nil {
+		phasesJSON = []byte("[]")
+	}
 
 	res, err := tx.ExecContext(ctx, `
 		UPDATE tasks SET
 			title = ?, description = ?, dependencies = ?, priority = ?, complexity = ?,
 			risk_level = ?, agent_slug = ?, required_skills = ?, required_tools = ?,
 			required_docs = ?, target_files = ?, acceptance_criteria = ?,
-			verification_commands = ?, harness = ?, worktree_path = ?, updated_at = ?
+			verification_commands = ?, harness = ?, worktree_path = ?,
+			phases = ?, current_phase = ?, updated_at = ?
 		WHERE id = ?`,
 		task.Title, task.Description, string(depsJSON), string(task.Priority), string(task.Complexity),
 		string(task.RiskLevel), task.AgentSlug, string(skillsJSON), string(toolsJSON),
 		string(docsJSON), string(filesJSON), string(criteriaJSON), string(verifJSON),
-		task.Harness, task.WorktreePath, now, task.ID)
+		task.Harness, task.WorktreePath, string(phasesJSON), task.CurrentPhase, now, task.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update task %s: %w", task.ID, err)
 	}

@@ -21,6 +21,8 @@ disable-model-invocation: false
 2. **GREEN**: Implement minimal logic to pass. Run test runner and typechecker to verify GREEN status.
 3. **REFACTOR**: Prune redundant variables, eliminate duplicate logic, and align naming with domain language while preserving passing tests.
 
+*Intra-Task Alignment*: When executing within a ZenForge task configured with micro-phases (`phases[]`), record transition checkpoints upon starting and passing each phase (`transition_task(action="CHECKPOINT", phase_id="red_test" | "green_impl" | "verify")`).
+
 ### 2. Invariant & Property Checks
 Prefer invariant testing over shallow example tests:
 - *Boundedness*: Range boundaries must hold under arbitrary input (`0 <= discount <= total`).

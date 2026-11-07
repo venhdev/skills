@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"zenfd/internal/contextpacket"
 	"zenfd/internal/domain"
 )
 
@@ -41,18 +40,11 @@ func NewStore(db *DB) *Store {
 	agents := &AgentRepository{db: db}
 	artifacts := &ArtifactRepository{db: db}
 
-	builder := contextpacket.New(artifacts, nil,
-		contextpacket.WithProjectReader(projects),
-		contextpacket.WithPlanReader(plans),
-		contextpacket.WithAgentReader(agents),
-		contextpacket.WithDocumentReader(documents),
-	)
-
 	return &Store{
 		ProjectRepository:  projects,
 		PlanRepository:     plans,
 		TaskRepository:     tasks,
-		TaskLifecycle:      &TaskLifecycle{db: db, tasks: tasks, packets: builder},
+		TaskLifecycle:      &TaskLifecycle{db: db, tasks: tasks},
 		DocumentRepository: documents,
 		AgentRepository:    agents,
 		SessionRepository:  &SessionRepository{db: db},
@@ -61,6 +53,11 @@ func NewStore(db *DB) *Store {
 		StateFingerprinter: &StateFingerprinter{db: db},
 		SearchRepository:   &SearchRepository{db: db},
 	}
+}
+
+// SetPacketBuilder configures an optional ContextPacketBuilder on the store.
+func (s *Store) SetPacketBuilder(b domain.ContextPacketBuilder) {
+	s.TaskLifecycle.SetPacketBuilder(b)
 }
 
 var (

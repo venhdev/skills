@@ -89,23 +89,27 @@ func (s *Server) registerWorkflowTools() {
 
 	s.mcpServer.AddTool(
 		mcp.NewTool("transition_task",
-			mcp.WithDescription("Apply COMPLETE, FAIL, RESET, or CANCEL. Use task_ids + action for one shared action, or items[] for mixed per-task actions. Each task is processed independently and returns results[]."),
+			mcp.WithDescription("Apply COMPLETE, FAIL, RESET, CANCEL, or CHECKPOINT. Use task_ids + action for one shared action, or items[] for mixed per-task actions. Each task is processed independently and returns results[]."),
 			mcp.WithArray("task_ids", mcp.Description("Task IDs for a shared action")),
-			mcp.WithString("action", mcp.Description("COMPLETE, FAIL, RESET, or CANCEL (with task_ids)")),
+			mcp.WithString("action", mcp.Description("COMPLETE, FAIL, RESET, CANCEL, or CHECKPOINT (with task_ids)")),
 			mcp.WithArray("items", mcp.Description("Mixed per-task transitions"), mcp.Items(map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"task_id":       map[string]any{"type": "string"},
-					"action":        map[string]any{"type": "string", "enum": []string{"COMPLETE", "FAIL", "RESET", "CANCEL"}},
+					"action":        map[string]any{"type": "string", "enum": []string{"COMPLETE", "FAIL", "RESET", "CANCEL", "CHECKPOINT"}},
 					"reason":        map[string]any{"type": "string"},
 					"summary":       map[string]any{"type": "string"},
 					"merge_outcome": map[string]any{"type": "string", "enum": []string{"MERGED", "CONFLICT"}},
+					"phase_id":      map[string]any{"type": "string"},
+					"phase_status":  map[string]any{"type": "string", "enum": []string{"PENDING", "RUNNING", "COMPLETED", "FAILED"}},
 				},
 				"required": []string{"task_id", "action"},
 			})),
 			mcp.WithString("reason", mcp.Description("Failure, reset, or cancellation reason (appended to Notes)")),
 			mcp.WithString("summary", mcp.Description("Completion summary (appended to Notes)")),
 			mcp.WithString("merge_outcome", mcp.Description("MERGED or CONFLICT. Required when resolving AWAITING_MERGE/CONFLICT tasks.")),
+			mcp.WithString("phase_id", mcp.Description("Target phase ID when action is CHECKPOINT")),
+			mcp.WithString("phase_status", mcp.Description("Target phase status (COMPLETED, RUNNING, FAILED) when action is CHECKPOINT")),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			args := request.GetArguments()
@@ -114,6 +118,8 @@ func (s *Server) registerWorkflowTools() {
 			reason := request.GetString("reason", "")
 			summary := request.GetString("summary", "")
 			mergeOutcome := request.GetString("merge_outcome", "")
+			phaseID := request.GetString("phase_id", "")
+			phaseStatus := request.GetString("phase_status", "")
 
 			type taskResult struct {
 				TaskID string `json:"task_id"`
@@ -143,6 +149,8 @@ func (s *Server) registerWorkflowTools() {
 						Reason       string `json:"reason"`
 						Summary      string `json:"summary"`
 						MergeOutcome string `json:"merge_outcome"`
+						PhaseID      string `json:"phase_id"`
+						PhaseStatus  string `json:"phase_status"`
 					}
 					if err := json.Unmarshal(encoded, &item); err != nil {
 						results = append(results, taskResult{Error: fmt.Sprintf("invalid item %d: %v", i, err)})
@@ -152,7 +160,7 @@ func (s *Server) registerWorkflowTools() {
 						results = append(results, taskResult{TaskID: item.TaskID, Error: fmt.Sprintf("item %d requires task_id and action", i)})
 						continue
 					}
-					status, err := s.transitionTask(ctx, item.TaskID, item.Action, item.Reason, item.Summary, item.MergeOutcome)
+					status, err := s.transitionTask(ctx, item.TaskID, item.Action, item.Reason, item.Summary, item.MergeOutcome, item.PhaseID, item.PhaseStatus)
 					if err != nil {
 						results = append(results, taskResult{TaskID: item.TaskID, Error: err.Error()})
 						continue
@@ -169,7 +177,7 @@ func (s *Server) registerWorkflowTools() {
 				return toolError("action is required with task_ids"), nil
 			}
 			for _, taskID := range taskIDs {
-				status, err := s.transitionTask(ctx, taskID, action, reason, summary, mergeOutcome)
+				status, err := s.transitionTask(ctx, taskID, action, reason, summary, mergeOutcome, phaseID, phaseStatus)
 				if err != nil {
 					results = append(results, taskResult{TaskID: taskID, Error: err.Error()})
 					continue
@@ -183,73 +191,33 @@ func (s *Server) registerWorkflowTools() {
 }
 
 // transitionTask applies a single task transition and returns the resulting status.
-func (s *Server) transitionTask(ctx context.Context, taskID string, action string, reason string, summary string, mergeOutcome string) (domain.TaskStatus, error) {
+func (s *Server) transitionTask(ctx context.Context, taskID string, action string, reason string, summary string, mergeOutcome string, phaseID string, phaseStatus string) (domain.TaskStatus, error) {
 	task, err := s.store.GetTask(ctx, taskID)
 	if err != nil {
 		return "", fmt.Errorf("task not found: %w", err)
 	}
 
-	note := ""
-	if summary != "" {
-		note = "Summary: " + summary
+	evalRes, err := domain.EvaluateTransition(*task, domain.TransitionTaskRequest{
+		Action:       action,
+		Reason:       reason,
+		Summary:      summary,
+		MergeOutcome: mergeOutcome,
+		PhaseID:      phaseID,
+		PhaseStatus:  domain.PhaseStatus(phaseStatus),
+	})
+	if err != nil {
+		return "", err
 	}
-	if reason != "" && action != "RESET" && action != "CANCEL" {
-		if note != "" {
-			note += "\n"
-		}
-		note += "Reason: " + reason
+
+	if evalRes.PhasesUpdated {
+		_ = s.store.UpdateTaskMetadata(ctx, taskID, domain.TaskPatch{
+			Phases:       &evalRes.Phases,
+			CurrentPhase: &evalRes.CurrentPhase,
+		})
 	}
 
 	switch action {
-	case "COMPLETE":
-		switch task.Status {
-		case domain.StatusRunning:
-			target := domain.StatusCompleted
-			if task.WorktreePath != "" {
-				target = domain.StatusAwaitingMerge
-			}
-			if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusRunning, target, note); err != nil {
-				return "", err
-			}
-			return target, nil
-		case domain.StatusAwaitingMerge:
-			switch mergeOutcome {
-			case "MERGED":
-				if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusAwaitingMerge, domain.StatusCompleted, note); err != nil {
-					return "", err
-				}
-				return domain.StatusCompleted, nil
-			case "CONFLICT":
-				if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusAwaitingMerge, domain.StatusConflict, note); err != nil {
-					return "", err
-				}
-				return domain.StatusConflict, nil
-			default:
-				return "", fmt.Errorf("merge_outcome MERGED or CONFLICT is required when task is AWAITING_MERGE")
-			}
-		case domain.StatusConflict:
-			if mergeOutcome != "MERGED" {
-				return "", fmt.Errorf("merge_outcome MERGED is required when task is CONFLICT")
-			}
-			if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusConflict, domain.StatusCompleted, note); err != nil {
-				return "", err
-			}
-			return domain.StatusCompleted, nil
-		default:
-			return "", fmt.Errorf("cannot COMPLETE task in %s status", task.Status)
-		}
-	case "FAIL":
-		if task.Status != domain.StatusRunning {
-			return "", fmt.Errorf("cannot FAIL task in %s status", task.Status)
-		}
-		if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, domain.StatusRunning, domain.StatusFailed, note); err != nil {
-			return "", err
-		}
-		return domain.StatusFailed, nil
 	case "RESET":
-		if task.Status != domain.StatusRunning {
-			return "", fmt.Errorf("cannot RESET task in %s status", task.Status)
-		}
 		resetReason := reason
 		if resetReason == "" {
 			resetReason = "Reset by orchestrator"
@@ -258,16 +226,12 @@ func (s *Server) transitionTask(ctx context.Context, taskID string, action strin
 		if err != nil {
 			return "", err
 		}
-		if note != "" {
-			if err := s.store.AppendTaskNotes(ctx, taskID, note); err != nil {
-				return "", err
-			}
+		if evalRes.AuditNote != "" {
+			_ = s.store.AppendTaskNotes(ctx, taskID, evalRes.AuditNote)
 		}
 		return status, nil
+
 	case "CANCEL":
-		if task.Status != domain.StatusRunning {
-			return "", fmt.Errorf("cannot CANCEL task in %s status", task.Status)
-		}
 		cancelReason := reason
 		if cancelReason == "" {
 			cancelReason = "Cancelled by orchestrator"
@@ -276,13 +240,19 @@ func (s *Server) transitionTask(ctx context.Context, taskID string, action strin
 		if err != nil {
 			return "", err
 		}
-		if note != "" {
-			if err := s.store.AppendTaskNotes(ctx, taskID, note); err != nil {
-				return "", err
-			}
+		if evalRes.AuditNote != "" {
+			_ = s.store.AppendTaskNotes(ctx, taskID, evalRes.AuditNote)
 		}
 		return status, nil
+
 	default:
-		return "", fmt.Errorf("unknown action %q (expected COMPLETE, FAIL, RESET, or CANCEL)", action)
+		if evalRes.TargetStatus != task.Status {
+			if err := s.store.UpdateTaskStatusWithNote(ctx, taskID, task.Status, evalRes.TargetStatus, evalRes.AuditNote); err != nil {
+				return "", err
+			}
+		} else if evalRes.AuditNote != "" {
+			_ = s.store.AppendTaskNotes(ctx, taskID, evalRes.AuditNote)
+		}
+		return evalRes.TargetStatus, nil
 	}
 }

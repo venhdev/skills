@@ -9,6 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"zenfd/internal/contextpacket"
 	"zenfd/internal/domain"
 )
 
@@ -34,6 +35,16 @@ type Server struct {
 
 // NewServer initializes the MCP server and registers all tools.
 func NewServer(store Storage) *Server {
+	if ps, ok := store.(interface{ SetPacketBuilder(domain.ContextPacketBuilder) }); ok {
+		builder := contextpacket.New(store, nil,
+			contextpacket.WithProjectReader(store),
+			contextpacket.WithPlanReader(store),
+			contextpacket.WithAgentReader(store),
+			contextpacket.WithDocumentReader(store),
+		)
+		ps.SetPacketBuilder(builder)
+	}
+
 	s := &Server{
 		mcpServer: server.NewMCPServer("zenfd", "0.2.1", server.WithToolCapabilities(true)),
 		store:     store,

@@ -15,6 +15,7 @@ import dagre from '@dagrejs/dagre'
 import { GitFork, Kanban, Zap } from 'lucide-react'
 import { TaskNode } from './TaskNode'
 import { SwimlanesView } from './SwimlanesView'
+import { EDGE_COLORS } from './taskStatusTheme'
 import type { Task } from '../../types/contracts'
 
 interface DAGCanvasProps {
@@ -208,12 +209,12 @@ function computeLayout(tasks: Task[]): {
             type: 'smoothstep',
             animated: isRunning,
             style: {
-              stroke: isRunning ? '#a855f7' : isDone ? '#10b981' : '#52525b',
+              stroke: isRunning ? EDGE_COLORS.running : isDone ? EDGE_COLORS.completed : EDGE_COLORS.default,
               strokeWidth: isRunning ? 2.5 : 2,
             },
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: isRunning ? '#a855f7' : isDone ? '#10b981' : '#71717a',
+              color: isRunning ? EDGE_COLORS.running : isDone ? EDGE_COLORS.completed : EDGE_COLORS.defaultMarker,
               width: 16,
               height: 16,
             },
@@ -397,13 +398,13 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
           zIndex: 0,
           style: {
             ...edge.style,
-            stroke: '#3f3f46',
+            stroke: EDGE_COLORS.dimmed,
             strokeWidth: 1,
             opacity: 0.06,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: '#3f3f46',
+            color: EDGE_COLORS.dimmed,
             width: 10,
             height: 10,
           },
@@ -420,13 +421,13 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
           zIndex: 0,
           style: {
             ...edge.style,
-            stroke: '#8b5cf6',
+            stroke: EDGE_COLORS.selected,
             strokeWidth: 1,
             opacity: 0.35,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: '#8b5cf6',
+            color: EDGE_COLORS.selected,
             width: 10,
             height: 10,
           },
@@ -441,13 +442,13 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
           zIndex: 1,
           style: {
             ...edge.style,
-            stroke: '#8b5cf6',
+            stroke: EDGE_COLORS.selected,
             strokeWidth: 1.75,
             opacity: 0.55,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: '#8b5cf6',
+            color: EDGE_COLORS.selected,
             width: 13,
             height: 13,
           },
@@ -466,13 +467,13 @@ const DAGCanvasInner: React.FC<DAGCanvasProps> = ({
           zIndex: 1,
           style: {
             ...edge.style,
-            stroke: '#f59e0b',
+            stroke: EDGE_COLORS.blast,
             strokeWidth: 1.5,
             opacity,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: '#f59e0b',
+            color: EDGE_COLORS.blast,
             width: 12,
             height: 12,
           },

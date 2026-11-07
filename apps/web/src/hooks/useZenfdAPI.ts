@@ -140,7 +140,7 @@ export function useZenfdAPI() {
       status?: string
       agentSlug?: string
       orphan?: boolean
-    }): Promise<Task[] | null> => {
+    }): Promise<ApiResult<Task[]>> => {
       const query = queryString({
         project_slug: filter?.projectSlug,
         plan_slug: filter?.planSlug,
@@ -149,22 +149,22 @@ export function useZenfdAPI() {
         orphan: filter?.orphan,
       })
       const result = await apiRequest<{ tasks?: Task[] } | Task[]>(`/api/v1/tasks${query}`)
-      if (!result.ok) return null
-      if (Array.isArray(result.data)) return result.data
-      return result.data?.tasks || []
+      if (!result.ok) return result
+      const tasks = Array.isArray(result.data) ? result.data : result.data?.tasks || []
+      return { ok: true, data: tasks }
     },
     []
   )
 
   const fetchTaskArtifacts = useCallback(
-    async (taskId: string, role?: string): Promise<Artifact[]> => {
+    async (taskId: string, role?: string): Promise<ApiResult<Artifact[]>> => {
       const query = role ? `?role=${encodeURIComponent(role)}` : ''
       const result = await apiRequest<{ artifacts?: Artifact[] } | Artifact[]>(
         `/api/v1/tasks/${encodeURIComponent(taskId)}/artifacts${query}`
       )
-      if (!result.ok) return []
-      if (Array.isArray(result.data)) return result.data
-      return result.data?.artifacts || []
+      if (!result.ok) return result
+      const artifacts = Array.isArray(result.data) ? result.data : result.data?.artifacts || []
+      return { ok: true, data: artifacts }
     },
     []
   )
@@ -295,9 +295,8 @@ export function useZenfdAPI() {
     return result.ok ? { ok: true, data: result.data?.results || [] } : result
   }, [])
 
-  const fetchGlobalEnv = useCallback(async (): Promise<Record<string, any> | null> => {
-    const result = await apiRequest<Record<string, any>>('/api/v1/env/global')
-    return result.ok ? result.data : null
+  const fetchGlobalEnv = useCallback(async (): Promise<ApiResult<Record<string, any>>> => {
+    return apiRequest<Record<string, any>>('/api/v1/env/global')
   }, [])
 
   return {
