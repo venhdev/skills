@@ -7,6 +7,11 @@ build-web:
 	@if [ -d "apps/web" ]; then \
 		echo "Building web dashboard in apps/web..."; \
 		(cd apps/web && pnpm build); \
+		mkdir -p apps/daemon/internal/gateway/web_dist; \
+		find apps/daemon/internal/gateway/web_dist -mindepth 1 ! -name '.keep' -delete; \
+		cp -r apps/web/dist/* apps/daemon/internal/gateway/web_dist/; \
+		touch apps/daemon/internal/gateway/web_dist/.keep; \
+		echo "Copied web bundle to apps/daemon/internal/gateway/web_dist"; \
 	fi
 
 build-daemon:
