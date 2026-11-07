@@ -58,6 +58,27 @@ func main() {
 		Long: `zenfd is the single-binary control plane for ZenForge.
 It owns the SQLite WAL tracking plane, exposes an MCP stdio surface for agents,
 and serves a read-only cockpit with real-time SSE updates on port 1123.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			// Check if daemon is active
+			statusStr := "○ Stopped"
+			client := &http.Client{Timeout: 1 * time.Second}
+			resp, err := client.Get(defaultURL + "/api/v1/projects")
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode == http.StatusOK {
+					statusStr = fmt.Sprintf("● Active (%s)", defaultURL)
+				}
+			}
+
+			fmt.Printf("ZenForge Control Plane (zenfd v%s)\n", Version)
+			fmt.Printf("Daemon Status: %s\n\n", statusStr)
+			fmt.Println("Quickstart Commands:")
+			fmt.Println("  zenfd daemon        Start background orchestrator & web cockpit (:1123)")
+			fmt.Println("  zenfd status        View detailed status of daemon & all AI MCP clients")
+			fmt.Println("  zenfd mcp           Audit AI client MCP setups and display MCP actions")
+			fmt.Println("  zenfd task list     List current tasks across active projects")
+			fmt.Println("\nRun 'zenfd --help' for the complete command reference.")
+		},
 	}
 
 	rootCmd.PersistentFlags().StringVar(&defaultURL, "url", "http://127.0.0.1:1123", "Daemon control plane URL")
@@ -401,33 +422,202 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 	rootCmd.AddCommand(taskCmd)
 
 	// 5. Status Command
+	var statusJSON bool
 	statusCmd := &cobra.Command{
 		Use:   "status",
-		Short: "Check the health and connection status of the ZenForge Daemon",
+		Short: "Check the health, metrics, and MCP configuration status across all AI clients",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			resp, err := http.Get(defaultURL + "/api/v1/tasks")
-			if err != nil {
-				fmt.Printf("✗ ZenForge Daemon is NOT running at %s\n", defaultURL)
-				return nil
+			type ClientStatus struct {
+				Client        string `json:"client"`
+				ConfigPath    string `json:"config_path"`
+				Configured    bool   `json:"configured"`
+				BinaryValid   bool   `json:"binary_valid"`
+				StatusMessage string `json:"status_message"`
 			}
-			defer resp.Body.Close()
+			type DaemonStatusReport struct {
+				Active     bool           `json:"active"`
+				GatewayURL string         `json:"gateway_url"`
+				StatusCode int            `json:"status_code,omitempty"`
+				Projects   int            `json:"projects,omitempty"`
+				Plans      int            `json:"plans,omitempty"`
+				Tasks      int            `json:"tasks,omitempty"`
+				TasksBySt  map[string]int `json:"tasks_by_status,omitempty"`
+				Clients    []ClientStatus `json:"clients"`
+			}
 
-			if resp.StatusCode == http.StatusOK {
-				fmt.Printf("✓ ZenForge Daemon is healthy and active at %s\n", defaultURL)
-			} else {
-				fmt.Printf("⚠ ZenForge Daemon returned HTTP %d at %s\n", resp.StatusCode, defaultURL)
+			report := DaemonStatusReport{
+				GatewayURL: defaultURL,
+				TasksBySt:  make(map[string]int),
 			}
+
+			// 1. Probe Daemon Control Plane
+			client := &http.Client{Timeout: 1500 * time.Millisecond}
+			resp, err := client.Get(defaultURL + "/api/v1/tasks")
+			if err == nil {
+				defer resp.Body.Close()
+				report.StatusCode = resp.StatusCode
+				if resp.StatusCode == http.StatusOK {
+					report.Active = true
+					var payload struct {
+						Tasks []domain.Task `json:"tasks"`
+					}
+					if err := json.NewDecoder(resp.Body).Decode(&payload); err == nil {
+						report.Tasks = len(payload.Tasks)
+						for _, t := range payload.Tasks {
+							report.TasksBySt[string(t.Status)]++
+						}
+					}
+
+					// Query projects count
+					if pResp, pErr := client.Get(defaultURL + "/api/v1/projects"); pErr == nil {
+						defer pResp.Body.Close()
+						var pPayload struct {
+							Projects []domain.Project `json:"projects"`
+						}
+						if err := json.NewDecoder(pResp.Body).Decode(&pPayload); err == nil {
+							report.Projects = len(pPayload.Projects)
+						}
+					}
+
+					// Query plans count
+					if plResp, plErr := client.Get(defaultURL + "/api/v1/plans"); plErr == nil {
+						defer plResp.Body.Close()
+						var plPayload struct {
+							Plans []domain.Plan `json:"plans"`
+						}
+						if err := json.NewDecoder(plResp.Body).Decode(&plPayload); err == nil {
+							report.Plans = len(plPayload.Plans)
+						}
+					}
+				}
+			}
+
+			// 2. Audit MCP configuration for all supported clients
+			supportedClients := []zenfdmcp.ClientType{
+				zenfdmcp.ClientAgy,
+				zenfdmcp.ClientClaude,
+				zenfdmcp.ClientCursor,
+				zenfdmcp.ClientOpenCode,
+			}
+
+			for _, c := range supportedClients {
+				checkRes, _ := zenfdmcp.CheckMCP(c, "")
+				cs := ClientStatus{
+					Client: string(c),
+				}
+				if checkRes != nil {
+					cs.ConfigPath = checkRes.ConfigPath
+					cs.Configured = checkRes.Configured
+					cs.BinaryValid = checkRes.BinaryExists
+					cs.StatusMessage = checkRes.StatusMessage
+				}
+				report.Clients = append(report.Clients, cs)
+			}
+
+			if statusJSON {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(report)
+			}
+
+			// Text Output
+			fmt.Printf("ZenForge Control Plane Status (zenfd v%s)\n", Version)
+			fmt.Println("────────────────────────────────────────────────────────────────────────")
+			fmt.Println("DAEMON & GATEWAY RUNTIME")
+			if report.Active {
+				fmt.Printf(" • Status       : ● ACTIVE (Serving at %s)\n", report.GatewayURL)
+				fmt.Printf(" • Cockpit UI   : %s (Web Dashboard)\n", report.GatewayURL)
+				fmt.Printf(" • Database     : %s (SQLite WAL)\n", resolveHomePath(defaultDBPath))
+				fmt.Printf(" • Metrics      : %d Projects | %d Plans | %d Tasks", report.Projects, report.Plans, report.Tasks)
+				if report.Tasks > 0 {
+					fmt.Printf(" (%d Ready, %d Running, %d Done)",
+						report.TasksBySt[string(domain.StatusReady)],
+						report.TasksBySt[string(domain.StatusRunning)],
+						report.TasksBySt[string(domain.StatusCompleted)])
+				}
+				fmt.Println()
+			} else {
+				fmt.Printf(" • Status       : ○ INACTIVE (Daemon not running)\n")
+				fmt.Printf(" • Gateway URL  : %s\n", report.GatewayURL)
+				fmt.Println(" • Quickstart   : Run 'zenfd daemon' to start orchestrator and web UI")
+			}
+
+			fmt.Println("\nAI CLIENT MCP INTEGRATIONS")
+			for _, cs := range report.Clients {
+				var badge string
+				if cs.Configured && cs.BinaryValid {
+					badge = "✔ CONFIGURED    "
+				} else if cs.Configured && !cs.BinaryValid {
+					badge = "⚠ BROKEN_BINARY "
+				} else {
+					badge = "○ NOT CONFIGURED"
+				}
+				fmt.Printf(" • %-14s : %s (%s)\n", cs.Client, badge, cs.ConfigPath)
+			}
+			fmt.Println("\n💡 To configure an AI client: run 'zenfd mcp setup --client <name>'")
+			fmt.Println("────────────────────────────────────────────────────────────────────────")
 			return nil
 		},
 	}
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output status report as JSON")
 	rootCmd.AddCommand(statusCmd)
 
 	// MCP Stdio Server Command
 	var mcpDBPath string
+	var mcpStdioForce bool
 	mcpCmd := &cobra.Command{
-		Use:   "mcp",
-		Short: "Start the stdio Model Context Protocol (MCP) server for agents",
+		Use:   "mcp [command]",
+		Short: "Manage or run Model Context Protocol (MCP) server for agents",
+		Long: `The 'zenfd mcp' command manages MCP integrations for AI agents.
+When invoked directly by an AI client without a TTY (via stdin/stdout pipe), it automatically starts the JSON-RPC stdio server.
+When invoked in an interactive terminal, it displays the integration status and available actions.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if stdin is a character device (interactive terminal)
+			isTerminal := false
+			if fileInfo, err := os.Stdin.Stat(); err == nil {
+				isTerminal = (fileInfo.Mode() & os.ModeCharDevice) != 0
+			}
+
+			// If called directly in terminal and not forced via --stdio:
+			// Show status overview + actions help rather than hanging on stdio.
+			if isTerminal && !mcpStdioForce {
+				fmt.Printf("ZenForge MCP Integrations (zenfd v%s)\n", Version)
+				fmt.Println("────────────────────────────────────────────────────────────────────────")
+				fmt.Println("AI CLIENT MCP STATUS:")
+
+				supportedClients := []zenfdmcp.ClientType{
+					zenfdmcp.ClientAgy,
+					zenfdmcp.ClientClaude,
+					zenfdmcp.ClientCursor,
+					zenfdmcp.ClientOpenCode,
+				}
+				for _, c := range supportedClients {
+					checkRes, _ := zenfdmcp.CheckMCP(c, "")
+					var badge string
+					var cfgPath string
+					if checkRes != nil {
+						cfgPath = checkRes.ConfigPath
+						if checkRes.Configured && checkRes.BinaryExists {
+							badge = "✔ CONFIGURED    "
+						} else if checkRes.Configured && !checkRes.BinaryExists {
+							badge = "⚠ BROKEN_BINARY "
+						} else {
+							badge = "○ NOT CONFIGURED"
+						}
+					}
+					fmt.Printf(" • %-14s : %s (%s)\n", c, badge, cfgPath)
+				}
+
+				fmt.Println("\nAVAILABLE MCP ACTIONS:")
+				fmt.Println("  zenfd mcp setup --client <name>   Configure MCP server for AI client (agy, claude, cursor, opencode)")
+				fmt.Println("  zenfd mcp check --client <name>   Audit detailed client configuration and binary validity")
+				fmt.Println("  zenfd mcp --stdio                 Force start JSON-RPC stdio server (for manual piping)")
+				fmt.Println("\nℹ When an AI client spawns 'zenfd mcp', stdio JSON-RPC runs automatically.")
+				fmt.Println("────────────────────────────────────────────────────────────────────────")
+				return nil
+			}
+
+			// Non-interactive mode (spawned by AI Agent via pipe) or --stdio flag
 			dbPath := resolveHomePath(mcpDBPath)
 			db, err := storage.Open(dbPath)
 			if err != nil {
@@ -441,6 +631,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 		},
 	}
 	mcpCmd.Flags().StringVarP(&mcpDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
+	mcpCmd.Flags().BoolVar(&mcpStdioForce, "stdio", false, "Force run stdio JSON-RPC server even if attached to terminal")
 	rootCmd.AddCommand(mcpCmd)
 
 	// Subcommands for MCP: check and setup

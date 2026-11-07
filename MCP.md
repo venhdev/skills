@@ -20,10 +20,21 @@ discovers the tools.
 
 ### Automated (agy, claude, cursor, opencode)
 
+View status and available actions:
 ```bash
-apps/daemon/bin/zenfd mcp check --client opencode
-apps/daemon/bin/zenfd mcp setup --client opencode --dry-run
-apps/daemon/bin/zenfd mcp setup --client opencode
+zenfd mcp
+```
+
+Setup or audit individual AI clients:
+```bash
+zenfd mcp check --client opencode
+zenfd mcp setup --client opencode --dry-run
+zenfd mcp setup --client opencode
+```
+
+Or view overall system and MCP status:
+```bash
+zenfd status
 ```
 
 | Client | `--client` | Config file |

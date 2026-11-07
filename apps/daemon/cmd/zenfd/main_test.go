@@ -80,7 +80,7 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 	// 3. Test `zenfd status`
 	statusCmd := exec.Command(binPath, "status", "--url", daemonURL)
 	out, err := statusCmd.CombinedOutput()
-	if err != nil || !strings.Contains(string(out), "healthy and active") {
+	if err != nil || !strings.Contains(string(out), "ACTIVE") {
 		t.Fatalf("status command failed: %v, out: %s", err, string(out))
 	}
 
