@@ -4,6 +4,7 @@ import type {
   AgentInput,
   AgentSession,
   Artifact,
+  ContextPacket,
   Document,
   DocumentFilter,
   DocumentInput,
@@ -168,6 +169,13 @@ export function useZenfdAPI() {
     []
   )
 
+  const fetchTaskPacket = useCallback(
+    async (taskId: string): Promise<ApiResult<ContextPacket>> => {
+      return apiRequest<ContextPacket>(`/api/v1/tasks/${encodeURIComponent(taskId)}?include_packet=true`)
+    },
+    []
+  )
+
   // -------------------------------------------------------------------------
   // Documents
   // -------------------------------------------------------------------------
@@ -301,6 +309,7 @@ export function useZenfdAPI() {
     fetchPlan,
     fetchTasks,
     fetchTaskArtifacts,
+    fetchTaskPacket,
     fetchDocuments,
     searchDocuments,
     createDocument,

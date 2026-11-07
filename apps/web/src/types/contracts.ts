@@ -130,6 +130,33 @@ export interface Document {
   updated_at: string
 }
 
+export interface DocumentBrief {
+  id: string
+  project_slug?: string
+  key: string
+  slug: string
+  type: DocumentType
+  scope: DocumentScope
+  title: string
+  summary?: string
+  content?: string
+  tags?: string[]
+  version: number
+}
+
+export interface ContextPacket {
+  task: Task
+  project?: Project
+  plan?: Plan
+  agent?: Agent
+  target_files: string[]
+  skill_paths: string[]
+  input_attachments: Artifact[]
+  linked_documents?: DocumentBrief[]
+  verification_commands: string[]
+  prompt_markdown: string
+}
+
 export interface DocumentInput {
   project_slug?: string
   key: string

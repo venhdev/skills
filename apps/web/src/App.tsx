@@ -41,6 +41,7 @@ export default function App() {
     fetchPlan,
     fetchTasks,
     fetchTaskArtifacts,
+    fetchTaskPacket,
     fetchGlobalEnv,
   } = useZenfdAPI()
 
@@ -347,6 +348,7 @@ export default function App() {
             onSelectTaskId={handleSelectTaskId}
             collapsed={dockCollapsed}
             onToggleCollapse={() => setDockCollapsed(!dockCollapsed)}
+            fetchTaskPacket={fetchTaskPacket}
           />
         </div>
       )}

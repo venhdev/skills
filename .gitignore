@@ -8,8 +8,8 @@ tmp
 .env.*
 !.env.example
 node_modules/
-package-lock.json
-pnpm-lock.yaml
+# package-lock.json
+# pnpm-lock.yaml
 venv/
 __pycache__/
 

@@ -16,8 +16,19 @@ import {
   FileCode,
   FileCheck,
   FileText,
+  Clipboard,
+  Loader2,
+  Wrench,
+  BookOpen,
+  Sparkles,
+  Bot,
+  Shield,
+  Timer,
+  Hash,
+  CalendarDays,
 } from 'lucide-react'
-import type { Task } from '../../types/contracts'
+import type { Task, ContextPacket } from '../../types/contracts'
+import type { ApiResult } from '../../hooks/useZenfdAPI'
 import { elapsedLabel } from '../../lib/duration'
 import { getTaskStatusStyle } from '../stage/taskStatusTheme'
 
@@ -27,6 +38,7 @@ interface TaskSpecPaneProps {
   onSelectTaskId?: (taskId: string) => void
   isMaximized?: boolean
   onToggleMaximize?: () => void
+  fetchTaskPacket?: (taskId: string) => Promise<ApiResult<ContextPacket>>
 }
 
 export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
@@ -35,9 +47,12 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   onSelectTaskId,
   isMaximized = false,
   onToggleMaximize,
+  fetchTaskPacket,
 }) => {
-  const [copiedCmd, setCopiedCmd] = useState(false)
   const [copiedWorktree, setCopiedWorktree] = useState(false)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+  const [promptLoading, setPromptLoading] = useState(false)
+  const [copiedVerify, setCopiedVerify] = useState(false)
 
   if (!task) {
     return (
@@ -51,15 +66,20 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     )
   }
 
-  const commandToRun = `zenfd task claim ${task.id}`
-
-  const handleCopyCommand = async () => {
+  const handleCopyAgentPrompt = async () => {
+    if (!fetchTaskPacket || promptLoading) return
+    setPromptLoading(true)
     try {
-      await navigator.clipboard.writeText(commandToRun)
-      setCopiedCmd(true)
-      setTimeout(() => setCopiedCmd(false), 2000)
+      const result = await fetchTaskPacket(task.id)
+      if (result.ok && result.data?.prompt_markdown) {
+        await navigator.clipboard.writeText(result.data.prompt_markdown)
+        setCopiedPrompt(true)
+        setTimeout(() => setCopiedPrompt(false), 2500)
+      }
     } catch {
-      // ignore clipboard error
+      // ignore
+    } finally {
+      setPromptLoading(false)
     }
   }
 
@@ -74,8 +94,21 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     }
   }
 
+  const handleCopyVerification = async () => {
+    if (!task.verification_commands?.length) return
+    try {
+      await navigator.clipboard.writeText(task.verification_commands.join('\n'))
+      setCopiedVerify(true)
+      setTimeout(() => setCopiedVerify(false), 2000)
+    } catch {
+      // ignore
+    }
+  }
+
   const taskMap = new Map<string, Task>()
   allTasks.forEach((t) => taskMap.set(t.id, t))
+
+  const isCompleted = task.status === 'COMPLETED'
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-zinc-950 font-sans select-none">
@@ -92,15 +125,44 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
           </span>
         </div>
 
-        {onToggleMaximize && (
-          <button
-            onClick={onToggleMaximize}
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
-            title={isMaximized ? 'Split View' : 'Maximize Spec'}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {/* Copy Agent Prompt — primary action */}
+          {fetchTaskPacket && (
+            <button
+              onClick={handleCopyAgentPrompt}
+              disabled={promptLoading}
+              className="flex items-center gap-1 rounded bg-violet-600/20 border border-violet-500/30 px-2 py-0.5 text-[10px] font-semibold text-violet-300 transition hover:bg-violet-600/30 hover:text-violet-200 disabled:opacity-50"
+              title="Fetch compiled agent prompt and copy to clipboard"
+            >
+              {promptLoading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Loading…</span>
+                </>
+              ) : copiedPrompt ? (
+                <>
+                  <Check className="h-3 w-3 text-emerald-400" />
+                  <span className="text-emerald-400">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Clipboard className="h-3 w-3" />
+                  <span>Copy Agent Prompt</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {onToggleMaximize && (
+            <button
+              onClick={onToggleMaximize}
+              className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
+              title={isMaximized ? 'Split View' : 'Maximize Spec'}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 2. Scrollable Body */}
@@ -126,17 +188,76 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             {task.title}
           </h2>
 
-          {/* Worker Badge */}
+          {/* Description */}
+          {task.description && (
+            <p className="whitespace-pre-wrap text-xs text-zinc-400 leading-relaxed select-text">
+              {task.description}
+            </p>
+          )}
+
+          {/* Claim Telemetry Hub — expanded from Worker Badge */}
           {task.claimed_by && (
-            <div className="flex items-center justify-between gap-2 rounded border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-[11px] text-zinc-300">
-              <div className="flex items-center gap-1.5 truncate">
-                <UserCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span>
-                  Claimed by: <strong className="text-zinc-200 font-mono">{task.claimed_by}</strong>
-                  {task.status === 'RUNNING' && task.claimed_at && (
-                    <span className="text-zinc-500"> · {elapsedLabel(task.claimed_at)}</span>
-                  )}
-                </span>
+            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 space-y-2">
+              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                <UserCheck className="h-3 w-3 text-emerald-400" />
+                <span>Claim Telemetry</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
+                {/* Worker */}
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <Bot className="h-3 w-3 text-emerald-400 shrink-0" />
+                  <span>Worker:</span>
+                  <strong className="text-zinc-200 font-mono truncate">{task.claimed_by}</strong>
+                </div>
+                {/* Role */}
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <Shield className="h-3 w-3 text-blue-400 shrink-0" />
+                  <span>Role:</span>
+                  <strong className="text-zinc-200 font-mono">{task.worker_role || '—'}</strong>
+                </div>
+                {/* Orchestrator */}
+                {task.orchestrator_id && (
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Sparkles className="h-3 w-3 text-violet-400 shrink-0" />
+                    <span>Orchestrator:</span>
+                    <strong className="text-zinc-200 font-mono truncate">{task.orchestrator_id}</strong>
+                  </div>
+                )}
+                {/* Session */}
+                {task.claim_session_id && (
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Hash className="h-3 w-3 text-zinc-500 shrink-0" />
+                    <span>Session:</span>
+                    <strong className="text-zinc-200 font-mono truncate">{task.claim_session_id}</strong>
+                  </div>
+                )}
+                {/* Claimed At + Elapsed */}
+                {task.claimed_at && (
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Timer className="h-3 w-3 text-amber-400 shrink-0" />
+                    <span>Claimed:</span>
+                    <strong className="text-zinc-200">
+                      {new Date(task.claimed_at).toLocaleTimeString()}
+                    </strong>
+                    {task.status === 'RUNNING' && (
+                      <span className="text-zinc-500">· {elapsedLabel(task.claimed_at)}</span>
+                    )}
+                  </div>
+                )}
+                {/* Worktree */}
+                {task.worktree_path && (
+                  <div className="col-span-2 flex items-center gap-1.5 text-zinc-400">
+                    <FolderGit2 className="h-3 w-3 text-cyan-400 shrink-0" />
+                    <span className="shrink-0">Worktree:</span>
+                    <span className="font-mono text-zinc-300 truncate select-text flex-1">{task.worktree_path}</span>
+                    <button
+                      onClick={handleCopyWorktree}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-200 shrink-0"
+                    >
+                      {copiedWorktree ? '✓' : 'Copy'}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -190,6 +311,16 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Review resolution (if already resolved) */}
+            {task.review_response && (
+              <div className="rounded border border-emerald-500/30 bg-emerald-950/20 p-2 text-[11px] text-emerald-300">
+                <span className="font-semibold">Resolution:</span> {task.review_response}
+                {task.resolved_by && (
+                  <span className="text-zinc-400"> — by <strong className="text-zinc-300 font-mono">{task.resolved_by}</strong></span>
+                )}
               </div>
             )}
 
@@ -263,6 +394,41 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
           </div>
         )}
 
+        {/* Agent Capabilities — required_skills, required_docs, required_tools, agent_slug */}
+        {(task.required_skills?.length || task.required_docs?.length || task.required_tools?.length || task.agent_slug) && (
+          <div className="space-y-1.5">
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              <Sparkles className="h-3 w-3 text-violet-400" />
+              <span>Agent Capabilities</span>
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {task.agent_slug && (
+                <span className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-300 font-mono">
+                  <Bot className="h-2.5 w-2.5 inline mr-1 text-zinc-400" />
+                  {task.agent_slug}
+                </span>
+              )}
+              {task.required_skills?.map((skill, idx) => (
+                <span key={`skill-${idx}`} className="rounded border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-300">
+                  {skill}
+                </span>
+              ))}
+              {task.required_docs?.map((doc, idx) => (
+                <span key={`doc-${idx}`} className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
+                  <BookOpen className="h-2.5 w-2.5 inline mr-1" />
+                  {doc}
+                </span>
+              ))}
+              {task.required_tools?.map((tool, idx) => (
+                <span key={`tool-${idx}`} className="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] text-cyan-300">
+                  <Wrench className="h-2.5 w-2.5 inline mr-1" />
+                  {tool}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Acceptance Criteria */}
         {task.acceptance_criteria && task.acceptance_criteria.length > 0 && (
           <div className="space-y-1.5">
@@ -273,8 +439,47 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             <div className="space-y-1 rounded border border-zinc-800 bg-zinc-900/40 p-2.5">
               {task.acceptance_criteria.map((ac, idx) => (
                 <div key={idx} className="flex items-start gap-2 text-xs text-zinc-300">
-                  <span className="text-emerald-400 font-bold shrink-0">✓</span>
+                  {isCompleted ? (
+                    <span className="text-emerald-400 font-bold shrink-0">☑</span>
+                  ) : (
+                    <span className="text-zinc-500 font-mono shrink-0 text-[11px]">◻ {String(idx + 1).padStart(2, '0')}.</span>
+                  )}
                   <span>{ac}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Verification Commands */}
+        {task.verification_commands && task.verification_commands.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                <Terminal className="h-3 w-3 text-emerald-400" />
+                <span>Verification Commands ({task.verification_commands.length})</span>
+              </span>
+              <button
+                onClick={handleCopyVerification}
+                className="flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-[10px] font-medium text-zinc-300 transition hover:bg-zinc-700 hover:text-white"
+              >
+                {copiedVerify ? (
+                  <>
+                    <Check className="h-3 w-3 text-emerald-400" />
+                    <span className="text-emerald-400">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3" />
+                    <span>Copy All</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="space-y-1 font-mono text-[11px]">
+              {task.verification_commands.map((cmd, idx) => (
+                <div key={idx} className="rounded border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-emerald-300 select-text break-all">
+                  <code>$ {cmd}</code>
                 </div>
               ))}
             </div>
@@ -297,36 +502,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             </div>
           </div>
         )}
-
-        {/* Executable Command Snippet Card */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-              <Terminal className="h-3 w-3 text-zinc-400" />
-              <span>Executable Command</span>
-            </span>
-            <button
-              onClick={handleCopyCommand}
-              className="flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-[11px] font-medium text-zinc-300 transition hover:bg-zinc-700 hover:text-white"
-            >
-              {copiedCmd ? (
-                <>
-                  <Check className="h-3 w-3 text-emerald-400" />
-                  <span className="text-emerald-400 font-semibold">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3" />
-                  <span>Copy</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-2.5 font-mono text-xs text-violet-300 break-all select-text">
-            <code>{commandToRun}</code>
-          </div>
-        </div>
 
         {/* Dependencies Seam */}
         <div className="space-y-1.5">
@@ -368,30 +543,39 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
           )}
         </div>
 
-        {/* Metadata Seams */}
+        {/* Metadata Footer */}
         <div className="space-y-2 border-t border-zinc-850 pt-3 text-xs">
-          <div className="flex items-center justify-between text-zinc-400">
-            <span className="flex items-center gap-1 text-[11px] text-zinc-400">
-              <FolderGit2 className="h-3 w-3" />
-              <span>Worktree Path</span>
-            </span>
-            {task.worktree_path && (
-              <button
-                onClick={handleCopyWorktree}
-                className="text-[10px] text-zinc-400 hover:text-zinc-200"
-              >
-                {copiedWorktree ? 'Copied!' : 'Copy Path'}
-              </button>
-            )}
-          </div>
-          <div className="truncate rounded border border-zinc-850 bg-zinc-900/50 px-2 py-1 font-mono text-[11px] text-zinc-300 select-text">
-            {task.worktree_path || 'Not set'}
-          </div>
+          {/* Worktree Path (only if NOT already shown in Claim Telemetry Hub above) */}
+          {!task.claimed_by && (
+            <>
+              <div className="flex items-center justify-between text-zinc-400">
+                <span className="flex items-center gap-1 text-[11px] text-zinc-400">
+                  <FolderGit2 className="h-3 w-3" />
+                  <span>Worktree Path</span>
+                </span>
+                {task.worktree_path && (
+                  <button
+                    onClick={handleCopyWorktree}
+                    className="text-[10px] text-zinc-400 hover:text-zinc-200"
+                  >
+                    {copiedWorktree ? 'Copied!' : 'Copy Path'}
+                  </button>
+                )}
+              </div>
+              <div className="truncate rounded border border-zinc-850 bg-zinc-900/50 px-2 py-1 font-mono text-[11px] text-zinc-300 select-text">
+                {task.worktree_path || 'Not set'}
+              </div>
+            </>
+          )}
 
           <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400 pt-1">
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
               <span>Harness: <strong className="text-zinc-300">{task.harness || 'shell'}</strong></span>
+            </div>
+            <div className="flex items-center gap-1">
+              <CalendarDays className="h-3 w-3" />
+              <span>Created: <strong className="text-zinc-300">{task.created_at ? new Date(task.created_at).toLocaleString() : '-'}</strong></span>
             </div>
             <div className="flex items-center gap-1">
               <span>Updated: <strong className="text-zinc-300">{task.updated_at ? new Date(task.updated_at).toLocaleTimeString() : '-'}</strong></span>
