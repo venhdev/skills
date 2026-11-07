@@ -123,7 +123,8 @@ export const LiveLog: React.FC<LiveLogProps> = ({ tick }) => {
     try {
       const res = await fetch(`/api/v1/events${query}`)
       if (!res.ok) return
-      const batch: EventMessage[] = await res.json()
+      const raw = await res.json()
+      const batch: EventMessage[] = Array.isArray(raw) ? raw : (raw?.events || [])
       if (!Array.isArray(batch) || batch.length === 0) return
 
       const newest = batch[batch.length - 1].id

@@ -14,9 +14,10 @@ build-web:
 	@if [ -d "$(WEB_DIR)" ]; then \
 		echo "Building web dashboard in $(WEB_DIR)..."; \
 		(cd $(WEB_DIR) && pnpm build); \
-		rm -rf $(GATEWAY_WEB_DIST)/*; \
 		mkdir -p $(GATEWAY_WEB_DIST); \
+		find $(GATEWAY_WEB_DIST) -mindepth 1 ! -name '.keep' -delete; \
 		cp -r $(WEB_DIR)/dist/* $(GATEWAY_WEB_DIST)/; \
+		touch $(GATEWAY_WEB_DIST)/.keep; \
 		echo "Copied web bundle to $(GATEWAY_WEB_DIST)"; \
 	fi
 

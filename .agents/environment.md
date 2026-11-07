@@ -1,4 +1,4 @@
-# Environment Specification — my-skills (ZenForge Ecosystem)
+# Environment Specification — zenforge (ZenForge Ecosystem)
 
 Infrastructure, toolchain manifest, and execution environment specification.
 

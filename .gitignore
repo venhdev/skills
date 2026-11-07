@@ -2,7 +2,6 @@
 tmp-skillshare-workspaces
 .system
 tmp
-/Makefile
 
 .env
 **/.env

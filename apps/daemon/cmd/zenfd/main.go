@@ -48,7 +48,7 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "0.2.0"
+const Version = "0.2.1"
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -234,10 +234,22 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 			defer resp.Body.Close()
 
-			var tasks []domain.Task
-			if err := json.NewDecoder(resp.Body).Decode(&tasks); err != nil {
+			var payload struct {
+				Tasks []domain.Task `json:"tasks"`
+			}
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
 				return err
 			}
+			if err := json.Unmarshal(bodyBytes, &payload); err != nil {
+				// Fallback to raw slice if connected to legacy daemon
+				var rawTasks []domain.Task
+				if err2 := json.Unmarshal(bodyBytes, &rawTasks); err2 != nil {
+					return fmt.Errorf("failed to decode tasks list: %w", err)
+				}
+				payload.Tasks = rawTasks
+			}
+			tasks := payload.Tasks
 
 			if len(tasks) == 0 {
 				fmt.Println("No tasks found.")

@@ -115,10 +115,13 @@ func TestGateway_PlansAndTasksLifecycle(t *testing.T) {
 	}
 	defer listResp.Body.Close()
 
-	var tasks []domain.Task
-	if err := json.NewDecoder(listResp.Body).Decode(&tasks); err != nil {
+	var taskPayload struct {
+		Tasks []domain.Task `json:"tasks"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&taskPayload); err != nil {
 		t.Fatalf("failed to decode tasks list: %v", err)
 	}
+	tasks := taskPayload.Tasks
 
 	if len(tasks) != 1 || tasks[0].ID != "T-01" {
 		t.Fatalf("expected 1 READY task (T-01), got: %+v", tasks)
@@ -347,10 +350,13 @@ func TestGateway_TaskAttachmentsAndLogs(t *testing.T) {
 	}
 	defer listResp.Body.Close()
 
-	var artList []domain.Artifact
-	if err := json.NewDecoder(listResp.Body).Decode(&artList); err != nil {
+	var artPayload struct {
+		Artifacts []domain.Artifact `json:"artifacts"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&artPayload); err != nil {
 		t.Fatalf("failed to decode artifact list: %v", err)
 	}
+	artList := artPayload.Artifacts
 	if len(artList) != 1 || artList[0].ID != createdArt.ID {
 		t.Errorf("expected 1 artifact in list, got %+v", artList)
 	}
@@ -418,10 +424,13 @@ func TestGateway_DocumentRegistry(t *testing.T) {
 		t.Fatalf("search documents failed: %v", err)
 	}
 	defer searchResp.Body.Close()
-	var hits []domain.DocumentSearchResult
-	if err := json.NewDecoder(searchResp.Body).Decode(&hits); err != nil {
+	var searchPayload struct {
+		Results []domain.DocumentSearchResult `json:"results"`
+	}
+	if err := json.NewDecoder(searchResp.Body).Decode(&searchPayload); err != nil {
 		t.Fatalf("failed to decode search hits: %v", err)
 	}
+	hits := searchPayload.Results
 	if len(hits) != 1 || hits[0].Document.ID != created.ID {
 		t.Fatalf("unexpected search hits: %+v", hits)
 	}
@@ -438,6 +447,28 @@ func TestGateway_DocumentRegistry(t *testing.T) {
 	}
 	if refreshed.Version != 2 || refreshed.ContentHash == created.ContentHash {
 		t.Fatalf("expected version 2 with new hash, got %+v", refreshed)
+	}
+}
+
+func TestGateway_JSONErrorFormat(t *testing.T) {
+	_, baseURL, _, cleanup := setupTestGateway(t)
+	defer cleanup()
+
+	resp, err := http.Get(baseURL + "/api/v1/tasks/non-existent-task-id")
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+	var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		t.Fatalf("failed to decode JSON error: %v", err)
+	}
+	if errResp.Error.Code != "RESOURCE_NOT_FOUND" {
+		t.Errorf("expected RESOURCE_NOT_FOUND code, got %q", errResp.Error.Code)
 	}
 }
 

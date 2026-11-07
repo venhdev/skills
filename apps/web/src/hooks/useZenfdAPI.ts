@@ -20,16 +20,30 @@ import type {
 
 export type ApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; error: string; status?: number }
+  | { ok: false; error: string; code?: string; status?: number }
 
 async function apiRequest<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
     const res = await fetch(path, init)
     if (!res.ok) {
-      const detail = await res.text()
+      const text = await res.text()
+      let errorMsg = text.trim() || res.statusText || `HTTP ${res.status}`
+      let errorCode: string | undefined
+      try {
+        const parsed = JSON.parse(text)
+        if (parsed?.error?.message) {
+          errorMsg = parsed.error.message
+          errorCode = parsed.error.code
+        } else if (typeof parsed?.error === 'string') {
+          errorMsg = parsed.error
+        }
+      } catch {
+        // text is plain error
+      }
       return {
         ok: false,
-        error: detail.trim() || res.statusText || `HTTP ${res.status}`,
+        error: errorMsg,
+        code: errorCode,
         status: res.status,
       }
     }
@@ -133,8 +147,10 @@ export function useZenfdAPI() {
         agent_slug: filter?.agentSlug,
         orphan: filter?.orphan,
       })
-      const result = await apiRequest<Task[]>(`/api/v1/tasks${query}`)
-      return result.ok ? result.data || [] : null
+      const result = await apiRequest<{ tasks?: Task[] } | Task[]>(`/api/v1/tasks${query}`)
+      if (!result.ok) return null
+      if (Array.isArray(result.data)) return result.data
+      return result.data?.tasks || []
     },
     []
   )
@@ -142,10 +158,12 @@ export function useZenfdAPI() {
   const fetchTaskArtifacts = useCallback(
     async (taskId: string, role?: string): Promise<Artifact[]> => {
       const query = role ? `?role=${encodeURIComponent(role)}` : ''
-      const result = await apiRequest<Artifact[]>(
+      const result = await apiRequest<{ artifacts?: Artifact[] } | Artifact[]>(
         `/api/v1/tasks/${encodeURIComponent(taskId)}/artifacts${query}`
       )
-      return result.ok ? result.data || [] : []
+      if (!result.ok) return []
+      if (Array.isArray(result.data)) return result.data
+      return result.data?.artifacts || []
     },
     []
   )
@@ -170,11 +188,12 @@ export function useZenfdAPI() {
   const searchDocuments = useCallback(
     async (query: string, projectSlug = ''): Promise<ApiResult<DocumentSearchResult[]>> => {
       const params = queryString({ project_slug: projectSlug, include_global: true, limit: 50 })
-      return apiRequest<DocumentSearchResult[]>(
+      const result = await apiRequest<{ results?: DocumentSearchResult[] } | DocumentSearchResult[]>(
         `/api/v1/docs/search${params}${params ? '&' : '?'}query=${encodeURIComponent(query)}`
-      ).then((result) =>
-        result.ok ? { ok: true, data: result.data || [] } : result
       )
+      if (!result.ok) return result
+      const list = Array.isArray(result.data) ? result.data : (result.data?.results || [])
+      return { ok: true, data: list }
     },
     []
   )
