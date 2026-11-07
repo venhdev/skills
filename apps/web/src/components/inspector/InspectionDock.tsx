@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { ChevronRight, ChevronLeft, Layers, Activity, Zap } from 'lucide-react'
 import { TaskSpecPane } from './TaskSpecPane'
 import { ExecutionTracePane } from './ExecutionTracePane'
@@ -18,7 +18,7 @@ interface InspectionDockProps {
   fetchTaskPacket?: (taskId: string) => Promise<ApiResult<ContextPacket>>
 }
 
-export const InspectionDock: React.FC<InspectionDockProps> = ({
+export const InspectionDockComponent: React.FC<InspectionDockProps> = ({
   selectedTask,
   allTasks,
   artifacts,
@@ -31,6 +31,8 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
   const [packet, setPacket] = useState<ContextPacket | null>(null)
   const [packetLoading, setPacketLoading] = useState(false)
   const [packetTaskId, setPacketTaskId] = useState<string | null>(null)
+
+  const handleViewArtifacts = useCallback(() => setActiveLens('trace'), [])
 
   // Async sequence counter to prevent race conditions on fast task switching (Finding #12)
   const fetchSeqRef = useRef(0)
@@ -95,7 +97,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
   ]
 
   return (
-    <aside className="relative flex w-[500px] flex-col border-l border-zinc-800 bg-zinc-950 select-none">
+    <aside className="relative flex w-[500px] flex-col border-l border-zinc-800 bg-zinc-950 select-none isolate [transform:translateZ(0)]">
       {/* Dock Top Lens Bar */}
       <div className="flex h-9 items-center justify-between border-b border-zinc-800 bg-zinc-900/60 px-3 text-xs text-zinc-400">
         <div className="flex items-center gap-1">
@@ -130,7 +132,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
       </div>
 
       {/* Pane Content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
         {activeLens === 'spec' && (
           <div className="h-full overflow-hidden">
             <TaskSpecPane
@@ -139,7 +141,7 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
               artifacts={artifacts}
               onSelectTaskId={onSelectTaskId}
               fetchTaskPacket={fetchTaskPacket}
-              onViewArtifacts={() => setActiveLens('trace')}
+              onViewArtifacts={handleViewArtifacts}
             />
           </div>
         )}
@@ -163,3 +165,5 @@ export const InspectionDock: React.FC<InspectionDockProps> = ({
     </aside>
   )
 }
+
+export const InspectionDock = memo(InspectionDockComponent)

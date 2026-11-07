@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, memo } from 'react'
 import {
   Terminal,
   Copy,
@@ -41,7 +41,7 @@ interface TaskSpecPaneProps {
   onViewArtifacts?: () => void
 }
 
-export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
+export const TaskSpecPaneComponent: React.FC<TaskSpecPaneProps> = ({
   task,
   allTasks,
   artifacts = [],
@@ -69,6 +69,8 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
   }
 
   const parsedDesc = useMemo(() => parseTaskDescription(task?.description), [task?.description])
+
+  const taskMap = useMemo(() => new Map<string, Task>(allTasks.map((t) => [t.id, t])), [allTasks])
 
   if (!task) {
     return (
@@ -109,9 +111,6 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
       // ignore
     }
   }
-
-  const taskMap = new Map<string, Task>()
-  allTasks.forEach((t) => taskMap.set(t.id, t))
 
   const isCompleted = task.status === 'COMPLETED'
 
@@ -171,7 +170,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
       </div>
 
       {/* 2. Scrollable Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain [contain:content] p-4 space-y-4">
         {/* Title, Status & ID */}
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2">
@@ -261,7 +260,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
             <div className="space-y-3 pt-1">
               {/* Context Card */}
               {parsedDesc.context && (
-                <div className="rounded-lg border border-violet-500/20 bg-violet-950/10 p-3 space-y-1">
+                <div className="rounded-lg border border-violet-500/20 bg-violet-950/10 p-3 space-y-1 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
                   <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-violet-400">
                     <Layers className="h-3 w-3" />
                     <span>Context</span>
@@ -274,7 +273,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
               {/* Input / Output 2-Column Grid */}
               {(parsedDesc.inputs?.length || parsedDesc.outputs?.length) ? (
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
                   {/* Inputs */}
                   <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-1.5">
                     <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -323,7 +322,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
               {/* Condition Guards */}
               {parsedDesc.conditionGuards && parsedDesc.conditionGuards.length > 0 && (
-                <div className="rounded-lg border border-amber-500/20 bg-amber-950/10 p-2.5 space-y-1.5">
+                <div className="rounded-lg border border-amber-500/20 bg-amber-950/10 p-2.5 space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-400">
                     <Shield className="h-3 w-3" />
                     <span>Condition Guards</span>
@@ -343,7 +342,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
               {/* Constraints */}
               {parsedDesc.constraints && parsedDesc.constraints.length > 0 && (
-                <div className="rounded-lg border border-rose-500/20 bg-rose-950/10 p-2.5 space-y-1.5">
+                <div className="rounded-lg border border-rose-500/20 bg-rose-950/10 p-2.5 space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-rose-400">
                     <Lock className="h-3 w-3" />
                     <span>Constraints</span>
@@ -360,7 +359,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
               {/* Custom Blocks */}
               {parsedDesc.customBlocks.map((block) => (
-                <div key={block.key} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-1.5">
+                <div key={block.key} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
                     {block.label}
                   </span>
@@ -455,7 +454,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
         {/* Acceptance Criteria */}
         {task.acceptance_criteria && task.acceptance_criteria.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
             <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
               <FileCheck className="h-3 w-3 text-emerald-400" />
               <span>Acceptance Criteria ({task.acceptance_criteria.length})</span>
@@ -477,7 +476,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
         {/* Verification Commands */}
         {task.verification_commands && task.verification_commands.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
                 <Terminal className="h-3 w-3 text-emerald-400" />
@@ -512,7 +511,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
         {/* Target Files */}
         {task.target_files && task.target_files.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
             <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
               <FileCode className="h-3 w-3 text-cyan-400" />
               <span>Target Files ({task.target_files.length})</span>
@@ -529,7 +528,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
 
         {/* Multi-Modal Attachments Row (Zero-Footprint empty state rule) */}
         {artifacts.length > 0 && (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-2">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-2 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
             <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
               <div className="flex items-center gap-1.5">
                 <Paperclip className="h-3 w-3 text-violet-400" />
@@ -577,7 +576,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
         )}
 
         {/* Dependencies Seam */}
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 [content-visibility:auto] [contain-intrinsic-size:auto_80px]">
           <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
             <GitBranch className="h-3 w-3 text-zinc-400" />
             <span>Dependencies ({task.dependencies?.length || 0})</span>
@@ -617,7 +616,7 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
         </div>
 
         {/* Metadata Footer */}
-        <div className="space-y-2 border-t border-zinc-850 pt-3 text-xs">
+        <div className="space-y-2 border-t border-zinc-850 pt-3 text-xs [content-visibility:auto] [contain-intrinsic-size:auto_40px]">
           <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-400 pt-1">
             <div className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
@@ -636,3 +635,5 @@ export const TaskSpecPane: React.FC<TaskSpecPaneProps> = ({
     </div>
   )
 }
+
+export const TaskSpecPane = memo(TaskSpecPaneComponent)

@@ -50,7 +50,7 @@ export const TaskNode = memo(({ data }: { data: TaskNodeData }) => {
   return (
     <div
       onClick={() => onSelect(task)}
-      className={`w-64 rounded-lg border p-3 transition-all cursor-pointer select-none backdrop-blur-sm ${
+      className={`w-64 rounded-lg border p-3 transition-all cursor-pointer select-none backdrop-blur-sm isolate ${
         style.border
       } ${style.bg} ${style.glow} ${selectionRing} ${isDimmed ? 'opacity-30' : blastOpacity}`}
     >

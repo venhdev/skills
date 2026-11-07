@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, memo } from 'react'
 import {
   UserCheck,
   Bot,
@@ -24,7 +24,7 @@ interface ExecutionTracePaneProps {
   artifacts: Artifact[]
 }
 
-export const ExecutionTracePane: React.FC<ExecutionTracePaneProps> = ({ task, artifacts }) => {
+export const ExecutionTracePaneComponent: React.FC<ExecutionTracePaneProps> = ({ task, artifacts }) => {
   const [copiedWorktree, setCopiedWorktree] = useState(false)
   const timerRef = useRef<number | null>(null)
 
@@ -54,7 +54,7 @@ export const ExecutionTracePane: React.FC<ExecutionTracePaneProps> = ({ task, ar
   }
 
   return (
-    <div className="flex h-full w-full flex-col overflow-y-auto bg-zinc-950 p-4 space-y-4 select-none font-sans">
+    <div className="flex h-full w-full flex-col min-h-0 overflow-y-auto overscroll-contain [contain:content] bg-zinc-950 p-4 space-y-4 select-none font-sans">
       {/* 1. Claim Telemetry Hub */}
       {task.claimed_by ? (
         <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2.5">
@@ -251,3 +251,5 @@ export const ExecutionTracePane: React.FC<ExecutionTracePaneProps> = ({ task, ar
     </div>
   )
 }
+
+export const ExecutionTracePane = memo(ExecutionTracePaneComponent)
