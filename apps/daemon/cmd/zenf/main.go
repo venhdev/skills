@@ -8,8 +8,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -48,14 +50,14 @@ func resolveHomePath(path string) string {
 	return path
 }
 
-const Version = "0.2.1"
+const Version = "0.3.0"
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:     "zenfd",
+		Use:     "zenf",
 		Version: Version,
-		Short:   "ZenForge Daemon (zenfd) - Background Agent Execution & Orchestration Daemon",
-		Long: `zenfd is the single-binary control plane for ZenForge.
+		Short:   "ZenForge Control Plane (zenf) - Multi-Agent State Daemon & Cockpit Orchestrator",
+		Long: `zenf is the single-binary control plane for ZenForge.
 It owns the SQLite WAL tracking plane, exposes an MCP stdio surface for agents,
 and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -70,32 +72,114 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 				}
 			}
 
-			fmt.Printf("ZenForge Control Plane (zenfd v%s)\n", Version)
+			fmt.Printf("ZenForge Control Plane (zenf v%s)\n", Version)
 			fmt.Printf("Daemon Status: %s\n\n", statusStr)
 			fmt.Println("Quickstart Commands:")
-			fmt.Println("  zenfd daemon        Start background orchestrator & web cockpit (:1123)")
-			fmt.Println("  zenfd status        View detailed status of daemon & all AI MCP clients")
-			fmt.Println("  zenfd mcp           Audit AI client MCP setups and display MCP actions")
-			fmt.Println("  zenfd task list     List current tasks across active projects")
-			fmt.Println("\nRun 'zenfd --help' for the complete command reference.")
+			fmt.Println("  zenf daemon start   Start daemon in foreground (or -d for background)")
+			fmt.Println("  zenf daemon stop    Gracefully stop running background daemon")
+			fmt.Println("  zenf daemon logs    Stream logs from background daemon")
+			fmt.Println("  zenf status         View comprehensive status of daemon & all AI MCP clients")
+			fmt.Println("  zenf mcp            Audit AI client MCP setups and display MCP actions")
+			fmt.Println("  zenf task list      List current tasks across active projects")
+			fmt.Println("\nRun 'zenf --help' for the complete command reference.")
 		},
 	}
 
 	rootCmd.PersistentFlags().StringVar(&defaultURL, "url", "http://127.0.0.1:1123", "Daemon control plane URL")
 
-	// 1. Daemon Command
+	// 1. Daemon Command Group (Show helper if invoked without subcommand)
 	daemonCmd := &cobra.Command{
-		Use:   "daemon",
-		Short: "Start the long-running background orchestrator and gateway server",
+		Use:   "daemon [command]",
+		Short: "Manage the background orchestrator and gateway server",
+		Run: func(cmd *cobra.Command, args []string) {
+			_ = cmd.Help()
+		},
+	}
+
+	var daemonDetach bool
+	daemonStartCmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the orchestrator & web cockpit (use -d/--detach for background)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			dbPath := resolveHomePath(defaultDBPath)
-			if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+			stateDir := filepath.Dir(dbPath)
+			if err := os.MkdirAll(stateDir, 0755); err != nil {
 				return fmt.Errorf("failed to create state directory: %w", err)
 			}
 
-			fmt.Printf("ZenForge Daemon (zenfd) v%s starting...\n", Version)
+			pidFile := filepath.Join(stateDir, "zenf.pid")
+			logFile := filepath.Join(stateDir, "zenf.log")
+
+			// Check if already running
+			client := &http.Client{Timeout: 500 * time.Millisecond}
+			if resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/api/v1/tasks", defaultPort)); err == nil {
+				resp.Body.Close()
+				fmt.Printf("⚠ ZenForge Daemon is already active at http://127.0.0.1:%d\n", defaultPort)
+				if data, err := os.ReadFile(pidFile); err == nil {
+					fmt.Printf("  PID: %s\n", strings.TrimSpace(string(data)))
+				}
+				return nil
+			}
+
+			// Handle detached execution (-d / --detach)
+			if daemonDetach {
+				selfBin, err := os.Executable()
+				if err != nil {
+					return fmt.Errorf("failed to find self binary: %w", err)
+				}
+
+				logFd, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+				if err != nil {
+					return fmt.Errorf("failed to open daemon log file: %w", err)
+				}
+				defer logFd.Close()
+
+				childCmd := exec.Command(selfBin, "daemon", "start",
+					"--port", fmt.Sprintf("%d", defaultPort),
+					"--db", defaultDBPath,
+				)
+				childCmd.Stdout = logFd
+				childCmd.Stderr = logFd
+				setDetachedProcess(childCmd)
+
+				if err := childCmd.Start(); err != nil {
+					return fmt.Errorf("failed to launch detached daemon: %w", err)
+				}
+
+				pid := childCmd.Process.Pid
+				_ = os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", pid)), 0644)
+
+				fmt.Printf("==> Starting ZenForge Daemon in background...\n")
+				// Wait briefly to verify health
+				started := false
+				for i := 0; i < 20; i++ {
+					time.Sleep(100 * time.Millisecond)
+					if resp, err := client.Get(fmt.Sprintf("http://127.0.0.1:%d/api/v1/tasks", defaultPort)); err == nil {
+						resp.Body.Close()
+						started = true
+						break
+					}
+				}
+
+				if started {
+					fmt.Printf("  ✔ Daemon running (PID: %d)\n", pid)
+					fmt.Printf("  ✔ Control Plane active at http://127.0.0.1:%d\n", defaultPort)
+					fmt.Printf("  ✔ Logs streaming to %s\n", logFile)
+					fmt.Println("\nTo stop the daemon, run: 'zenf daemon stop'")
+					return nil
+				}
+
+				return fmt.Errorf("daemon failed to start properly. Check logs at %s", logFile)
+			}
+
+			// Foreground execution
+			fmt.Printf("ZenForge Control Plane (zenf) v%s starting...\n", Version)
 			fmt.Printf("  • Port:     %d\n", defaultPort)
 			fmt.Printf("  • Database: %s (SQLite WAL)\n", dbPath)
+
+			// Record foreground PID
+			_ = os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
+			defer os.Remove(pidFile)
 
 			// 1. Storage
 			db, err := storage.Open(dbPath)
@@ -105,14 +189,12 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			defer db.Close()
 			store := storage.NewStore(db)
 
-			// 2. Gateway (read-only viewer + public data API + SSE)
+			// 2. Gateway
 			gw := gateway.NewServer(store)
 
-			// 4. Context & Signals
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			// Start HTTP Server
 			listenAddr := fmt.Sprintf("127.0.0.1:%d", defaultPort)
 			errChan := make(chan error, 1)
 
@@ -129,7 +211,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			case err := <-errChan:
 				return fmt.Errorf("gateway error: %w", err)
 			case <-ctx.Done():
-				fmt.Printf("\nShutdown requested. Flushing WAL and closing the gateway...\n")
+				fmt.Printf("\nShutdown requested. Flushing WAL and closing gateway...\n")
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				_ = gw.Shutdown(shutdownCtx)
@@ -138,9 +220,85 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 		},
 	}
+	daemonStartCmd.Flags().BoolVarP(&daemonDetach, "detach", "d", false, "Run daemon in background and return terminal")
+	daemonStartCmd.Flags().IntVarP(&defaultPort, "port", "p", 1123, "Port to bind the HTTP/SSE gateway")
+	daemonStartCmd.Flags().StringVar(&defaultDBPath, "db", "~/.zenforge/state.db", "Path to SQLite WAL database")
 
-	daemonCmd.Flags().IntVarP(&defaultPort, "port", "p", 1123, "Port to bind the HTTP/SSE gateway")
-	daemonCmd.Flags().StringVarP(&defaultDBPath, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
+	daemonStopCmd := &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the running background daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath := resolveHomePath(defaultDBPath)
+			stateDir := filepath.Dir(dbPath)
+			pidFile := filepath.Join(stateDir, "zenf.pid")
+
+			data, err := os.ReadFile(pidFile)
+			if err != nil {
+				// Fallback probe
+				client := &http.Client{Timeout: 500 * time.Millisecond}
+				if _, err := client.Get(defaultURL + "/api/v1/tasks"); err != nil {
+					fmt.Println("○ No active ZenForge Daemon found.")
+					return nil
+				}
+				return fmt.Errorf("daemon is running but PID file not found at %s", pidFile)
+			}
+
+			pidStr := strings.TrimSpace(string(data))
+			var pid int
+			if _, err := fmt.Sscanf(pidStr, "%d", &pid); err != nil {
+				return fmt.Errorf("invalid PID in %s: %s", pidFile, pidStr)
+			}
+
+			proc, err := os.FindProcess(pid)
+			if err != nil {
+				_ = os.Remove(pidFile)
+				fmt.Println("○ Daemon process already stopped.")
+				return nil
+			}
+
+			fmt.Printf("==> Stopping ZenForge Daemon (PID %d)...\n", pid)
+			if err := proc.Signal(syscall.SIGTERM); err != nil {
+				// Process might already be dead
+				_ = os.Remove(pidFile)
+				fmt.Printf("○ Process %d was not reachable (%v). Cleaned PID file.\n", pid, err)
+				return nil
+			}
+
+			// Wait up to 3s for exit
+			for i := 0; i < 30; i++ {
+				time.Sleep(100 * time.Millisecond)
+				if err := proc.Signal(syscall.Signal(0)); err != nil {
+					break
+				}
+			}
+			_ = os.Remove(pidFile)
+			fmt.Printf("✔ ZenForge Daemon stopped successfully.\n")
+			return nil
+		},
+	}
+
+	daemonLogsCmd := &cobra.Command{
+		Use:   "logs",
+		Short: "Tail log output from background daemon",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			dbPath := resolveHomePath(defaultDBPath)
+			logFile := filepath.Join(filepath.Dir(dbPath), "zenf.log")
+
+			if _, err := os.Stat(logFile); err != nil {
+				fmt.Printf("○ No log file found at %s\n", logFile)
+				return nil
+			}
+
+			tailCmd := exec.Command("tail", "-n", "50", "-f", logFile)
+			tailCmd.Stdout = os.Stdout
+			tailCmd.Stderr = os.Stderr
+			return tailCmd.Run()
+		},
+	}
+
+	daemonCmd.AddCommand(daemonStartCmd)
+	daemonCmd.AddCommand(daemonStopCmd)
+	daemonCmd.AddCommand(daemonLogsCmd)
 	rootCmd.AddCommand(daemonCmd)
 
 	// 2. Plan Push Command
@@ -521,11 +679,17 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			}
 
 			// Text Output
-			fmt.Printf("ZenForge Control Plane Status (zenfd v%s)\n", Version)
+			fmt.Printf("ZenForge Control Plane Status (zenf v%s)\n", Version)
 			fmt.Println("────────────────────────────────────────────────────────────────────────")
 			fmt.Println("DAEMON & GATEWAY RUNTIME")
 			if report.Active {
-				fmt.Printf(" • Status       : ● ACTIVE (Serving at %s)\n", report.GatewayURL)
+				// Read PID file if available
+				pidStr := "active"
+				pidFile := filepath.Join(filepath.Dir(resolveHomePath(defaultDBPath)), "zenf.pid")
+				if data, err := os.ReadFile(pidFile); err == nil {
+					pidStr = fmt.Sprintf("pid %s", strings.TrimSpace(string(data)))
+				}
+				fmt.Printf(" • Status       : ● ACTIVE (%s, serving at %s)\n", pidStr, report.GatewayURL)
 				fmt.Printf(" • Cockpit UI   : %s (Web Dashboard)\n", report.GatewayURL)
 				fmt.Printf(" • Database     : %s (SQLite WAL)\n", resolveHomePath(defaultDBPath))
 				fmt.Printf(" • Metrics      : %d Projects | %d Plans | %d Tasks", report.Projects, report.Plans, report.Tasks)
@@ -539,7 +703,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 			} else {
 				fmt.Printf(" • Status       : ○ INACTIVE (Daemon not running)\n")
 				fmt.Printf(" • Gateway URL  : %s\n", report.GatewayURL)
-				fmt.Println(" • Quickstart   : Run 'zenfd daemon' to start orchestrator and web UI")
+				fmt.Println(" • Quickstart   : Run 'zenf daemon start -d' to start daemon in background")
 			}
 
 			fmt.Println("\nAI CLIENT MCP INTEGRATIONS")
@@ -554,7 +718,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 				}
 				fmt.Printf(" • %-14s : %s (%s)\n", cs.Client, badge, cs.ConfigPath)
 			}
-			fmt.Println("\n💡 To configure an AI client: run 'zenfd mcp setup --client <name>'")
+			fmt.Println("\n💡 To configure an AI client: run 'zenf mcp setup --client <name>'")
 			fmt.Println("────────────────────────────────────────────────────────────────────────")
 			return nil
 		},
@@ -568,7 +732,7 @@ and serves a read-only cockpit with real-time SSE updates on port 1123.`,
 	mcpCmd := &cobra.Command{
 		Use:   "mcp [command]",
 		Short: "Manage or run Model Context Protocol (MCP) server for agents",
-		Long: `The 'zenfd mcp' command manages MCP integrations for AI agents.
+		Long: `The 'zenf mcp' command manages MCP integrations for AI agents.
 When invoked directly by an AI client without a TTY (via stdin/stdout pipe), it automatically starts the JSON-RPC stdio server.
 When invoked in an interactive terminal, it displays the integration status and available actions.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -581,7 +745,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 			// If called directly in terminal and not forced via --stdio:
 			// Show status overview + actions help rather than hanging on stdio.
 			if isTerminal && !mcpStdioForce {
-				fmt.Printf("ZenForge MCP Integrations (zenfd v%s)\n", Version)
+				fmt.Printf("ZenForge MCP Integrations (zenf v%s)\n", Version)
 				fmt.Println("────────────────────────────────────────────────────────────────────────")
 				fmt.Println("AI CLIENT MCP STATUS:")
 
@@ -609,10 +773,10 @@ When invoked in an interactive terminal, it displays the integration status and 
 				}
 
 				fmt.Println("\nAVAILABLE MCP ACTIONS:")
-				fmt.Println("  zenfd mcp setup --client <name>   Configure MCP server for AI client (agy, claude, cursor, opencode)")
-				fmt.Println("  zenfd mcp check --client <name>   Audit detailed client configuration and binary validity")
-				fmt.Println("  zenfd mcp --stdio                 Force start JSON-RPC stdio server (for manual piping)")
-				fmt.Println("\nℹ When an AI client spawns 'zenfd mcp', stdio JSON-RPC runs automatically.")
+				fmt.Println("  zenf mcp setup --client <name>   Configure MCP server for AI client (agy, claude, cursor, opencode)")
+				fmt.Println("  zenf mcp check --client <name>   Audit detailed client configuration and binary validity")
+				fmt.Println("  zenf mcp --stdio                 Force start JSON-RPC stdio server (for manual piping)")
+				fmt.Println("\nℹ When an AI client spawns 'zenf mcp', stdio JSON-RPC runs automatically.")
 				fmt.Println("────────────────────────────────────────────────────────────────────────")
 				return nil
 			}
@@ -640,7 +804,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 	var checkJSON bool
 	mcpCheckCmd := &cobra.Command{
 		Use:   "check",
-		Short: "Audit client MCP configuration for zenfd",
+		Short: "Audit client MCP configuration for zenf",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			res, err := zenfdmcp.CheckMCP(zenfdmcp.ClientType(checkClient), checkConfig)
 			if err != nil {
@@ -652,7 +816,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 				return nil
 			}
 			if res.Configured && res.BinaryExists {
-				fmt.Printf("[OK] zenfd MCP is configured and valid in %s (binary: %s)\n", res.ConfigPath, res.BinaryPath)
+				fmt.Printf("[OK] zenf MCP is configured and valid in %s (binary: %s)\n", res.ConfigPath, res.BinaryPath)
 				return nil
 			}
 			fmt.Printf("[NOT_CONFIGURED] %s\n", res.StatusMessage)
@@ -672,7 +836,7 @@ When invoked in an interactive terminal, it displays the integration status and 
 	var setupDryRun bool
 	mcpSetupCmd := &cobra.Command{
 		Use:   "setup",
-		Short: "Configure zenfd MCP server in client configuration (default: agy)",
+		Short: "Configure zenf MCP server in client configuration (default: agy)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			res, err := zenfdmcp.SetupMCP(zenfdmcp.SetupOptions{
 				Client:     zenfdmcp.ClientType(setupClient),
@@ -692,24 +856,24 @@ When invoked in an interactive terminal, it displays the integration status and 
 			}
 
 			if res.Action == "already_configured" {
-				fmt.Printf("[ALREADY_CONFIGURED] zenfd MCP is already configured in %s (binary: %s)\n", res.ConfigPath, res.BinaryPath)
+				fmt.Printf("[ALREADY_CONFIGURED] zenf MCP is already configured in %s (binary: %s)\n", res.ConfigPath, res.BinaryPath)
 				return nil
 			}
 
-			fmt.Printf("[SUCCESS] Configured zenfd MCP server for %s in %s\n", res.Client, res.ConfigPath)
+			fmt.Printf("[SUCCESS] Configured zenf MCP server for %s in %s\n", res.Client, res.ConfigPath)
 			if res.BackupPath != "" {
 				fmt.Printf("Backup saved to: %s\n", res.BackupPath)
 			}
 			fmt.Printf("Binary: %s\n", res.BinaryPath)
 			fmt.Printf("Database: %s\n", res.DBPath)
-			fmt.Println("Please restart your AI client session (e.g. opencode or agy) to load the zenfd MCP tools.")
+			fmt.Println("Please restart your AI client session (e.g. opencode or agy) to load the zenf MCP tools.")
 			return nil
 		},
 	}
 	mcpSetupCmd.Flags().StringVarP(&setupClient, "client", "c", "agy", "Target AI client: agy (default), claude, cursor, opencode")
 	mcpSetupCmd.Flags().StringVar(&setupConfig, "config", "", "Override client config file path")
 	mcpSetupCmd.Flags().StringVarP(&setupDB, "db", "d", "~/.zenforge/state.db", "Path to SQLite WAL database")
-	mcpSetupCmd.Flags().StringVarP(&setupBinary, "binary", "b", "", "Path to zenfd binary (auto-detected if omitted)")
+	mcpSetupCmd.Flags().StringVarP(&setupBinary, "binary", "b", "", "Path to zenf binary (auto-detected if omitted)")
 	mcpSetupCmd.Flags().BoolVarP(&setupForce, "force", "f", false, "Force overwrite existing entry")
 	mcpSetupCmd.Flags().BoolVar(&setupDryRun, "dry-run", false, "Preview configuration changes without writing")
 	mcpCmd.AddCommand(mcpSetupCmd)

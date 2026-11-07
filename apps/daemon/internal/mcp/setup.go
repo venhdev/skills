@@ -109,7 +109,12 @@ func ResolveBinaryPath(override string) (string, error) {
 		}
 	}
 
-	// 2. Check PATH
+	// 2. Check PATH (prefer zenf, then zenfd)
+	if path, err := exec.LookPath("zenf"); err == nil {
+		if abs, err := filepath.Abs(path); err == nil {
+			return abs, nil
+		}
+	}
 	if path, err := exec.LookPath("zenfd"); err == nil {
 		if abs, err := filepath.Abs(path); err == nil {
 			return abs, nil
@@ -119,8 +124,11 @@ func ResolveBinaryPath(override string) (string, error) {
 	// 3. Check standard repository/relative locations
 	cwd, _ := os.Getwd()
 	candidates := []string{
+		filepath.Join(cwd, "apps", "daemon", "bin", "zenf"),
 		filepath.Join(cwd, "apps", "daemon", "bin", "zenfd"),
+		filepath.Join(cwd, "bin", "zenf"),
 		filepath.Join(cwd, "bin", "zenfd"),
+		filepath.Join(cwd, "zenf"),
 		filepath.Join(cwd, "zenfd"),
 	}
 	for _, cand := range candidates {

@@ -6,9 +6,9 @@
 npx skills add venhdev/skills
 ```
 
-## zenfd
+## zenf
 
-`zenfd` is the single-binary control plane and multi-agent tracking daemon for ZenForge.
+`zenf` is the single-binary control plane and multi-agent tracking daemon for ZenForge.
 
 ### Install
 
@@ -22,16 +22,20 @@ Or download pre-compiled binaries directly from [GitHub Releases](https://github
 
 ```bash
 cd apps/daemon && make build
-# Binary is produced at apps/daemon/bin/zenfd
+# Binary is produced at apps/daemon/bin/zenf (and symlinked as zenfd)
 ```
 
 ### CLI Quickstart
 
 ```bash
-zenfd              # Show quickstart overview and active daemon state
-zenfd daemon       # Start background daemon & cockpit UI at http://127.0.0.1:1123
-zenfd status       # Comprehensive status report (daemon runtime + all AI MCP clients)
-zenfd mcp          # Audit MCP setups & view integration guide (zero hang)
+zenf                  # Show quickstart overview and active daemon state
+zenf daemon           # Display daemon management commands
+zenf daemon start     # Start daemon in foreground
+zenf daemon start -d  # Start daemon in background (detached mode)
+zenf daemon stop      # Gracefully stop running background daemon
+zenf daemon logs      # Stream live logs from background daemon
+zenf status           # Comprehensive status report (daemon runtime + all AI MCP clients)
+zenf mcp              # Audit MCP setups & view integration guide (zero hang)
 ```
 
 Client setup, tool reference, write surfaces, and verification: [MCP.md](MCP.md).

@@ -26,12 +26,12 @@ func getFreePort(t *testing.T) int {
 
 func TestCLI_EndToEndLifecycle(t *testing.T) {
 	tempDir := t.TempDir()
-	binPath := filepath.Join(tempDir, "zenfd")
+	binPath := filepath.Join(tempDir, "zenf")
 
 	// 1. Build CLI binary
 	buildCmd := exec.Command("go", "build", "-o", binPath, ".")
 	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("failed to build zenfd: %v, out: %s", err, string(out))
+		t.Fatalf("failed to build zenf: %v, out: %s", err, string(out))
 	}
 
 	port := getFreePort(t)
@@ -42,7 +42,7 @@ func TestCLI_EndToEndLifecycle(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	daemonCmd := exec.CommandContext(ctx, binPath, "daemon",
+	daemonCmd := exec.CommandContext(ctx, binPath, "daemon", "start",
 		"--port", fmt.Sprintf("%d", port),
 		"--db", dbPath,
 	)

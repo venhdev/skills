@@ -1,16 +1,16 @@
 version: 2
 
-project_name: zenfd
+project_name: zenf
 
 before:
   hooks:
     - make build-web
 
 builds:
-  - id: zenfd
-    main: ./cmd/zenfd
+  - id: zenf
+    main: ./cmd/zenf
     dir: apps/daemon
-    binary: zenfd
+    binary: zenf
     env:
       - CGO_ENABLED=0
     goos:
@@ -28,7 +28,7 @@ builds:
 archives:
   - id: default
     builds:
-      - zenfd
+      - zenf
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
